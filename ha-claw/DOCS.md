@@ -35,4 +35,4 @@ Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Ba
 
 ## Support
 
-Issues & Feature Requests: [GitHub Repository](https://github.com/YOUR_USERNAME/ha-claw)
+Issues & Feature Requests: [GitHub Repository](https://github.com/unpaved028/ha-claw)

@@ -5,7 +5,7 @@ name: "HA-Claw"
 version: "0.2.0"
 slug: "ha-claw"
 description: "Local AI-powered Smart Home Assistant with Telegram & Web UI"
-url: "https://github.com/YOUR_USERNAME/ha-claw"
+url: "https://github.com/unpaved028/ha-claw"
 
 # Supported architectures (HA Green = aarch64)
 arch:
@@ -51,4 +51,3 @@ schema:
   log_level: "list(debug|info|warn|error)"
 
 # ── Image ─────────────────────────────────────────────────────
-image: "ghcr.io/{username}/ha-claw-{arch}"

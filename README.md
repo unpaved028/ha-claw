@@ -15,7 +15,7 @@ Local AI-powered Smart Home Assistant – runs as a Home Assistant Add-on.
 ## Install on Home Assistant
 
 1. Go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories**
-2. Add: `https://github.com/YOUR_USERNAME/ha-claw`
+2. Add: `https://github.com/unpaved028/ha-claw`
 3. Find **HA-Claw** → click **Install**
 4. Go to **Configuration** tab:
    - Enter your **OpenRouter API key** (get one at [openrouter.ai](https://openrouter.ai))
