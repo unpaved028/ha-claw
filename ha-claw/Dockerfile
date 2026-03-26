@@ -3,21 +3,21 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install ALL dependencies (including devDeps for tsc)
+# Install ALL dependencies including devDeps (typescript needed for build)
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci && echo "build-deps-installed"
 
-# Copy source & compile TypeScript
+# Copy source & compile TypeScript (explicit path to avoid npx issues)
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN npx tsc
+RUN ./node_modules/.bin/tsc
 
 # ── Runtime Stage (minimal image) ─────────────────────────────
 FROM node:22-alpine
 
 WORKDIR /app
 
-# Install only production dependencies (fresh, no devDeps)
+# Install only production dependencies (no devDeps = smaller image)
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force
 
