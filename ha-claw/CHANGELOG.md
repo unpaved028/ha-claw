@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2
+
+### Improved
+- **Butler Agent Prompt**: Stricter tool-use workflow – agent must search entities before acting, no guessing IDs
+- Clearer rules for ambiguous commands (asks for clarification, e.g. which room)
+- Dangerous actions now auto-approved when unambiguous (e.g. "Licht an")
+
+### Added
+- 🎙️ **Speech-to-Text** microphone button in Web UI (Browser Web Speech API, German)
+
 ## 0.2.1
 
 ### Added
