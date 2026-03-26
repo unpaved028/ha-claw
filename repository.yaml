@@ -1,0 +1,5 @@
+# HA-Claw Add-on Repository
+# Users add this repo URL in: Settings → Add-ons → Add-on Store → ⋮ → Repositories
+name: HA-Claw Add-on Repository
+url: https://github.com/YOUR_USERNAME/ha-claw
+maintainer: Your Name

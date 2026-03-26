@@ -1,0 +1,7 @@
+{
+  "openrouter_api_key": "YOUR_KEY_HERE",
+  "openrouter_default_model": "google/gemini-2.5-flash-preview",
+  "telegram_bot_token": "",
+  "telegram_allowed_user_ids": [],
+  "log_level": "debug"
+}

@@ -1,0 +1,141 @@
+/**
+ * agentic-loop.ts – Core AI reasoning loop.
+ *
+ * Flow: User message → LLM → (Tool call → Execute → LLM)* → Final answer
+ *
+ * SAFETY:
+ * - MAX_ITERATIONS = 10 (non-negotiable hard limit)
+ * - Dangerous tools require explicit user confirmation
+ * - All tool results are logged
+ */
+
+import { callLLM } from './openrouter.js';
+import { createLogger } from './logger.js';
+import { getToolDefinitions, executeTool, isDangerous } from '../tools/registry.js';
+import type { ChatMessage, AgentConfig, LoopResult, ToolCall } from './types.js';
+
+const log = createLogger('loop');
+
+const MAX_ITERATIONS = 10; // ⛔ Non-negotiable
+
+/**
+ * Confirmation callback type.
+ * The agentic loop doesn't know about Telegram or Web UI –
+ * it just calls this function and waits for a boolean.
+ */
+export type ConfirmationFn = (toolName: string, args: Record<string, unknown>) => Promise<boolean>;
+
+/** Default: auto-approve (used when no confirmation mechanism is available) */
+const autoApprove: ConfirmationFn = async () => true;
+
+/**
+ * Run the agentic loop for a single user message.
+ */
+export async function runAgenticLoop(
+  userMessage: string,
+  agent: AgentConfig,
+  confirmFn: ConfirmationFn = autoApprove,
+): Promise<LoopResult> {
+  const toolDefs = getToolDefinitions();
+  const toolCallLog: { name: string; result: string }[] = [];
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: agent.systemPrompt },
+    { role: 'user', content: userMessage },
+  ];
+
+  log.info('Loop started', { agent: agent.name, tools: toolDefs.length });
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // 1. Call LLM
+    const response = await callLLM(messages, {
+      model: agent.model,
+      tools: toolDefs.length > 0 ? toolDefs : undefined,
+      temperature: agent.temperature,
+      maxTokens: agent.maxTokens,
+    });
+
+    const choice = response.choices[0];
+    if (!choice) {
+      return { response: '⚠️ Empty LLM response.', iterations: i + 1, toolCalls: toolCallLog };
+    }
+
+    const assistantMsg = choice.message;
+
+    // 2. Final answer?
+    if (choice.finish_reason === 'stop' || !assistantMsg.tool_calls?.length) {
+      log.info('Loop completed', { iterations: i + 1, toolCalls: toolCallLog.length });
+      return {
+        response: assistantMsg.content ?? '(keine Antwort)',
+        iterations: i + 1,
+        toolCalls: toolCallLog,
+      };
+    }
+
+    // 3. Process tool calls
+    messages.push({
+      role: 'assistant',
+      content: assistantMsg.content,
+      tool_calls: assistantMsg.tool_calls,
+    });
+
+    for (const call of assistantMsg.tool_calls) {
+      const result = await executeWithSafetyGate(call, confirmFn);
+      toolCallLog.push({ name: call.function.name, result: truncate(result, 500) });
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        content: result,
+      });
+    }
+  }
+
+  log.warn('Max iterations reached', { max: MAX_ITERATIONS });
+  return {
+    response: '⚠️ Maximale Iterationen erreicht. Loop wurde aus Sicherheitsgründen beendet.',
+    iterations: MAX_ITERATIONS,
+    toolCalls: toolCallLog,
+  };
+}
+
+/**
+ * Execute a tool call with safety gate for dangerous tools.
+ */
+async function executeWithSafetyGate(
+  call: ToolCall,
+  confirmFn: ConfirmationFn,
+): Promise<string> {
+  const name = call.function.name;
+  let args: Record<string, unknown>;
+
+  try {
+    args = JSON.parse(call.function.arguments);
+  } catch {
+    return JSON.stringify({ error: `Invalid JSON arguments for tool ${name}` });
+  }
+
+  // Safety Gate
+  if (isDangerous(name)) {
+    log.info('Dangerous tool – requesting confirmation', { tool: name, args });
+    const approved = await confirmFn(name, args);
+    if (!approved) {
+      log.info('Tool call DENIED by user', { tool: name });
+      return JSON.stringify({ error: 'User denied this action.' });
+    }
+    log.info('Tool call APPROVED by user', { tool: name });
+  }
+
+  try {
+    const result = await executeTool(name, args);
+    return JSON.stringify(result);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error('Tool execution failed', { tool: name, error: errMsg });
+    return JSON.stringify({ error: errMsg });
+  }
+}
+
+function truncate(str: string, max: number): string {
+  return str.length > max ? str.slice(0, max) + '…' : str;
+}

@@ -1,0 +1,54 @@
+# HA-Claw Add-on Manifest
+# Reference: https://developers.home-assistant.io/docs/add-ons/configuration
+
+name: "HA-Claw"
+version: "0.2.0"
+slug: "ha-claw"
+description: "Local AI-powered Smart Home Assistant with Telegram & Web UI"
+url: "https://github.com/YOUR_USERNAME/ha-claw"
+
+# Supported architectures (HA Green = aarch64)
+arch:
+  - aarch64
+  - amd64
+
+# Lifecycle
+init: false
+startup: application
+boot: auto
+
+# ── Ingress (Web-UI in HA Sidebar) ────────────────────────────
+ingress: true
+ingress_port: 3100
+panel_icon: "mdi:robot-outline"
+panel_title: "HA-Claw"
+
+# ── API Access ────────────────────────────────────────────────
+# Grants SUPERVISOR_TOKEN for calling HA services directly
+homeassistant_api: true
+hassio_api: true
+
+# ── Persistent storage mapping ────────────────────────────────
+# /data/ is always persistent. /share/ gives access to HA shared folder.
+map:
+  - share:rw
+
+# ── User-configurable options (shown in Add-on UI) ────────────
+options:
+  openrouter_api_key: ""
+  openrouter_default_model: "google/gemini-2.5-flash-preview"
+  telegram_bot_token: ""
+  telegram_allowed_user_ids: []
+  log_level: "info"
+
+# ── Schema validation for options ─────────────────────────────
+schema:
+  openrouter_api_key: "str"
+  openrouter_default_model: "str"
+  telegram_bot_token: "str?"
+  telegram_allowed_user_ids:
+    - "int"
+  log_level: "list(debug|info|warn|error)"
+
+# ── Image ─────────────────────────────────────────────────────
+image: "ghcr.io/{username}/ha-claw-{arch}"

@@ -1,0 +1,24 @@
+{
+  "name": "ha-claw",
+  "version": "0.2.0",
+  "description": "HA-Claw – Local AI Smart Home Assistant (HA Add-on)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "grammy": "^1.35.0",
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "tsx": "^4.19.3",
+    "@types/node": "^22.12.0"
+  }
+}

@@ -1,0 +1,19 @@
+# Dependencies
+ha-claw/node_modules/
+
+# TypeScript output
+ha-claw/dist/
+
+# Local dev config (contains API keys!)
+ha-claw/dev-options.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local data (created during dev)
+ha-claw/data/
+
+# IDE
+.vscode/
+.idea/
