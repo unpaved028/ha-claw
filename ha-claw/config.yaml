@@ -2,7 +2,7 @@
 # Reference: https://developers.home-assistant.io/docs/add-ons/configuration
 
 name: "HA-Claw"
-version: "0.2.0"
+version: "0.2.1"
 slug: "ha-claw"
 description: "Local AI-powered Smart Home Assistant with Telegram & Web UI"
 url: "https://github.com/unpaved028/ha-claw"
@@ -24,12 +24,10 @@ panel_icon: "mdi:robot-outline"
 panel_title: "HA-Claw"
 
 # ── API Access ────────────────────────────────────────────────
-# Grants SUPERVISOR_TOKEN for calling HA services directly
 homeassistant_api: true
 hassio_api: true
 
 # ── Persistent storage mapping ────────────────────────────────
-# /data/ is always persistent. /share/ gives access to HA shared folder.
 map:
   - share:rw
 
@@ -38,16 +36,13 @@ options:
   openrouter_api_key: ""
   openrouter_default_model: "google/gemini-2.5-flash-preview"
   telegram_bot_token: ""
-  telegram_allowed_user_ids: []
+  telegram_allowed_user_ids: ""
   log_level: "info"
 
 # ── Schema validation for options ─────────────────────────────
 schema:
   openrouter_api_key: "str"
-  openrouter_default_model: "str"
+  openrouter_default_model: "list(google/gemini-2.5-flash-preview|google/gemini-2.0-flash-exp|meta-llama/llama-3.3-70b-instruct|google/gemini-2.5-pro-preview|anthropic/claude-sonnet-4|openai/gpt-4o-mini|openai/gpt-4o|mistralai/mistral-large)"
   telegram_bot_token: "str?"
-  telegram_allowed_user_ids:
-    - "int"
+  telegram_allowed_user_ids: "str?"
   log_level: "list(debug|info|warn|error)"
-
-# ── Image ─────────────────────────────────────────────────────

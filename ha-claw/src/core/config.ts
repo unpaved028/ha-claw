@@ -50,8 +50,16 @@ interface AddonOptions {
   openrouter_api_key: string;
   openrouter_default_model: string;
   telegram_bot_token: string;
-  telegram_allowed_user_ids: number[];
+  telegram_allowed_user_ids: string | number[] | number;
   log_level: string;
+}
+
+/** Parse user IDs from string "123,456", array [123,456], or single number 123. */
+function parseUserIds(raw: string | number[] | number): number[] {
+  if (Array.isArray(raw)) return raw.map(Number).filter(Boolean);
+  if (typeof raw === 'number') return [raw];
+  if (typeof raw === 'string') return raw.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n));
+  return [];
 }
 
 // ---------------------------------------------------------------------------
@@ -92,12 +100,15 @@ function loadConfig(): AppConfig {
     throw new Error('❌ openrouter_api_key is required. Set it in the Add-on configuration.');
   }
 
+  // ── Parse user IDs (supports string, array, single number) ──
+  const allowedUserIds = parseUserIds(options.telegram_allowed_user_ids);
+
   // ── Telegram is optional ─────────────────────────────────────
   const hasTelegram = options.telegram_bot_token && options.telegram_bot_token.trim() !== '';
 
-  if (hasTelegram && options.telegram_allowed_user_ids.length === 0) {
+  if (hasTelegram && allowedUserIds.length === 0) {
     throw new Error(
-      '❌ telegram_allowed_user_ids must not be empty when telegram_bot_token is set.',
+      '❌ telegram_allowed_user_ids must not be empty when telegram_bot_token is set. Enter comma-separated user IDs.',
     );
   }
 
@@ -106,7 +117,7 @@ function loadConfig(): AppConfig {
     openRouterDefaultModel: options.openrouter_default_model,
 
     telegramBotToken: hasTelegram ? options.telegram_bot_token : null,
-    telegramAllowedUserIds: options.telegram_allowed_user_ids,
+    telegramAllowedUserIds: allowedUserIds,
 
     // HA Supervisor injects this automatically inside the add-on container
     supervisorToken: process.env['SUPERVISOR_TOKEN'] ?? null,
