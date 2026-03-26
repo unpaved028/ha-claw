@@ -1,12 +1,11 @@
 # ── Build Stage ────────────────────────────────────────────────
-# Multi-arch: node:22-alpine supports aarch64 (HA Green) + amd64 natively
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies first (layer caching)
+# Install ALL dependencies (including devDeps for tsc)
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Copy source & compile TypeScript
 COPY tsconfig.json ./
@@ -18,16 +17,17 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy only production artifacts
-COPY --from=builder /app/node_modules ./node_modules
+# Install only production dependencies (fresh, no devDeps)
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# Copy compiled JS from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package.json ./
 
 # Copy agent definitions
 COPY agents/ ./agents/
 
 # /data is mounted by HA Supervisor (persistent across restarts/updates)
-# SUPERVISOR_TOKEN is injected by HA Supervisor at runtime
 VOLUME /data
 
 CMD ["node", "dist/index.js"]
