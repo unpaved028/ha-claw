@@ -42,7 +42,7 @@ options:
 # ── Schema validation for options ─────────────────────────────
 schema:
   openrouter_api_key: "str"
-  openrouter_default_model: "list(openrouter/auto|google/gemini-2.5-flash-preview|google/gemini-2.0-flash-exp|meta-llama/llama-3.3-70b-instruct|moonshotai/kimi-k2.5|xiaomi/mimo-v2-pro|google/gemini-2.5-pro-preview|anthropic/claude-sonnet-4|openai/gpt-4o-mini|openai/gpt-4o|mistralai/mistral-large)"
+  openrouter_default_model: "list(openrouter/auto|google/gemini-2.5-flash-preview|google/gemini-2.0-flash-exp|meta-llama/llama-3.3-70b-instruct|moonshotai/kimi-k2.5|xiaomi/mimo-v2-pro|google/gemini-2.5-pro-preview|anthropic/claude-sonnet-4|anthropic/claude-opus-4.6|openai/gpt-4o-mini|openai/gpt-4o|mistralai/mistral-large)"
   telegram_bot_token: "str?"
   telegram_allowed_user_ids: "str?"
   log_level: "list(debug|info|warn|error)"
