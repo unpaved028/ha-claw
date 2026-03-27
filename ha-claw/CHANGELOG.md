@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3
+
+### Changed
+- Miscellaneous improvements and fixes from latest development update.
+
 ## 0.2.2
 
 ### Improved
