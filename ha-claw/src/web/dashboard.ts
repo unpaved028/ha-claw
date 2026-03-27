@@ -1569,8 +1569,12 @@ const micBtn=document.getElementById('mic');
   try{
     const r=await fetch(base+'/api/settings');
     const d=await r.json();
-    if(d.profile&&d.profile.userName){
-      document.getElementById('welcome-name').textContent=d.profile.userName+'.';
+    if(d.profile){
+      if(d.profile.userName) {
+        document.getElementById('welcome-name').textContent=d.profile.userName+'.';
+        window.userName=d.profile.userName.toUpperCase();
+      }
+      if(d.profile.botName) window.botName=d.profile.botName.toUpperCase();
     }
   }catch(e){}
 })();
@@ -1701,9 +1705,9 @@ function addMsg(text,cls){
   const label=document.createElement('div');
   label.className='msg-label'+(cls==='user'?' user-label':'');
   if(cls==='bot'){
-    label.innerHTML='<span class="msg-label-icon">&#9889;</span> HA-CLAW';
+    label.innerHTML='<span class="msg-label-icon">&#9889;</span> '+(window.botName||'HA-CLAW');
   }else{
-    label.textContent='DU';
+    label.textContent=(window.userName||'DU');
   }
   group.appendChild(label);
 
@@ -1907,6 +1911,8 @@ async function loadSettings(){
     if(d.profile){
       document.getElementById('profile-bot-name').value=d.profile.botName||'';
       document.getElementById('profile-user-name').value=d.profile.userName||'';
+      window.botName=(d.profile.botName||'HA-CLAW').toUpperCase();
+      window.userName=(d.profile.userName||'DU').toUpperCase();
       if(d.profile.personality){
         const p=d.profile.personality;
         ['directness','formality','humor','verbosity'].forEach(k=>{
@@ -1954,6 +1960,8 @@ async function saveProfileNames(){
   if(!botName||!userName)return;
   try{
     await fetch(base+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({botName,userName})});
+    window.botName=botName.toUpperCase();
+    window.userName=userName.toUpperCase();
     btn.textContent='Gespeichert!';btn.classList.add('saved');
     setTimeout(()=>{btn.textContent='Speichern';btn.classList.remove('saved');},1500);
     const agentName=document.querySelector('.settings-agent-name');
