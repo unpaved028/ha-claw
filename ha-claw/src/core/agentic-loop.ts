@@ -82,7 +82,7 @@ export async function runAgenticLoop(
     if (choice.finish_reason === 'stop' || !assistantMsg.tool_calls?.length) {
       log.info('Loop completed', { iterations: i + 1, toolCalls: toolCallLog.length });
       return {
-        response: assistantMsg.content ?? '(keine Antwort)',
+        response: sanitizeResponse(assistantMsg.content ?? '(keine Antwort)'),
         iterations: i + 1,
         toolCalls: toolCallLog,
       };
@@ -154,4 +154,25 @@ async function executeWithSafetyGate(
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max) + '…' : str;
+}
+
+/**
+ * Strip raw tool-call syntax that weaker LLMs sometimes inject into text.
+ * Patterns: OLCALL>[...]ALL>, ```tool_code...```, <tool_call>...</tool_call>, etc.
+ */
+function sanitizeResponse(text: string): string {
+  let s = text;
+  // OLCALL>...ALL> pattern (Gemini)
+  s = s.replace(/OLCALL>[\s\S]*?ALL>/g, '');
+  // ```tool_code ... ``` blocks
+  s = s.replace(/```tool_code[\s\S]*?```/g, '');
+  // <tool_call>...</tool_call> XML tags
+  s = s.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
+  // <function_call>...</function_call>
+  s = s.replace(/<function_call>[\s\S]*?<\/function_call>/g, '');
+  // [TOOL_CALLS] ... patterns
+  s = s.replace(/\[TOOL_CALLS\][\s\S]*?(?:\[\/TOOL_CALLS\]|$)/g, '');
+  // Clean up excess whitespace left behind
+  s = s.replace(/\n{3,}/g, '\n\n').trim();
+  return s;
 }

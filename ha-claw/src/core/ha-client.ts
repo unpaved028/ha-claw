@@ -112,16 +112,36 @@ export async function callService(
 }
 
 /**
- * Get a list of all areas.
+ * Render a Jinja2 template via HA's /api/template endpoint.
+ * Returns the rendered string.
  */
-export async function getAreas(): Promise<unknown[]> {
-  // Uses the websocket-compatible template API
-  return haFetch<unknown[]>('/template', 'POST', {
-    template: '{{ areas() | list | tojson }}',
-  }).catch(() => {
-    log.warn('Areas API not available – using empty list');
-    return [];
+export async function renderTemplate(template: string): Promise<string> {
+  const url = `${appConfig.haApiUrl}/template`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${appConfig.supervisorToken}`,
+    'Content-Type': 'application/json',
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ template }),
   });
+  if (!res.ok) throw new Error(`Template API ${res.status}`);
+  return res.text();
+}
+
+/**
+ * Get area → entity mapping. Returns a map of area_name → entity_id[].
+ */
+export async function getAreaEntityMap(): Promise<Record<string, string[]>> {
+  try {
+    const tpl = `{% set result = namespace(data={}) %}{% for area_id in areas() %}{% set area_name = area_name(area_id) %}{% set entities = area_entities(area_id) %}{% set _ = result.data.update({area_name: entities}) %}{% endfor %}{{ result.data | tojson }}`;
+    const raw = await renderTemplate(tpl);
+    return JSON.parse(raw) as Record<string, string[]>;
+  } catch (err) {
+    log.warn('Area-entity mapping failed', { error: String(err) });
+    return {};
+  }
 }
 
 /**

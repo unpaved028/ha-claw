@@ -1427,6 +1427,13 @@ body{
                   <option value="">Standard (Config)</option>
                 </select>
                 <p class="welcome-sub" style="font-size:0.75rem;margin-top:0.4rem">Aenderungen ueberschreiben den Add-on Standard fuer diesen Browser.</p>
+                <div style="margin-top:0.8rem;padding:0.6rem;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:0.75rem;line-height:1.5">
+                  <strong style="color:var(--accent)">Empfehlung:</strong> Fuer zuverlaessiges Tool-Calling und natuerliche Antworten:<br>
+                  &#9733; <strong>GPT-4o-mini</strong> – bestes Preis/Leistung<br>
+                  &#9733; <strong>Claude 3.5 Sonnet/Haiku</strong> – exzellentes Tool-Calling<br>
+                  &#9733; <strong>GPT-4o</strong> – Premium-Qualitaet<br>
+                  &#9888; Gemini Flash ist guenstig, aber oft unzuverlaessig bei Tool-Calls.
+                </div>
               </div>
 
               <div class="model-list" id="model-list" style="margin-top:1.5rem">
@@ -1456,9 +1463,9 @@ body{
                 </div>
               </div>
               <div class="security-card">
-                <div class="security-icon">&#128274;</div>
-                <div class="security-title">Lokale Ausfuehrung</div>
-                <div class="security-desc" id="security-desc">Alle Daten bleiben auf deinem Home Assistant. Keine Cloud-Abhaengigkeit.</div>
+                <div class="security-icon">&#9889;</div>
+                <div class="security-title">Ausfuehrung</div>
+                <div class="security-desc" id="security-desc">Aktionen werden lokal ausgefuehrt, LLM-Anfragen gehen an Cloud-API.</div>
               </div>
             </div>
           </div>
@@ -1803,7 +1810,6 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     if(btn.dataset.page==='settings') {
        loadSettings();
        loadBacklog();
-       initModelForge();
     }
   });
 });
@@ -2077,13 +2083,39 @@ async function loadSettings(){
       document.getElementById('settings-heap-bar').style.width=pct+'%';
     }
 
+    // Model dropdown
+    const sel=document.getElementById('model-select');
+    const saved=localStorage.getItem('ha-claw-model-override');
+    const activeModel=saved||d.model;
+    if(d.availableModels){
+      d.availableModels.forEach(function(mid){
+        const opt=document.createElement('option');
+        opt.value=mid;
+        opt.textContent=mid;
+        if(mid===activeModel)opt.selected=true;
+        sel.appendChild(opt);
+      });
+      // If current model not in list, add it
+      if(activeModel && !d.availableModels.includes(activeModel)){
+        const opt=document.createElement('option');
+        opt.value=activeModel;
+        opt.textContent=activeModel;
+        opt.selected=true;
+        sel.appendChild(opt);
+      }
+    }
+    if(saved){
+      document.getElementById('active-model-badge').textContent='Browser Override';
+      document.getElementById('active-model-badge').style.background='var(--success)';
+    }
+
     // Security
     const secParts=[];
     if(d.haAvailable) secParts.push('HA API verbunden');
     else secParts.push('HA API nicht verfuegbar');
     if(d.telegramConfigured) secParts.push('Telegram aktiv');
     document.getElementById('security-desc').textContent=
-      'Modus: '+(d.mode==='addon'?'HA Add-on':'Standalone')+'. '+secParts.join(', ')+'. Alle Daten bleiben lokal.';
+      'Modus: '+(d.mode==='addon'?'HA Add-on':'Standalone')+'. '+secParts.join(', ')+'. Aktionen werden lokal ausgefuehrt, LLM-Anfragen gehen an Cloud-API.';
 
     // Tools
     const grid=document.getElementById('tools-grid');
@@ -2490,41 +2522,20 @@ function closeToolModal(e){
 }
 
 // ── Model Selection Override ──────────────────────────────
-async function initModelForge(){
-  const sel=document.getElementById('model-select');
-  const saved=localStorage.getItem('ha-claw-model-override');
-  if(saved) {
-    document.getElementById('active-model-badge').textContent='Browser Override';
-    document.getElementById('active-model-badge').style.background='var(--success)';
-  }
-  
-  try{
-    const r=await fetch(base+'/api/models');
-    const d=await r.json();
-    if(d.models){
-      d.models.forEach(m=>{
-        const opt=document.createElement('option');
-        opt.value=m.id;
-        opt.textContent=m.name||m.id;
-        if(m.id===saved)opt.selected=true;
-        sel.appendChild(opt);
-      });
-    }
-  }catch(e){}
-}
-
 async function updateModelOverride(){
   const val=document.getElementById('model-select').value;
   if(!val){
     localStorage.removeItem('ha-claw-model-override');
+    await fetch(base+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({modelOverride:''})});
     location.reload();
     return;
   }
   localStorage.setItem('ha-claw-model-override',val);
+  await fetch(base+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({modelOverride:val})});
   const badge=document.getElementById('active-model-badge');
   badge.textContent='Browser Override';
   badge.style.background='var(--success)';
-  
+
   // Update current display
   document.getElementById('active-model-name').textContent=val.split('/').pop();
   document.getElementById('active-model-id').textContent=val;

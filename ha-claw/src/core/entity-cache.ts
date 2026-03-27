@@ -2,8 +2,9 @@
  * entity-cache.ts – Fetches all HA entities at startup and builds a compact
  * summary for injection into the agent system prompt.
  *
- * The cache is a simple string grouped by area/domain, designed to give the
- * LLM enough context to pick the right entity_id without searching first.
+ * Groups entities by AREA (room) first, then by domain within each area.
+ * Entities without an area are grouped under "Ohne Bereich".
+ * This makes it much easier for the LLM to understand spatial context.
  */
 
 import * as ha from './ha-client.js';
@@ -14,48 +15,92 @@ const log = createLogger('entity-cache');
 let cachedSummary = '';
 
 /**
- * Fetch all entities and build a compact summary string.
- * Called once at startup. Failures are non-fatal (returns empty string).
+ * Fetch all entities, resolve area mappings, and build a compact summary.
+ * Called once at startup. Failures are non-fatal.
  */
 export async function buildEntityCache(): Promise<string> {
   try {
-    const states = await ha.getStates();
-    log.info('Entity cache: fetched states', { count: states.length });
+    const [states, areaMap] = await Promise.all([
+      ha.getStates(),
+      ha.getAreaEntityMap(),
+    ]);
 
-    // Group by domain
-    const byDomain = new Map<string, { id: string; name: string; state: string }[]>();
+    log.info('Entity cache: fetched data', {
+      entities: states.length,
+      areas: Object.keys(areaMap).length,
+    });
 
+    // Build reverse map: entity_id → area_name
+    const entityToArea = new Map<string, string>();
+    for (const [areaName, entityIds] of Object.entries(areaMap)) {
+      for (const eid of entityIds) {
+        entityToArea.set(eid, areaName);
+      }
+    }
+
+    // Build state lookup
+    const stateMap = new Map<string, { id: string; name: string; state: string; domain: string }>();
     for (const s of states) {
       const dot = s.entity_id.indexOf('.');
       const domain = s.entity_id.slice(0, dot);
       const name = String(s.attributes['friendly_name'] ?? '');
-
-      if (!byDomain.has(domain)) byDomain.set(domain, []);
-      byDomain.get(domain)!.push({
-        id: s.entity_id,
-        name,
-        state: s.state,
-      });
+      stateMap.set(s.entity_id, { id: s.entity_id, name, state: s.state, domain });
     }
 
-    // Build compact text – one line per entity, grouped by domain
-    const lines: string[] = [];
-    const sortedDomains = [...byDomain.keys()].sort();
+    // Group: area → domain → entities
+    const grouped = new Map<string, Map<string, { id: string; name: string; state: string }[]>>();
 
-    for (const domain of sortedDomains) {
-      const entities = byDomain.get(domain)!;
-      lines.push(`### ${domain} (${entities.length})`);
-      for (const e of entities) {
-        const label = e.name ? `${e.name} → ` : '';
-        lines.push(`- ${label}\`${e.id}\` (${e.state})`);
+    for (const [eid, info] of stateMap) {
+      const area = entityToArea.get(eid) || 'Ohne Bereich';
+      if (!grouped.has(area)) grouped.set(area, new Map());
+      const domainMap = grouped.get(area)!;
+      if (!domainMap.has(info.domain)) domainMap.set(info.domain, []);
+      domainMap.get(info.domain)!.push({ id: info.id, name: info.name, state: info.state });
+    }
+
+    // Build compact text
+    const lines: string[] = [];
+
+    // Important areas first (sorted), "Ohne Bereich" last
+    const areaNames = [...grouped.keys()].sort((a, b) => {
+      if (a === 'Ohne Bereich') return 1;
+      if (b === 'Ohne Bereich') return -1;
+      return a.localeCompare(b, 'de');
+    });
+
+    // Only show actionable domains in cache (skip sensor, binary_sensor etc. to save tokens)
+    const ACTIONABLE_DOMAINS = new Set([
+      'light', 'switch', 'scene', 'media_player', 'cover', 'fan',
+      'climate', 'vacuum', 'humidifier', 'water_heater', 'script',
+      'input_boolean', 'input_number', 'input_select', 'input_text',
+      'number', 'select', 'button', 'lock', 'alarm_control_panel',
+      'automation',
+    ]);
+
+    for (const area of areaNames) {
+      const domainMap = grouped.get(area)!;
+      const relevantDomains = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).sort();
+      if (relevantDomains.length === 0) continue; // skip areas with only sensors
+
+      lines.push(`## ${area}`);
+      for (const domain of relevantDomains) {
+        const entities = domainMap.get(domain)!;
+        for (const e of entities) {
+          const label = e.name ? `${e.name}` : e.id;
+          lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
+        }
       }
       lines.push('');
     }
 
+    // Append a sensor summary (count only, not individual entities)
+    const sensorCount = states.filter(s => s.entity_id.startsWith('sensor.')).length;
+    const binarySensorCount = states.filter(s => s.entity_id.startsWith('binary_sensor.')).length;
+    lines.push(`_Sensoren: ${sensorCount} sensor, ${binarySensorCount} binary_sensor – nutze ha_search_entities oder ha_get_state um Sensorwerte abzufragen._`);
+
     cachedSummary = lines.join('\n');
     log.info('Entity cache built', {
-      domains: sortedDomains.length,
-      entities: states.length,
+      areas: areaNames.length,
       chars: cachedSummary.length,
     });
 
