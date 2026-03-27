@@ -1304,7 +1304,7 @@ body{
   font-size:1.2rem;cursor:pointer;padding:0.25rem;
 }
 .modal-close:hover{color:var(--text)}
-.modal-body{padding:1.25remInter;overflow-y:auto;scrollbar-width:thin}
+.modal-body{padding:1.25rem;overflow-y:auto;scrollbar-width:thin}
 .detail-label{font-size:0.65rem;font-weight:700;text-transform:uppercase;color:var(--accent);margin-bottom:0.4rem;letter-spacing:0.06em}
 .detail-text{font-size:0.9rem;line-height:1.5;color:var(--text);margin-bottom:1rem}
 .params-list{display:flex;flex-direction:column;gap:0.75rem}
@@ -1375,7 +1375,7 @@ body{
       </div>
       <div class="statusbar">
         <span><span class="dot"></span>Online</span>
-        <span>v0.2.6</span>
+        <span>v0.2.6.1</span>
       </div>
     </div>
   </div>
@@ -1709,6 +1709,7 @@ body{
 </div>
 
 <script>
+console.log('HA-Claw: Script initializing...');
 const base='${basePath}';
 const msgs=document.getElementById('messages');
 const inp=document.getElementById('input');
@@ -1791,9 +1792,19 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById('page-'+btn.dataset.page).classList.add('active');
     
+    // Page-specific initialization
     if(btn.dataset.page==='logs') {
+       startLogPolling();
        const activeSub = document.querySelector('.logs-subnav-item.active');
        if(activeSub && activeSub.dataset.logTab === 'actions') loadActions();
+    } else {
+       stopLogPolling();
+    }
+    
+    if(btn.dataset.page==='settings') {
+       loadSettings();
+       loadBacklog();
+       initModelForge();
     }
   });
 });
@@ -1818,11 +1829,11 @@ function parseMd(text){
   s=s.replace(/\\x60\\x60\\x60([\\s\\S]*?)\\x60\\x60\\x60/g,'<pre><code>$1</code></pre>');
   // Inline code
   s=s.replace(/\\x60([^\\x60]+)\\x60/g,'<code>$1</code>');
-  // Bold **text** or __text__  (\\x2a = asterisk, avoids template literal escape issues)
-  s=s.replace(/\\x2a\\x2a(.+?)\\x2a\\x2a/g,'<strong>$1</strong>');
+  // Bold **text** or __text__
+  s=s.replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>');
   s=s.replace(/__(.+?)__/g,'<strong>$1</strong>');
-  // Italic *text* (bold already stripped above)
-  s=s.replace(/\\x2a(.+?)\\x2a/g,'<em>$1</em>');
+  // Italic *text*
+  s=s.replace(/\\*(.+?)\\*/g,'<em>$1</em>');
   // Highlighted "quoted terms"
   s=s.replace(/&quot;(.+?)&quot;/g,'<span class="highlight">&quot;$1&quot;</span>');
   // Newlines
@@ -2086,7 +2097,7 @@ async function loadSettings(){
         '<div class="tool-card">'
         +'<div class="tool-card-top">'
           +'<div class="tool-card-icon">'+icon+'</div>'
-          +'<button class="backlog-add-btn" style="padding:0.2rem 0.4rem;font-size:0.6rem" onclick="showToolDetails(\x27'+name+'\x27)">INFO</button>'
+          +'<button class="backlog-add-btn" style="padding:0.2rem 0.4rem;font-size:0.6rem" onclick="showToolDetails(\\x27'+name+'\\x27)">INFO</button>'
         +'</div>'
         +'<div class="tool-card-name">'+name+'</div>'
         +'<div class="tool-card-type">'+desc+'</div>'
@@ -2156,14 +2167,7 @@ async function saveProfileNames(){
   }catch(e){console.error('Save names failed',e);}
 }
 
-// Load settings when page is shown
-const origNavItems=document.querySelectorAll('.nav-item');
-origNavItems.forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    if(btn.dataset.page==='settings'){loadSettings();loadBacklog();}
-  });
-});
-
+// Profile: slider live update + auto-save
 // ── Backlog ──────────────────────────────────────────────
 let allBacklogTasks=[];
 let backlogFilter='all';
@@ -2338,15 +2342,7 @@ function stopLogPolling(){
   if(logsPolling){clearInterval(logsPolling);logsPolling=null;}
 }
 
-// Hook into nav
-const origNavClick=document.querySelectorAll('.nav-item');
-origNavClick.forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    if(btn.dataset.page==='logs')startLogPolling();
-    else stopLogPolling();
-  });
-});
-
+// Download logs
 // Download logs
 document.getElementById('logs-download').addEventListener('click',async()=>{
   try{
@@ -2374,9 +2370,6 @@ document.getElementById('logs-clear').addEventListener('click',async()=>{
 logsInput.addEventListener('keydown',e=>{
   if(e.key==='Enter'){e.preventDefault();runLogsCmd();}
 });
-
-  }
-}
 
 async function runLogsCmd(){
   const cmd=logsInput.value.trim();
@@ -2407,7 +2400,7 @@ async function clearActions(){
   }catch(e){}
 }
 
-async function rollbackAction(id){
+async function rollbackAction(event, id){
   const btn = event.target;
   const originalText = btn.textContent;
   btn.textContent = '...';
@@ -2449,7 +2442,7 @@ async function loadActions(){
       else if(tool.startsWith('memory')){icon='&#129504;';cls='note';}
       else if(tool.startsWith('backlog')){icon='&#128161;';cls='task';}
       
-      const rollbackBtn = a.rollback ? '<button class="action-rollback" onclick="rollbackAction(\\'' + a.id + '\\')">Rollback</button>' : '';
+      const rollbackBtn = a.rollback ? '<button class="action-rollback" onclick="rollbackAction(event, \\'' + a.id + '\\')">Rollback</button>' : '';
 
       return '<div class="action-entry">'
         +'<div class="action-icon '+cls+'">'+icon+'</div>'
@@ -2538,13 +2531,7 @@ async function updateModelOverride(){
   document.getElementById('active-model-id').textContent=val;
 }
 
-// Hook into navigation for Actions page
-document.querySelectorAll('.nav-item').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    if(btn.dataset.page==='settings') { loadSettings(); initModelForge(); }
-  });
-});
-
+// Script End
 </script>
 </body>
 </html>`;
