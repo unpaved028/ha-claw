@@ -10,7 +10,7 @@ import { appConfig } from '../core/config.js';
 import { createLogger, getLogBuffer, clearLogBuffer } from '../core/logger.js';
 import { getProfile, saveProfile, needsOnboarding, personalityPrompt, type Profile } from '../core/profile.js';
 import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboarding.js';
-import { getToolNames } from '../tools/registry.js';
+import { getToolInfos, setToolEnabled } from '../tools/registry.js';
 import { getEntityCache } from '../core/entity-cache.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
@@ -136,19 +136,21 @@ export async function startWebServer(): Promise<void> {
       profile,
       model: profile.modelOverride || appConfig.openRouterDefaultModel,
       mode: appConfig.isAddon ? 'addon' : 'standalone',
-      tools: getToolNames(),
+      tools: getToolInfos(),
       uptime: process.uptime(),
       memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
       haAvailable: !!(appConfig.supervisorToken && appConfig.haApiUrl),
       telegramConfigured: !!appConfig.telegramBotToken,
-      // Add available models from config schema if possible, or just the default ones
-      availableModels: [
+      availableModels: Array.from(new Set([
+        appConfig.openRouterDefaultModel,
+        'google/gemini-2.5-flash-preview',
         'google/gemini-2.0-flash-001',
-        'google/gemini-2.0-pro-exp-02-05:free',
+        'anthropic/claude-sonnet-4',
         'anthropic/claude-3.5-sonnet',
         'deepseek/deepseek-chat',
-        'openai/gpt-4o'
-      ]
+        'openai/gpt-4o',
+        'openai/gpt-4.1-mini',
+      ]))
     };
   });
 
@@ -157,6 +159,20 @@ export async function startWebServer(): Promise<void> {
     async (req) => {
       const updated = await saveProfile(req.body ?? {});
       return updated;
+    },
+  );
+
+  // ── Tool toggle API ──────────────────────────────────
+  app.put<{ Body: { name: string; enabled: boolean } }>(
+    '/api/tools/toggle',
+    async (req) => {
+      const { name, enabled } = req.body ?? {};
+      if (!name || typeof enabled !== 'boolean') {
+        return { error: 'name (string) and enabled (boolean) required' };
+      }
+      const ok = await setToolEnabled(name, enabled);
+      if (!ok) return { error: `Tool "${name}" not found` };
+      return { name, enabled, tools: getToolInfos() };
     },
   );
 

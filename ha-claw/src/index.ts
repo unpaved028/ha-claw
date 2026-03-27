@@ -21,7 +21,7 @@ import { initBacklog } from './storage/backlog.js';
 import { initActionLog } from './storage/action-log.js';
 import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
-import { getToolNames } from './tools/registry.js';
+import { getToolNames, applyDisabledTools } from './tools/registry.js';
 import { startWebServer } from './web/server.js';
 import { createBot, startBot } from './telegram/bot.js';
 
@@ -60,6 +60,9 @@ async function main(): Promise<void> {
   } else {
     log.info('Home Assistant API not available – HA tools disabled');
   }
+
+  // Apply persisted disabled-tools state
+  await applyDisabledTools();
 
   log.info('All tools registered', { tools: getToolNames() });
 

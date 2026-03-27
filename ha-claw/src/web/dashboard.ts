@@ -950,6 +950,20 @@ body{
   background:rgba(239,68,68,0.1);
   color:var(--danger);
 }
+.tool-card.disabled{opacity:0.45;border-style:dashed}
+.tool-toggle{
+  position:relative;width:36px;height:20px;
+  background:var(--border);border-radius:10px;
+  cursor:pointer;transition:background var(--transition);
+  border:none;padding:0;flex-shrink:0;
+}
+.tool-toggle.on{background:var(--accent)}
+.tool-toggle::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--text);transition:transform var(--transition);
+}
+.tool-toggle.on::after{transform:translateX(16px)}
 
 /* ── Profile Section ─────────────────────────────────────── */
 .profile-grid{
@@ -2120,20 +2134,25 @@ async function loadSettings(){
     // Tools
     const grid=document.getElementById('tools-grid');
     grid.innerHTML='';
-    for(const name of d.tools){
+    for(const tool of d.tools){
+      const name=tool.name||tool;
+      const enabled=tool.enabled!==false;
       const icon=TOOL_ICONS[name]||'&#128295;';
-      const desc=TOOL_DESCS[name]||'Registriertes Tool';
-      const isDanger=DANGEROUS_TOOLS.has(name);
+      const desc=TOOL_DESCS[name]||tool.description||'Registriertes Tool';
+      const isDanger=tool.dangerous||DANGEROUS_TOOLS.has(name);
       grid.innerHTML+=
-        '<div class="tool-card">'
+        '<div class="tool-card'+(enabled?'':' disabled')+'" id="tc-'+name+'">'
         +'<div class="tool-card-top">'
           +'<div class="tool-card-icon">'+icon+'</div>'
-          +'<button class="backlog-add-btn" style="padding:0.2rem 0.4rem;font-size:0.6rem" onclick="showToolDetails(\\x27'+name+'\\x27)">INFO</button>'
+          +'<button class="tool-toggle'+(enabled?' on':'')+'" onclick="toggleTool(\\x27'+name+'\\x27,this)" title="'+(enabled?'Deaktivieren':'Aktivieren')+'"></button>'
         +'</div>'
         +'<div class="tool-card-name">'+name+'</div>'
         +'<div class="tool-card-type">'+desc+'</div>'
-        +'<span class="tool-card-badge'+(isDanger?' danger':'')+'">'+
-          (isDanger?'Bestaetigung noetig':'Safe')+'</span>'
+        +'<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">'
+          +'<span class="tool-card-badge'+(isDanger?' danger':'')+'">'+
+            (isDanger?'Bestaetigung noetig':'Safe')+'</span>'
+          +'<button class="backlog-add-btn" style="padding:0.15rem 0.4rem;font-size:0.55rem" onclick="showToolDetails(\\x27'+name+'\\x27)">INFO</button>'
+        +'</div>'
         +'</div>';
     }
     // Profile
@@ -2487,6 +2506,27 @@ async function loadActions(){
         +'</div></div>';
     }).join('');
   }catch(e){list.innerHTML='<div class="backlog-empty">Fehler beim Laden der Aktionen.</div>';}
+}
+
+// ── Tool Toggle ──────────────────────────────────────────
+async function toggleTool(name,btn){
+  const enabling=!btn.classList.contains('on');
+  btn.disabled=true;
+  try{
+    const r=await fetch(base+'/api/tools/toggle',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:name,enabled:enabling})
+    });
+    const d=await r.json();
+    if(d.error){alert(d.error);return;}
+    // Update UI
+    btn.classList.toggle('on',enabling);
+    const card=document.getElementById('tc-'+name);
+    if(card) card.classList.toggle('disabled',!enabling);
+    btn.title=enabling?'Deaktivieren':'Aktivieren';
+  }catch(e){alert('Fehler: '+e.message);}
+  finally{btn.disabled=false;}
 }
 
 // ── Tool Details ──────────────────────────────────────────
