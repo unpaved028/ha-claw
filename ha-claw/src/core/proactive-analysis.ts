@@ -1,15 +1,18 @@
 /**
  * proactive-analysis.ts – Periodic analysis of the HA environment.
  *
- * Checks cover:
- * - Energy: lights left on, heating in summer, windows open + climate, solar surplus
- * - Security: doors/windows open with nobody home, unlocked locks
+ * Modules:
+ * - Energy: lights left on, heating in summer, windows open + climate, standby waste
+ * - Solar: grid export, battery usage, surplus routing
+ * - Security: doors/windows open, locks, smoke detectors, water leak sensors
+ * - Covers: storm protection, dusk/dawn, seasonal solar shading
+ * - Climate: humidity/mold risk, temperature differentials between rooms
  * - Maintenance: stale sensors, unavailable entities, low battery
  * - Naming: inconsistent entity naming, missing labels/areas
- * - Automation: unused automations, missing common automations
+ * - Automation: unused automations, missing common automations, night mode
  *
- * Results are written as backlog proposals. Existing backlog items
- * (including rejected/deferred) are considered to avoid duplicates.
+ * IMPORTANT: Only the top 3 most impactful findings are written to backlog per run.
+ * Existing backlog items (including rejected/deferred) are considered to avoid duplicates.
  */
 
 import * as ha from './ha-client.js';
@@ -48,21 +51,28 @@ export async function runAnalysis(): Promise<string> {
     const existingTasks = await listTasks({});
     const now = new Date();
 
-    // Collect all findings
+    // Collect all findings from all modules
     const findings: Finding[] = [
       ...analyzeEnergy(states, now),
+      ...analyzeSolar(states),
       ...analyzeSecurity(states, now),
+      ...analyzeCovers(states, now),
+      ...analyzeClimate(states),
       ...analyzeMaintenance(states, now),
       ...analyzeNaming(states),
-      ...analyzeAutomations(states),
-      ...analyzeSolar(states),
+      ...analyzeAutomations(states, now),
     ];
 
-    // Write to backlog, respecting existing items (including rejected/deferred)
-    const newCount = await writeFindings(findings, existingTasks);
+    // Sort by priority (high=3, medium=2, low=1), take top 3
+    const PRIORITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
+    findings.sort((a, b) => (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0));
+    const top3 = findings.slice(0, 3);
+
+    // Write only top 3 to backlog, respecting existing items (including rejected/deferred)
+    const newCount = await writeFindings(top3, existingTasks);
 
     const summary = newCount > 0
-      ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten, ${newCount} neue Vorschläge ins Backlog.`
+      ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten gefunden, Top ${top3.length} priorisiert, ${newCount} neue Vorschläge ins Backlog.`
       : findings.length > 0
         ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten, alle bereits bekannt.`
         : 'Analyse abgeschlossen: Keine Auffälligkeiten. Alles sieht gut aus.';
@@ -230,6 +240,174 @@ function analyzeSolar(states: HAState[]): Finding[] {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// COVER / RAFFSTORE ANALYSIS
+// ═══════════════════════════════════════════════════════════════
+
+function analyzeCovers(states: HAState[], now: Date): Finding[] {
+  const findings: Finding[] = [];
+  const month = now.getMonth(); // 0-based: 0=Jan, 5=Jun, 11=Dec
+  const hour = now.getHours();
+  const isSummer = month >= 4 && month <= 8; // May–Sep
+
+  const covers = states.filter(s => s.entity_id.startsWith('cover.'));
+  if (covers.length === 0) return findings;
+
+  // Wind sensor detection
+  const windSensor = states.find(s =>
+    s.entity_id.startsWith('sensor.') && (
+      String(s.attributes['device_class']) === 'wind_speed' ||
+      s.entity_id.includes('wind') || s.entity_id.includes('gust')
+    )
+  );
+
+  // Storm protection: covers down while wind is high
+  if (windSensor) {
+    const windSpeed = Number(windSensor.state);
+    const closedCovers = covers.filter(s => s.state === 'closed' || Number(s.attributes['current_position']) < 20);
+    if (!isNaN(windSpeed) && windSpeed > 60 && closedCovers.length > 0) {
+      findings.push({
+        title: 'Sturmschutz für Raffstores fehlt',
+        asIs: `Windgeschwindigkeit ${windSpeed} km/h, aber ${closedCovers.length} Raffstores sind unten. Sturmschaden-Risiko.`,
+        toBe: 'Automatisierung: Bei Wind >50 km/h alle Raffstores automatisch hochfahren. Windwächter-Automatisierung in HA einrichten.',
+        impact: 'Schutz vor Sturmschäden an Raffstores/Jalousien',
+        category: 'security',
+        priority: 'high',
+        tags: ['cover', 'raffstore', 'sturm', 'wind', 'sicherheit'],
+      });
+    }
+    // No storm automation exists: suggest one
+    const automations = states.filter(s => s.entity_id.startsWith('automation.'));
+    const hasStormAutomation = automations.some(s =>
+      s.entity_id.includes('wind') || s.entity_id.includes('sturm') || s.entity_id.includes('storm') ||
+      friendlyName(s).toLowerCase().includes('wind') || friendlyName(s).toLowerCase().includes('sturm')
+    );
+    if (!hasStormAutomation) {
+      findings.push({
+        title: 'Keine Windwächter-Automatisierung für Raffstores',
+        asIs: `${covers.length} Covers vorhanden, Windsensor erkannt, aber keine Sturmschutz-Automatisierung.`,
+        toBe: 'Windwächter einrichten: Bei >50 km/h Raffstores hoch, nach 30 Min Wind-Check, bei <30 km/h wieder freigeben.',
+        impact: 'Verhindert Sturmschäden an Raffstores/Jalousien',
+        category: 'security',
+        priority: 'high',
+        tags: ['cover', 'raffstore', 'wind', 'automatisierung'],
+      });
+    }
+  }
+
+  // Dusk/dawn automation: covers open during day, closed at night
+  const automations = states.filter(s => s.entity_id.startsWith('automation.'));
+  const hasDawnDuskAutomation = automations.some(s => {
+    const id = s.entity_id.toLowerCase();
+    const name = friendlyName(s).toLowerCase();
+    return (id + name).match(/dämmerung|sonnenauf|sonnenunter|dawn|dusk|sunrise|sunset/) !== null &&
+           (id + name).match(/cover|raffstore|jalousie|rollo|beschattung/) !== null;
+  });
+  if (!hasDawnDuskAutomation && covers.length >= 2) {
+    findings.push({
+      title: 'Keine Dämmerungssteuerung für Raffstores',
+      asIs: `${covers.length} Covers vorhanden, aber keine Automatisierung für Sonnenauf-/untergang.`,
+      toBe: 'Automatisierung: Raffstores bei Sonnenaufgang öffnen, bei Sonnenuntergang schließen. Erhöht Privatsphäre und Einbruchschutz abends.',
+      impact: 'Komfort, Privatsphäre, Wärmedämmung nachts',
+      category: 'comfort',
+      priority: 'medium',
+      tags: ['cover', 'raffstore', 'dämmerung', 'sonnenuntergang', 'automatisierung'],
+    });
+  }
+
+  // Seasonal solar shading (summer only)
+  if (isSummer && covers.length >= 2) {
+    const hasShadingAutomation = automations.some(s => {
+      const id = s.entity_id.toLowerCase();
+      const name = friendlyName(s).toLowerCase();
+      return (id + name).match(/beschattung|shading|solar.*cover|sonnenschutz/) !== null;
+    });
+    if (!hasShadingAutomation) {
+      findings.push({
+        title: 'Keine Sonnenschutz-Beschattung im Sommer',
+        asIs: `Sommer, ${covers.length} Covers vorhanden, aber keine Beschattungs-Automatisierung. Räume heizen sich auf.`,
+        toBe: 'Automatisierung: Süd-/West-Raffstores bei direkter Sonneneinstrahlung teilschließen (50%). Azimut+Elevation-basiert oder via Helligkeitssensor. Nur Mai–September aktiv, im Winter offen lassen für passive Solarwärme.',
+        impact: 'Reduziert Kühlbedarf um bis zu 30%, spart Klimatisierungsenergie',
+        category: 'energy',
+        priority: 'high',
+        tags: ['cover', 'raffstore', 'beschattung', 'solar', 'sommer', 'energie'],
+      });
+    }
+  }
+
+  // Covers still closed during daytime (possible forgotten state)
+  if (hour >= 10 && hour <= 17) {
+    const allClosed = covers.filter(s => s.state === 'closed' || Number(s.attributes['current_position']) === 0);
+    if (allClosed.length === covers.length && covers.length >= 3) {
+      findings.push({
+        title: 'Alle Raffstores tagsüber geschlossen',
+        asIs: `Alle ${covers.length} Raffstores um ${hour}:00 komplett geschlossen.`,
+        toBe: 'Prüfen: Sollte dies so sein? Automatisierung für tageslichtabhängiges Öffnen einrichten.',
+        impact: 'Tageslichtnutzung, Wohlbefinden, Energieeinsparung (weniger Kunstlicht)',
+        category: 'comfort',
+        priority: 'low',
+        tags: ['cover', 'raffstore', 'tageslicht'],
+      });
+    }
+  }
+
+  return findings;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CLIMATE / HUMIDITY ANALYSIS
+// ═══════════════════════════════════════════════════════════════
+
+function analyzeClimate(states: HAState[]): Finding[] {
+  const findings: Finding[] = [];
+
+  // Humidity / mold risk (>65% in any room)
+  const humiditySensors = states.filter(s =>
+    s.entity_id.startsWith('sensor.') &&
+    (String(s.attributes['device_class']) === 'humidity' || s.entity_id.includes('humidity') || s.entity_id.includes('feuchte')) &&
+    !isNaN(Number(s.state))
+  );
+  const highHumidity = humiditySensors.filter(s => Number(s.state) > 65);
+  if (highHumidity.length > 0) {
+    findings.push({
+      title: `Schimmelrisiko: ${highHumidity.length} Räume mit hoher Luftfeuchtigkeit`,
+      asIs: `Luftfeuchtigkeit >65%: ${highHumidity.map(s => `${friendlyName(s)} (${s.state}%)`).join(', ')}`,
+      toBe: 'Automatisierung: Bei >65% Lüftungserinnerung senden. Bei >70% Alarm + ggf. Entfeuchter einschalten. Ideal: 40-60%.',
+      impact: 'Gesundheit, Bausubstanzschutz, Schimmelvermeidung',
+      category: 'health',
+      priority: 'high',
+      tags: ['feuchtigkeit', 'schimmel', 'gesundheit', 'lüften'],
+    });
+  }
+
+  // Large temperature differences between rooms (>5°C)
+  const tempSensors = states.filter(s =>
+    s.entity_id.startsWith('sensor.') &&
+    (String(s.attributes['device_class']) === 'temperature' || s.entity_id.includes('temperature') || s.entity_id.includes('temperatur')) &&
+    !isNaN(Number(s.state)) && Number(s.state) > 5 && Number(s.state) < 40
+  );
+  if (tempSensors.length >= 3) {
+    const temps = tempSensors.map(s => Number(s.state));
+    const maxTemp = Math.max(...temps);
+    const minTemp = Math.min(...temps);
+    if (maxTemp - minTemp > 5) {
+      const coldest = tempSensors.find(s => Number(s.state) === minTemp)!;
+      const warmest = tempSensors.find(s => Number(s.state) === maxTemp)!;
+      findings.push({
+        title: 'Große Temperaturdifferenz zwischen Räumen',
+        asIs: `${(maxTemp - minTemp).toFixed(1)}°C Unterschied: ${friendlyName(warmest)} (${maxTemp}°C) vs ${friendlyName(coldest)} (${minTemp}°C)`,
+        toBe: 'Heizkreise ausbalancieren. Thermostat-Sollwerte prüfen. Evtl. Türen zwischen Räumen automatisch steuern oder Heizzeiten anpassen.',
+        impact: 'Komfort, gleichmäßige Wärmeverteilung, Energieeffizienz',
+        category: 'energy',
+        priority: 'medium',
+        tags: ['temperatur', 'heizung', 'komfort', 'balance'],
+      });
+    }
+  }
+
+  return findings;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // SECURITY ANALYSIS
 // ═══════════════════════════════════════════════════════════════
 
@@ -317,6 +495,44 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
       priority: 'medium',
       tags: ['alarm', 'sicherheit', 'automatisierung'],
     });
+  }
+
+  // Smoke detectors – check if any exist
+  const smokeDetectors = states.filter(s =>
+    String(s.attributes['device_class']) === 'smoke' ||
+    s.entity_id.includes('smoke') || s.entity_id.includes('rauchmelder')
+  );
+  if (smokeDetectors.length === 0) {
+    findings.push({
+      title: 'Keine Rauchmelder in Home Assistant integriert',
+      asIs: 'Keine Rauchmelder-Entities gefunden. Smarte Rauchmelder ermöglichen Benachrichtigung auch unterwegs.',
+      toBe: 'Smarte Rauchmelder integrieren (z.B. Zigbee). Automatisierung: Bei Alarm → Push-Benachrichtigung, Lichter an, Rollläden hoch.',
+      impact: 'Lebensrettend, Frühwarnung auch bei Abwesenheit',
+      category: 'security',
+      priority: 'medium',
+      tags: ['rauchmelder', 'sicherheit', 'brand', 'benachrichtigung'],
+    });
+  }
+
+  // Water leak sensors
+  const waterLeakSensors = states.filter(s =>
+    String(s.attributes['device_class']) === 'moisture' ||
+    s.entity_id.includes('water_leak') || s.entity_id.includes('wasserleck') || s.entity_id.includes('leak')
+  );
+  if (waterLeakSensors.length === 0) {
+    // Only suggest if there are enough other sensors (user has smart home infra)
+    const totalSensors = states.filter(s => s.entity_id.startsWith('sensor.') || s.entity_id.startsWith('binary_sensor.')).length;
+    if (totalSensors > 20) {
+      findings.push({
+        title: 'Keine Wasserleck-Sensoren integriert',
+        asIs: 'Keine Wasserleck-Sensoren gefunden. Wasserschäden sind teuer und vermeidbar.',
+        toBe: 'Wasserleck-Sensoren unter Waschmaschine, Spülmaschine, Waschbecken. Automatisierung: Bei Leck → Alarm + Hauptwasserventil schließen (falls smart).',
+        impact: 'Schadenvermeidung, frühzeitige Warnung bei Wasserschäden',
+        category: 'security',
+        priority: 'low',
+        tags: ['wasser', 'leck', 'sicherheit', 'sensor'],
+      });
+    }
   }
 
   return findings;
@@ -460,7 +676,7 @@ function analyzeNaming(states: HAState[]): Finding[] {
 // AUTOMATION ANALYSIS
 // ═══════════════════════════════════════════════════════════════
 
-function analyzeAutomations(states: HAState[]): Finding[] {
+function analyzeAutomations(states: HAState[], now: Date): Finding[] {
   const findings: Finding[] = [];
 
   const automations = states.filter(s => s.entity_id.startsWith('automation.'));
@@ -514,6 +730,88 @@ function analyzeAutomations(states: HAState[]): Finding[] {
       priority: 'medium',
       tags: ['bewegung', 'licht', 'automatisierung', 'komfort'],
     });
+  }
+
+  // Night mode: lights on between 1:00-5:00
+  const hour = now.getHours();
+  if (hour >= 1 && hour <= 5) {
+    const nightLights = states.filter(s =>
+      s.entity_id.startsWith('light.') && s.state === 'on'
+    );
+    if (nightLights.length >= 2) {
+      findings.push({
+        title: `${nightLights.length} Lichter mitten in der Nacht an`,
+        asIs: `Um ${hour}:00 Uhr sind ${nightLights.length} Lichter eingeschaltet: ${nightLights.slice(0, 4).map(s => friendlyName(s)).join(', ')}`,
+        toBe: 'Nachtmodus einrichten: Alle Lichter ab 1:00 automatisch aus (außer Nachtlicht). Benachrichtigung wenn Licht manuell eingeschaltet wird.',
+        impact: 'Energieeinsparung, besserer Schlaf, Erkennung vergessener Lichter',
+        category: 'energy',
+        priority: 'medium',
+        tags: ['nacht', 'licht', 'energie', 'automatisierung'],
+      });
+    }
+  }
+
+  // Standby power waste: smart plugs with low but non-zero power
+  const smartPlugs = states.filter(s => {
+    if (!s.entity_id.startsWith('sensor.')) return false;
+    const power = Number(s.state);
+    const unit = String(s.attributes['unit_of_measurement'] ?? '');
+    return unit === 'W' && power > 2 && power < 15 &&
+           (s.entity_id.includes('plug') || s.entity_id.includes('steckdose') || s.entity_id.includes('power'));
+  });
+  if (smartPlugs.length >= 2) {
+    const totalStandby = smartPlugs.reduce((sum, s) => sum + Number(s.state), 0);
+    findings.push({
+      title: `${smartPlugs.length} Geräte im Standby verbrauchen ${totalStandby.toFixed(0)}W`,
+      asIs: `Standby-Verbrauch: ${smartPlugs.map(s => `${friendlyName(s)} (${s.state}W)`).join(', ')}`,
+      toBe: 'Automatisierung: Geräte bei Nichtnutzung komplett ausschalten. Zeitbasiert oder via Abwesenheit. Spart ca. ${(totalStandby * 8.76).toFixed(0)} kWh/Jahr.',
+      impact: 'Energieeinsparung, Kostenreduktion',
+      category: 'energy',
+      priority: 'low',
+      tags: ['standby', 'strom', 'energie', 'steckdose'],
+    });
+  }
+
+  // Missing notification automations (no notify service used)
+  const hasNotifyAutomation = automations.some(s => {
+    const id = s.entity_id.toLowerCase();
+    const name = friendlyName(s).toLowerCase();
+    return (id + name).match(/notify|benachricht|alert|push|telegram|mail/) !== null;
+  });
+  if (!hasNotifyAutomation && automations.length >= 3) {
+    findings.push({
+      title: 'Keine Benachrichtigungs-Automatisierungen vorhanden',
+      asIs: `${automations.length} Automationen, aber keine nutzt Benachrichtigungen.`,
+      toBe: 'Benachrichtigungen einrichten für: Tür offen bei Abwesenheit, Waschmaschine fertig, niedrige Batterie, Temperatur-Alarm.',
+      impact: 'Proaktive Information, schnellere Reaktion auf Ereignisse',
+      category: 'comfort',
+      priority: 'medium',
+      tags: ['benachrichtigung', 'push', 'automatisierung'],
+    });
+  }
+
+  // Vacation mode: nobody home for extended period, no vacation automation
+  const presenceSensors = states.filter(s =>
+    s.entity_id.startsWith('person.') || String(s.attributes['device_class']) === 'presence'
+  );
+  const allAway = presenceSensors.length > 0 && presenceSensors.every(s => s.state === 'not_home' || s.state === 'off');
+  if (allAway) {
+    const hasVacationMode = automations.some(s => {
+      const id = s.entity_id.toLowerCase();
+      const name = friendlyName(s).toLowerCase();
+      return (id + name).match(/urlaub|vacation|away|abwesen/) !== null;
+    });
+    if (!hasVacationMode) {
+      findings.push({
+        title: 'Kein Urlaubsmodus konfiguriert',
+        asIs: 'Alle Personen abwesend, aber kein Urlaubsmodus vorhanden.',
+        toBe: 'Urlaubsmodus einrichten: Heizung absenken, Anwesenheitssimulation (Lichter zufällig ein/aus), Rollläden normal fahren, Benachrichtigung bei Bewegung.',
+        impact: 'Einbruchschutz, Energieeinsparung bei längerer Abwesenheit',
+        category: 'security',
+        priority: 'medium',
+        tags: ['urlaub', 'abwesenheit', 'simulation', 'sicherheit'],
+      });
+    }
   }
 
   return findings;
