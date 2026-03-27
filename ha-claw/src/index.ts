@@ -20,6 +20,7 @@ import { initStorage } from './storage/json-store.js';
 import { initMemoryCards } from './storage/memory-cards.js';
 import { initBacklog } from './storage/backlog.js';
 import { initActionLog } from './storage/action-log.js';
+import { initLearning } from './storage/learning.js';
 import { initScheduler, stopScheduler } from './storage/scheduler.js';
 import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
   await initMemoryCards();
   await initBacklog();
   await initActionLog();
+  await initLearning();
 
   // Step 3: Profile
   const profile = await loadProfile();

@@ -11,6 +11,7 @@ import type { CollectionName } from '../storage/json-store.js';
 import * as mem from '../storage/memory-cards.js';
 import * as backlog from '../storage/backlog.js';
 import * as scheduler from '../storage/scheduler.js';
+import * as learning from '../storage/learning.js';
 import { runAnalysis } from '../core/proactive-analysis.js';
 import { logAction } from '../storage/action-log.js';
 
@@ -489,6 +490,85 @@ export function registerBuiltinTools(): void {
     async () => {
       const summary = await runAnalysis();
       return { summary };
+    },
+  );
+
+  // ── learn_correction ─────────────────────────────────────
+  registerTool(
+    'learn_correction',
+    'Save a user correction so the same mistake is avoided in the future. Use this PROACTIVELY when the user says something like "Nein, nicht das", "Falsche Lampe", "Ich meinte X nicht Y".',
+    {
+      user_intent: { type: 'string', description: 'What the user originally wanted' },
+      wrong_action: { type: 'string', description: 'What you did wrong' },
+      correct_action: { type: 'string', description: 'What the correct action is' },
+    },
+    async (args) => {
+      const c = await learning.addCorrection({
+        userIntent: args['user_intent'] as string,
+        wrongAction: args['wrong_action'] as string,
+        correctAction: args['correct_action'] as string,
+      });
+      return { saved: true, id: c.id };
+    },
+    { required: ['user_intent', 'wrong_action', 'correct_action'] },
+  );
+
+  // ── learn_rule ───────────────────────────────────────────
+  registerTool(
+    'learn_rule',
+    'Add a permanent rule to the system prompt. Use when you learn a general rule from user feedback that should always apply (e.g., "Immer zuerst im OG suchen wenn Bad gesagt wird").',
+    {
+      rule: { type: 'string', description: 'The rule to remember (one sentence, clear and actionable)' },
+      reason: { type: 'string', description: 'Why this rule was added (user feedback, correction, etc.)' },
+    },
+    async (args) => {
+      const p = await learning.addPromptPatch({
+        rule: args['rule'] as string,
+        reason: args['reason'] as string,
+        source: 'correction',
+      });
+      return { saved: true, id: p.id, rule: p.rule };
+    },
+    { required: ['rule', 'reason'] },
+  );
+
+  // ── detect_patterns ──────────────────────────────────────
+  registerTool(
+    'detect_patterns',
+    'Analyze usage history and detect recurring patterns (e.g., user turns off lights every day at 22:00). Returns newly detected patterns.',
+    {},
+    async () => {
+      const newPatterns = await learning.detectPatterns();
+      const suggestions = learning.getPatternSuggestions();
+      return {
+        newPatterns: newPatterns.length,
+        suggestions: suggestions.map(p => ({
+          id: p.id,
+          description: p.description,
+          occurrences: p.occurrences,
+        })),
+      };
+    },
+  );
+
+  // ── list_learned ─────────────────────────────────────────
+  registerTool(
+    'list_learned',
+    'List all learned corrections, rules, patterns, and error summaries. Use to show the user what the bot has learned.',
+    {},
+    async () => {
+      const [corrections, patches, patterns, errors] = await Promise.all([
+        learning.listCorrections(),
+        learning.listPromptPatches(),
+        learning.listPatterns(),
+        Promise.resolve(learning.getErrorSummary()),
+      ]);
+      return {
+        corrections: corrections.map(c => ({ id: c.id, intent: c.userIntent, wrong: c.wrongAction, correct: c.correctAction, hits: c.hitCount })),
+        rules: patches.map(p => ({ id: p.id, rule: p.rule, enabled: p.enabled, source: p.source })),
+        patterns: patterns.map(p => ({ id: p.id, description: p.description, occurrences: p.occurrences })),
+        errors: errors.slice(0, 10),
+      };
     },
   );
 }
