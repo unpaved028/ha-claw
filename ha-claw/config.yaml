@@ -2,7 +2,7 @@
 # Reference: https://developers.home-assistant.io/docs/add-ons/configuration
 
 name: "HA-Claw"
-version: "0.2.4"
+version: "0.2.5"
 slug: "ha-claw"
 description: "Local AI-powered Smart Home Assistant with Telegram & Web UI"
 url: "https://github.com/unpaved028/ha-claw"

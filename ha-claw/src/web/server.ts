@@ -13,6 +13,7 @@ import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboar
 import { getToolNames } from '../tools/registry.js';
 import { getEntityCache } from '../core/entity-cache.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
+import type { ChatMessage } from '../core/types.js';
 import { dashboardHtml } from './dashboard.js';
 import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
@@ -91,8 +92,31 @@ export async function startWebServer(): Promise<void> {
 
     // Normal: agentic loop with dynamic personality
     const agent = buildAgent();
-    const result = await runAgenticLoop(message, agent);
+
+    // 1. Load history
+    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
+    const history = record?.messages || [];
+
+    // 2. Run loop (passing history)
+    const result = await runAgenticLoop(message, agent, undefined, history);
+
+    // 3. Persist updated history
+    const newMessages: ChatMessage[] = [
+      ...history,
+      { role: 'user', content: message },
+      { role: 'assistant', content: result.response }
+    ];
+
+    // Keep it efficient: last 20 messages (~10 turns)
+    const limited = newMessages.slice(-20);
+    await store.upsert('conversations', WEB_SESSION, { messages: limited });
+
     return result;
+  });
+
+  app.get('/api/chat/history', async () => {
+    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
+    return record?.messages || [];
   });
 
   // ── Onboarding status ─────────────────────────────────

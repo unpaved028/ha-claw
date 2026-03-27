@@ -36,6 +36,7 @@ export async function runAgenticLoop(
   userMessage: string,
   agent: AgentConfig,
   confirmFn: ConfirmationFn = autoApprove,
+  history: ChatMessage[] = [],
 ): Promise<LoopResult> {
   const toolDefs = getToolDefinitions();
   const toolCallLog: { name: string; result: string }[] = [];
@@ -55,10 +56,11 @@ export async function runAgenticLoop(
 
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
+    ...history,
     { role: 'user', content: userMessage },
   ];
 
-  log.info('Loop started', { agent: agent.name, tools: toolDefs.length });
+  log.info('Loop started', { agent: agent.name, tools: toolDefs.length, history: history.length });
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     // 1. Call LLM

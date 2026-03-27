@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5
+
+### Added
+- **Persistence**: Chat history is now saved and loaded automatically in the Web UI and Telegram.
+- **Persistent AI Context**: The agent now remembers the last 20 messages, allowing for mult-turn conversations.
+
 ## 0.2.4
 
 ### Fixed

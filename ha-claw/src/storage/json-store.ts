@@ -136,6 +136,28 @@ export async function update<T extends Record<string, unknown>>(
   return updated;
 }
 
+/** Upsert a record (create or update) with a specific ID. */
+export async function upsert<T extends Record<string, unknown>>(
+  collection: CollectionName,
+  id: string,
+  data: T,
+): Promise<StoredRecord & T> {
+  const existing = await read(collection, id);
+  const now = new Date().toISOString();
+
+  const record = {
+    ...(existing || {}),
+    ...data,
+    id,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  } as StoredRecord & T;
+
+  await atomicWrite(filePath(collection, id), record);
+  log.debug('Record upserted', { collection, id });
+  return record;
+}
+
 /** Delete a record by ID. Returns true if it existed. */
 export async function remove(collection: CollectionName, id: string): Promise<boolean> {
   try {

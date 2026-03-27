@@ -15,6 +15,8 @@ import { getEntityCache } from '../core/entity-cache.js';
 import { personalityPrompt, needsOnboarding } from '../core/profile.js';
 import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboarding.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
+import type { ChatMessage } from '../core/types.js';
+import * as store from '../storage/json-store.js';
 import { whitelistGuard } from './whitelist.js';
 import { setupConfirmationHandler, createTelegramConfirmFn } from './confirmation.js';
 
@@ -112,7 +114,23 @@ export function createBot(): Bot {
     try {
       const confirmFn = createTelegramConfirmFn(bot, chatId);
       const agent = buildAgent();
-      const result = await runAgenticLoop(text, agent, confirmFn);
+
+      // 1. Load context/history
+      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', sessionId);
+      const history = record?.messages || [];
+
+      // 2. Run loop (passing history)
+      const result = await runAgenticLoop(text, agent, confirmFn, history);
+
+      // 3. Persist history
+      const newMessages: ChatMessage[] = [
+        ...history,
+        { role: 'user', content: text },
+        { role: 'assistant', content: result.response }
+      ];
+      // Limit to 20 messages for performance
+      const limited = newMessages.slice(-20);
+      await store.upsert('conversations', sessionId, { messages: limited });
 
       // Send response (handle Telegram's 4096 char limit)
       const response = result.response;

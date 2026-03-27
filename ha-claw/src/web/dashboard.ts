@@ -1576,8 +1576,25 @@ const micBtn=document.getElementById('mic');
       }
       if(d.profile.botName) window.botName=d.profile.botName.toUpperCase();
     }
+    // After names are loaded, fetch history
+    loadChatHistory();
   }catch(e){}
 })();
+
+async function loadChatHistory(){
+  try{
+    const r=await fetch(base+'/api/chat/history');
+    const ms=await r.json();
+    if(ms&&ms.length>0){
+      msgs.innerHTML=''; // Clear/Reset
+      ms.forEach(m=>{
+        if(m.role==='user') addMsg(m.content,'user',true);
+        else if(m.role==='assistant' && m.content) addMsg(m.content,'bot',true);
+      });
+      msgs.scrollTop=msgs.scrollHeight;
+    }
+  }catch(e){}
+}
 
 // ── Theme ─────────────────────────────────────────────────
 function setTheme(t){
@@ -1694,7 +1711,7 @@ function renderRichContent(text){
 function escHtml2(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 // ── Messages ──────────────────────────────────────────────
-function addMsg(text,cls){
+function addMsg(text,cls,suppressScroll){
   // Hide welcome block once chat has messages
   const wb=document.getElementById('welcome-block');
   if(wb)wb.style.display='none';
@@ -1725,7 +1742,7 @@ function addMsg(text,cls){
 
   group.appendChild(bubble);
   msgs.appendChild(group);
-  msgs.scrollTop=msgs.scrollHeight;
+  if(!suppressScroll) msgs.scrollTop=msgs.scrollHeight;
   return group;
 }
 
