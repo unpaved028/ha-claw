@@ -12,6 +12,7 @@
 import { callLLM } from './openrouter.js';
 import { createLogger } from './logger.js';
 import { getToolDefinitions, executeTool, isDangerous } from '../tools/registry.js';
+import { searchCards, buildMemoryContext } from '../storage/memory-cards.js';
 import type { ChatMessage, AgentConfig, LoopResult, ToolCall } from './types.js';
 
 const log = createLogger('loop');
@@ -39,8 +40,21 @@ export async function runAgenticLoop(
   const toolDefs = getToolDefinitions();
   const toolCallLog: { name: string; result: string }[] = [];
 
+  // Auto-inject relevant memories into system prompt
+  let systemPrompt = agent.systemPrompt;
+  try {
+    const memResults = await searchCards(userMessage, 3);
+    const memContext = buildMemoryContext(memResults);
+    if (memContext) {
+      systemPrompt += '\n\n' + memContext;
+      log.debug('Memory injected', { cards: memResults.length });
+    }
+  } catch {
+    // Memory retrieval is non-critical
+  }
+
   const messages: ChatMessage[] = [
-    { role: 'system', content: agent.systemPrompt },
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: userMessage },
   ];
 

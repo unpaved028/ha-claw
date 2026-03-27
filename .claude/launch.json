@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "HA-Claw Dev Server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "ha-claw", "run", "dev"],
+      "port": 3100
+    }
+  ],
+  "autoVerify": true
+}

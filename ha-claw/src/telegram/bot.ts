@@ -5,25 +5,47 @@
  * Dangerous tool calls trigger an inline keyboard for confirmation.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { Bot } from 'grammy';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
+import { getEntityCache } from '../core/entity-cache.js';
+import { personalityPrompt, needsOnboarding } from '../core/profile.js';
+import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboarding.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import { whitelistGuard } from './whitelist.js';
 import { setupConfirmationHandler, createTelegramConfirmFn } from './confirmation.js';
 
 const log = createLogger('telegram');
 
-const DEFAULT_AGENT = {
-  name: 'butler',
-  systemPrompt: [
-    'Du bist HA-Claw, ein lokaler KI-Assistent für Smart Home und Produktivität.',
-    'Du läufst als Home Assistant Add-on.',
-    'Du antwortest knapp, hilfreich und auf Deutsch.',
-    'Du hast Zugriff auf Tools – nutze sie, wenn nötig.',
-    'Antworte nie mit Informationen, die du nicht sicher weißt.',
-  ].join('\n'),
-};
+function loadButlerPrompt(): string {
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const mdPath = resolve(dir, '../../agents/butler.md');
+    let prompt = readFileSync(mdPath, 'utf-8');
+    const cache = getEntityCache();
+    prompt = prompt.replace('{{ENTITY_CACHE}}', cache || '(Kein HA-Zugriff – Entity-Cache nicht verfügbar.)');
+    return prompt;
+  } catch {
+    return [
+      'Du bist HA-Claw, ein lokaler KI-Assistent für Smart Home und Produktivität.',
+      'Du läufst als Home Assistant Add-on.',
+      'Du antwortest knapp, hilfreich und auf Deutsch.',
+      'Du hast Zugriff auf Tools – nutze sie, wenn nötig.',
+    ].join('\n');
+  }
+}
+
+function buildAgent() {
+  const basePrompt = loadButlerPrompt();
+  const personality = personalityPrompt();
+  return {
+    name: 'butler',
+    systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}`,
+  };
+}
 
 export function createBot(): Bot {
   if (!appConfig.telegramBotToken) {
@@ -68,15 +90,29 @@ export function createBot(): Bot {
   bot.on('message:text', async (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
+    const sessionId = `tg-${chatId}`;
 
     log.info('Processing message', { userId: ctx.from.id, length: text.length });
 
     // Show typing indicator
     await ctx.replyWithChatAction('typing');
 
+    // Onboarding intercept
+    if (needsOnboarding() || isOnboarding(sessionId)) {
+      if (!isOnboarding(sessionId)) {
+        const greeting = startOnboarding(sessionId);
+        await ctx.reply(greeting, { parse_mode: 'Markdown' }).catch(() => ctx.reply(greeting));
+        return;
+      }
+      const response = await processOnboarding(sessionId, text);
+      await ctx.reply(response, { parse_mode: 'Markdown' }).catch(() => ctx.reply(response));
+      return;
+    }
+
     try {
       const confirmFn = createTelegramConfirmFn(bot, chatId);
-      const result = await runAgenticLoop(text, DEFAULT_AGENT, confirmFn);
+      const agent = buildAgent();
+      const result = await runAgenticLoop(text, agent, confirmFn);
 
       // Send response (handle Telegram's 4096 char limit)
       const response = result.response;

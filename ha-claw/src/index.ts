@@ -13,7 +13,11 @@
 import { appConfig } from './core/config.js';
 import { createLogger } from './core/logger.js';
 import { isHAAvailable } from './core/ha-client.js';
+import { buildEntityCache } from './core/entity-cache.js';
+import { loadProfile } from './core/profile.js';
 import { initStorage } from './storage/json-store.js';
+import { initMemoryCards } from './storage/memory-cards.js';
+import { initBacklog } from './storage/backlog.js';
 import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
 import { getToolNames } from './tools/registry.js';
@@ -32,16 +36,25 @@ async function main(): Promise<void> {
   // Step 1: Config already validated on import
   log.info('Config loaded', { model: appConfig.openRouterDefaultModel });
 
-  // Step 2: Storage
+  // Step 2: Storage + Memory
   await initStorage();
+  await initMemoryCards();
+  await initBacklog();
 
-  // Step 3: Built-in tools (always)
+  // Step 3: Profile
+  const profile = await loadProfile();
+  log.info('Profile loaded', { botName: profile.botName, onboarding: profile.onboardingComplete });
+
+  // Step 4: Built-in tools (always)
   registerBuiltinTools();
 
-  // Step 4: HA tools (only when HA API is reachable)
+  // Step 4: HA tools + entity discovery (only when HA API is reachable)
   if (isHAAvailable()) {
     registerHATools();
     log.info('Home Assistant API available');
+
+    // Step 4b: Build entity cache for agent context
+    await buildEntityCache();
   } else {
     log.info('Home Assistant API not available – HA tools disabled');
   }
