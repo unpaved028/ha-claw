@@ -1,4 +1,3 @@
-# ![HA-Claw Logo](logo.png)
 # HA-Claw 🤖
 
 Local AI-powered Smart Home Assistant – runs as a Home Assistant Add-on.
