@@ -19,12 +19,13 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 | `telegram_allowed_user_ids` | ❌* | Telegram User-IDs die Zugriff haben (*Pflicht wenn Bot aktiv) |
 | `log_level` | ❌ | `debug`, `info`, `warn`, `error` (Standard: `info`) |
 
-## Sicherheit
+## Sicherheit & Datenfluss
 
 - **Whitelist-Only**: Nur eingetragene Telegram User-IDs können mit dem Bot interagieren
 - **Safety Gate**: Gefährliche Aktionen (Gerät steuern, Daten löschen) erfordern per Telegram Inline-Button eine Bestätigung
 - **Secret Redaction**: API-Keys und Tokens werden in Logs automatisch unkenntlich gemacht
 - **Kein offener Port**: Web-UI läuft nur über HA Ingress (kein externer Zugriff)
+- **Cloud-LLM**: Chat-Nachrichten werden an den gewählten LLM-Provider (z.B. OpenRouter) gesendet. Alle Aktionen (Gerätesteuerung, Speicherung) werden lokal auf deinem Home Assistant ausgeführt.
 
 ## Daten & Backup
 

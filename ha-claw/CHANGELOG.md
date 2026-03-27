@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+- **Interactive Tool Vault**: Tools can now be toggled on/off from the Settings UI. Disabled state is persisted to disk and survives restarts.
+- **Scheduler / Cron Jobs**: Recurring jobs with schedule formats: `every 5m`, `daily 07:00`, `weekdays 08:00`, `weekends 09:00`. Full CRUD via tools and Settings UI. Jobs execute through the agentic loop.
+- **Action Feedback Loop**: `ha_call_service` now verifies state changes — captures pre-state, executes, waits 1s, checks post-state, and returns verification result (confirmed/failed/timeout).
+- **Proactive Analysis** (`analyze_home`): Periodic environment scan with 8 analysis modules:
+  - **Energy**: Lights on during daytime, heating in summer, windows open + climate, high thermostat settings, standby power waste
+  - **Solar**: Grid export surplus, missing battery, battery full + exporting
+  - **Security**: Missing presence detection, open windows/doors at absence, unlocked locks at night, missing smoke detectors, missing water leak sensors
+  - **Covers/Raffstores**: Storm protection (wind sensor), dusk/dawn automation, seasonal solar shading (summer only), all-closed-daytime warning
+  - **Climate**: Humidity/mold risk (>65%), temperature differentials between rooms (>5°C)
+  - **Maintenance**: Unavailable entities, stale sensors (48h+), low battery (<20%)
+  - **Naming**: Missing friendly names, inconsistent ID patterns, missing labels
+  - **Automations**: Disabled automations, never-fired automations, missing motion-light, night mode (lights at 3am), missing notifications, vacation mode
+  - Results limited to **top 3 most impactful** findings per run, deduplicated against full backlog (incl. rejected/deferred)
+- **Self-Improvement System** with 4 subsystems:
+  - **Corrections**: Learns from user corrections ("Nein, nicht das Licht"), auto-injected into future prompts
+  - **Prompt Patches**: Dynamic rules that modify agent behavior permanently
+  - **Usage Patterns**: Tracks recurring actions, detects habits (e.g. "user always turns off kitchen at 22:00")
+  - **Error Tracking**: Records tool failures, builds error context for smarter retries
+  - All learning context auto-injected into system prompt per request
+- **Backlog Deferred Status**: Tasks can now be deferred (yellow badge) in addition to approved/rejected/done. Filter buttons for deferred/rejected in UI.
+- **Entity Cache by Area**: Entities now grouped by HA area/room instead of domain — dramatically improves bot conversations by giving spatial context.
+- **Model Recommendations**: Settings UI shows recommendation hints for each LLM model.
+- **Response Sanitizer**: Strips raw tool-call syntax that weaker LLMs sometimes leak into responses (OLCALL, tool_code blocks, XML tags, [TOOL_CALLS]).
+- **Butler Prompt Overhaul**: Naming convention guide (LGT, OG, DG, WZ, etc.), area-based entity lookup, self-improvement instructions, all new tools documented.
+
+### Fixed
+- **Model Selection**: The model dropdown in Settings now works — previously it was empty because the frontend fetched a non-existent `/api/models` endpoint.
+- **Model Override Persistence**: Selecting a model now saves the override to the server profile (not just browser localStorage).
+- **Misleading Security Label**: Replaced "Alle Daten bleiben lokal" with accurate description.
+- **SVG Icons**: Replaced emoji icons with clean SVG stroke icons matching the mic button style.
+- **JS Parse Error**: Fixed `\x27` escaping in template literals that broke all buttons/navigation.
+
+### Changed
+- **Updated Model List**: Available models now include Gemini 2.5 Flash, Claude Sonnet 4, GPT-4.1-mini, and the user-configured default model is always shown first.
+- **Security Card**: Renamed "Lokale Ausführung" to "Ausführung" with updated icon to reflect the cloud/local hybrid architecture.
+
 ## 0.2.7 (Release)
 
 ### Fixed
