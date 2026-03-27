@@ -1220,6 +1220,99 @@ body{
 .backlog-action-btn.delete{color:var(--danger);border-color:var(--danger)}
 .backlog-action-btn.delete:hover{background:rgba(239,68,68,0.1)}
 
+.backlog-action-btn.delete:hover{background:rgba(239,68,68,0.1)}
+
+/* ── Actions List ────────────────────────────────────────── */
+.actions-list{display:flex;flex-direction:column;gap:0.75rem;padding-bottom:2rem}
+.action-entry{
+  display:flex;gap:1rem;padding:0.85rem 1rem;
+  background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+}
+.action-icon{
+  width:38px;height:38px;min-width:38px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+}
+.action-icon.switch{background:rgba(0,229,160,0.12);color:var(--success)}
+.action-icon.note{background:rgba(108,99,255,0.12);color:var(--accent)}
+.action-icon.task{background:rgba(245,158,11,0.12);color:#f59e0b}
+.action-icon.system{background:rgba(229,231,235,0.1);color:var(--text-muted)}
+.action-body{flex:1;min-width:0}
+.action-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem}
+.action-tool{font-size:0.65rem;font-weight:700;text-transform:uppercase;color:var(--text-dim);letter-spacing:0.05em}
+.action-time{font-size:0.65rem;color:var(--text-dim);font-family:ui-monospace,monospace}
+.action-msg{font-size:0.88rem;font-weight:600;color:var(--text);line-height:1.4}
+.action-rollback{margin-top:0.75rem;padding:0.35rem 0.75rem;font-size:0.75rem;font-weight:600;color:var(--text);background:var(--bg-surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all var(--transition)}
+.action-rollback:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+.action-rollback:disabled{opacity:0.5;cursor:not-allowed}
+.btn-clear{padding:0.4rem 0.8rem;font-size:0.75rem;border-radius:6px;background:var(--bg-surface);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all var(--transition)}
+.btn-clear:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+
+/* ── Logs Sub-navigation ──────────────────────────────────── */
+.logs-subnav{
+  display:flex;
+  gap:1.5rem;
+  margin-bottom:1.25rem;
+  border-bottom:1px solid var(--border);
+  padding-bottom:0.25rem;
+}
+.logs-subnav-item{
+  background:none;
+  border:none;
+  color:var(--text-dim);
+  font-size:0.9rem;
+  font-weight:600;
+  cursor:pointer;
+  padding:0.5rem 0.25rem;
+  position:relative;
+  transition:color var(--transition);
+}
+.logs-subnav-item:hover{color:var(--text)}
+.logs-subnav-item.active{color:var(--accent)}
+.logs-subnav-item.active::after{
+  content:'';
+  position:absolute;
+  bottom:-0.25rem;
+  left:0;
+  right:0;
+  height:2px;
+  background:var(--accent);
+  border-radius:2px;
+}
+.log-tab{display:none}
+.log-tab.active{display:block}
+
+/* ── Modal ──────────────────────────────────────────────── */
+.modal{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;z-index:1000;
+  padding:1rem;
+}
+.modal.active{display:flex}
+.modal-content{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:16px;width:100%;max-width:500px;
+  display:flex;flex-direction:column;max-height:90vh;
+}
+.modal-header{
+  padding:1rem 1.25rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-title{font-weight:700;font-size:1.1rem}
+.modal-close{
+  background:none;border:none;color:var(--text-muted);
+  font-size:1.2rem;cursor:pointer;padding:0.25rem;
+}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:1.25remInter;overflow-y:auto;scrollbar-width:thin}
+.detail-label{font-size:0.65rem;font-weight:700;text-transform:uppercase;color:var(--accent);margin-bottom:0.4rem;letter-spacing:0.06em}
+.detail-text{font-size:0.9rem;line-height:1.5;color:var(--text);margin-bottom:1rem}
+.params-list{display:flex;flex-direction:column;gap:0.75rem}
+.param-item{padding:0.6rem;background:var(--bg-surface);border-radius:8px;border:1px solid var(--border)}
+.param-name{font-family:ui-monospace,monospace;font-size:0.8rem;font-weight:700;color:var(--text)}
+.param-type{font-size:0.65rem;color:var(--text-dim);margin-left:0.5rem}
+.param-desc{font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem}
+
 @media(max-width:700px){
   .profile-grid{grid-template-columns:1fr}
   .backlog-item-details{grid-template-columns:1fr}
@@ -1287,6 +1380,8 @@ body{
     </div>
   </div>
 
+
+
   <!-- ── Settings Page ─────────────────────────────────────── -->
   <div class="page" id="page-settings">
     <div class="settings-layout">
@@ -1321,18 +1416,26 @@ body{
           <div class="settings-grid">
             <div class="model-card">
               <div class="model-card-header">
-                <span class="model-card-title">Model Selection</span>
-                <span class="model-badge">Active Engine</span>
+                <span class="model-card-title">Model Forge</span>
+                <span class="model-badge" id="active-model-badge">Active Engine</span>
               </div>
               <p class="model-card-sub">Waehle das LLM fuer HA-Claw via OpenRouter.</p>
-              <div class="model-list" id="model-list">
+              
+              <div class="profile-field">
+                <label class="profile-label">Modell waehlen</label>
+                <select class="profile-input" id="model-select" onchange="updateModelOverride()">
+                  <option value="">Standard (Config)</option>
+                </select>
+                <p class="welcome-sub" style="font-size:0.75rem;margin-top:0.4rem">Aenderungen ueberschreiben den Add-on Standard fuer diesen Browser.</p>
+              </div>
+
+              <div class="model-list" id="model-list" style="margin-top:1.5rem">
                 <div class="model-item active">
                   <div class="model-item-icon">&#10024;</div>
                   <div class="model-item-body">
                     <div class="model-item-name" id="active-model-name">Lade...</div>
                     <div class="model-item-desc" id="active-model-id">--</div>
                   </div>
-                  <span class="model-item-check">&#9989;</span>
                 </div>
               </div>
             </div>
@@ -1518,8 +1621,8 @@ body{
   <div class="page" id="page-logs">
     <div class="logs-header">
       <div class="logs-header-left">
-        <h1>System <strong>Logs</strong></h1>
-        <p class="logs-header-sub">Echtzeit-Telemetrie und Aktivitaeten von HA-Claw.</p>
+        <h1>System <strong>Logs</strong> & Aktivitaet</h1>
+        <p class="logs-header-sub">Echtzeit-Telemetrie und KI-Audit-Trail von HA-Claw.</p>
       </div>
       <div class="logs-stats">
         <div class="logs-stat-online"><span class="dot"></span> SYSTEM ONLINE</div>
@@ -1533,25 +1636,73 @@ body{
         </div>
       </div>
     </div>
-    <div class="terminal">
-      <div class="terminal-titlebar">
-        <div class="terminal-dots"><span></span><span></span><span></span></div>
-        <div class="terminal-title">&#128187; HA_CLAW_LOG</div>
-        <div class="terminal-actions">
-          <button class="terminal-action" id="logs-download" title="Download">&#8615;</button>
-          <button class="terminal-action" id="logs-clear" title="Logs leeren">&#128465;</button>
+
+    <div class="logs-subnav">
+      <button class="logs-subnav-item active" data-log-tab="system">System Logs</button>
+      <button class="logs-subnav-item" data-log-tab="actions">Aktionen</button>
+    </div>
+
+    <!-- Tab: System Logs -->
+    <div class="log-tab active" id="log-tab-system">
+      <div class="terminal">
+        <div class="terminal-titlebar">
+          <div class="terminal-dots"><span></span><span></span><span></span></div>
+          <div class="terminal-title">&#128187; HA_CLAW_LOG</div>
+          <div class="terminal-actions">
+            <button class="terminal-action" id="logs-download" title="Download">&#8615;</button>
+            <button class="terminal-action" id="logs-clear" title="Logs leeren">&#128465;</button>
+          </div>
+        </div>
+        <div class="terminal-body" id="logs-body">
+          <div class="log-line"><span class="log-ts">[--:--:--]</span>  <span class="log-component">SYSTEM:</span>  <span class="log-msg">Lade Logs...</span></div>
         </div>
       </div>
-      <div class="terminal-body" id="logs-body">
-        <div class="log-line"><span class="log-ts">[--:--:--]</span>  <span class="log-component">SYSTEM:</span>  <span class="log-msg">Lade Logs...</span></div>
+      <div class="logs-input-area">
+        <div class="logs-input-container">
+          <span class="logs-input-prefix">$</span>
+          <input id="logs-input" placeholder="Befehl eingeben..." autocomplete="off">
+          <button class="input-btn" id="logs-send" onclick="runLogsCmd()">&#10148;</button>
+        </div>
       </div>
     </div>
-    <div class="logs-input-area">
-      <div class="logs-input-container">
-        <span class="logs-input-prefix">$</span>
-        <input id="logs-input" placeholder="Befehl eingeben (z.B. /status, /clear)..." autocomplete="off">
-        <span class="logs-input-hint">ENTER &#8629;</span>
-        <button class="input-btn" id="logs-send" onclick="runLogsCmd()">&#10148;</button>
+
+    <!-- Tab: Aktionen -->
+    <div class="log-tab" id="log-tab-actions">
+      <div class="welcome" style="margin-top:0; padding-top:0">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <p class="welcome-sub" style="margin:0">Audit-Trail der signifikanten KI-Entscheidungen.</p>
+          <button class="btn-clear" onclick="clearActions()" style="padding:0.4rem 0.8rem; font-size:0.75rem">Verlauf leeren</button>
+        </div>
+      </div>
+      <div class="actions-list" id="actions-list" style="margin-top:1rem">
+        <div class="backlog-empty">Lade Aktionen...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="statusbar" style="margin-top:auto;border-top:1px solid var(--border);padding:1rem;flex-direction:column;height:auto">
+  <div style="max-width:820px;width:100%;margin:0 auto;text-align:center;font-size:0.65rem;color:var(--text-dim);line-height:1.5">
+    &copy; 2025 HA-Claw Butler &bull; Made with &hearts; for Home Assistant.<br>
+    <strong>Disclaimer:</strong> Dies ist ein KI-Backend. Alle Aktionen werden lokal ausgefuehrt. 
+    Nutzung auf eigene Gefahr. KI-generierte Antworten koennen ungenau sein.
+  </div>
+</footer>
+
+<!-- ── Tool Details Modal ───────────────────────────────────── -->
+<div id="tool-modal" class="modal" onclick="closeToolModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="tool-detail-name">Tool Details</div>
+      <button class="modal-close" onclick="closeToolModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-label">Beschreibung</div>
+      <div class="detail-text" id="tool-detail-desc">--</div>
+      
+      <div class="detail-label" style="margin-top:1rem">Parameter</div>
+      <div id="tool-params-list" class="params-list">
+        <!-- Filled by JS -->
       </div>
     </div>
   </div>
@@ -1639,6 +1790,22 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     btn.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById('page-'+btn.dataset.page).classList.add('active');
+    
+    if(btn.dataset.page==='logs') {
+       const activeSub = document.querySelector('.logs-subnav-item.active');
+       if(activeSub && activeSub.dataset.logTab === 'actions') loadActions();
+    }
+  });
+});
+
+// ── Logs Sub-navigation ────────────────────────────────────
+document.querySelectorAll('.logs-subnav-item').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.logs-subnav-item').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.log-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('log-tab-'+btn.dataset.logTab).classList.add('active');
+    if(btn.dataset.logTab==='actions') loadActions();
   });
 });
 
@@ -1917,7 +2084,10 @@ async function loadSettings(){
       const isDanger=DANGEROUS_TOOLS.has(name);
       grid.innerHTML+=
         '<div class="tool-card">'
-        +'<div class="tool-card-top"><div class="tool-card-icon">'+icon+'</div></div>'
+        +'<div class="tool-card-top">'
+          +'<div class="tool-card-icon">'+icon+'</div>'
+          +'<button class="backlog-add-btn" style="padding:0.2rem 0.4rem;font-size:0.6rem" onclick="showToolDetails(\x27'+name+'\x27)">INFO</button>'
+        +'</div>'
         +'<div class="tool-card-name">'+name+'</div>'
         +'<div class="tool-card-type">'+desc+'</div>'
         +'<span class="tool-card-badge'+(isDanger?' danger':'')+'">'+
@@ -2205,6 +2375,9 @@ logsInput.addEventListener('keydown',e=>{
   if(e.key==='Enter'){e.preventDefault();runLogsCmd();}
 });
 
+  }
+}
+
 async function runLogsCmd(){
   const cmd=logsInput.value.trim();
   if(!cmd)return;
@@ -2217,7 +2390,6 @@ async function runLogsCmd(){
     lastLogCount=0;
     await fetchLogs();
   }else{
-    // Append info line
     const line=document.createElement('div');
     line.className='log-line';
     line.innerHTML='<span class="log-ts">['+fmtTime(new Date().toISOString())+']</span>  <span class="log-level-warn">WARN:</span>  <span class="log-msg">Unbekannter Befehl: '+escHtml(cmd)+'. Verfuegbar: /clear, /status, /refresh</span>';
@@ -2225,6 +2397,154 @@ async function runLogsCmd(){
     logsBody.scrollTop=logsBody.scrollHeight;
   }
 }
+
+// ── Action Log ────────────────────────────────────────────
+async function clearActions(){
+  if(!confirm('Moechten Sie den Aktionsverlauf wirklich leeren?')) return;
+  try{
+    await fetch(base+'/api/actions', { method: 'DELETE' });
+    loadActions();
+  }catch(e){}
+}
+
+async function rollbackAction(id){
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.textContent = '...';
+  btn.disabled = true;
+  
+  try{
+    const r = await fetch(base+'/api/actions/rollback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if(r.ok) {
+      loadActions();
+    } else {
+      alert('Rollback fehlgeschlagen.');
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  }catch(e){
+    alert('Netzwerkfehler beim Rollback.');
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+async function loadActions(){
+  const list=document.getElementById('actions-list');
+  try{
+    const r=await fetch(base+'/api/actions');
+    const d=await r.json();
+    if(!d.actions||d.actions.length===0){
+      list.innerHTML='<div class="backlog-empty">Noch keine Aktionen aufgezeichnet.</div>';
+      return;
+    }
+    list.innerHTML=d.actions.map(a=>{
+      let icon='&#128187;', cls='system';
+      const tool = a.tool || 'system';
+      if(tool==='ha_call_service'||tool==='ha_call_service_dangerous'){icon='&#128268;';cls='switch';}
+      else if(tool.startsWith('memory')){icon='&#129504;';cls='note';}
+      else if(tool.startsWith('backlog')){icon='&#128161;';cls='task';}
+      
+      const rollbackBtn = a.rollback ? '<button class="action-rollback" onclick="rollbackAction(\\'' + a.id + '\\')">Rollback</button>' : '';
+
+      return '<div class="action-entry">'
+        +'<div class="action-icon '+cls+'">'+icon+'</div>'
+        +'<div class="action-body">'
+          +'<div class="action-header">'
+            +'<span class="action-tool">'+tool.replace('ha_','')+'</span>'
+            +'<span class="action-time">'+fmtTime(a.timestamp)+'</span>'
+          +'</div>'
+          +'<div class="action-msg">'+escHtml(a.description)+'</div>'
+          +rollbackBtn
+        +'</div></div>';
+    }).join('');
+  }catch(e){list.innerHTML='<div class="backlog-empty">Fehler beim Laden der Aktionen.</div>';}
+}
+
+// ── Tool Details ──────────────────────────────────────────
+async function showToolDetails(name){
+  document.getElementById('tool-detail-name').textContent=name;
+  document.getElementById('tool-detail-desc').textContent=TOOL_DESCS[name]||'Registriertes System-Tool.';
+  const paramsList=document.getElementById('tool-params-list');
+  paramsList.innerHTML='<div class="backlog-empty">Lade Parameter...</div>';
+  document.getElementById('tool-modal').classList.add('active');
+  
+  try{
+    const r=await fetch(base+'/api/tools/'+name);
+    const tool=await r.json();
+    if(tool.parameters && tool.parameters.properties){
+      const props=tool.parameters.properties;
+      paramsList.innerHTML=Object.keys(props).map(p=>{
+        const info=props[p];
+        return '<div class="param-item">'
+          +'<div class="param-name">'+p+'<span class="param-type">'+(info.type||'any')+'</span></div>'
+          +'<div class="param-desc">'+(info.description||'Keine Beschreibung.')+'</div>'
+          +'</div>';
+      }).join('');
+    }else{
+      paramsList.innerHTML='<div class="backlog-empty">Keine Parameter definiert.</div>';
+    }
+  }catch(e){paramsList.innerHTML='<div class="backlog-empty">Fehler beim Laden der Tool-Details.</div>';}
+}
+
+function closeToolModal(e){
+  if(!e || e.target.id==='tool-modal' || e.target.className==='modal-close'){
+    document.getElementById('tool-modal').classList.remove('active');
+  }
+}
+
+// ── Model Selection Override ──────────────────────────────
+async function initModelForge(){
+  const sel=document.getElementById('model-select');
+  const saved=localStorage.getItem('ha-claw-model-override');
+  if(saved) {
+    document.getElementById('active-model-badge').textContent='Browser Override';
+    document.getElementById('active-model-badge').style.background='var(--success)';
+  }
+  
+  try{
+    const r=await fetch(base+'/api/models');
+    const d=await r.json();
+    if(d.models){
+      d.models.forEach(m=>{
+        const opt=document.createElement('option');
+        opt.value=m.id;
+        opt.textContent=m.name||m.id;
+        if(m.id===saved)opt.selected=true;
+        sel.appendChild(opt);
+      });
+    }
+  }catch(e){}
+}
+
+async function updateModelOverride(){
+  const val=document.getElementById('model-select').value;
+  if(!val){
+    localStorage.removeItem('ha-claw-model-override');
+    location.reload();
+    return;
+  }
+  localStorage.setItem('ha-claw-model-override',val);
+  const badge=document.getElementById('active-model-badge');
+  badge.textContent='Browser Override';
+  badge.style.background='var(--success)';
+  
+  // Update current display
+  document.getElementById('active-model-name').textContent=val.split('/').pop();
+  document.getElementById('active-model-id').textContent=val;
+}
+
+// Hook into navigation for Actions page
+document.querySelectorAll('.nav-item').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(btn.dataset.page==='settings') { loadSettings(); initModelForge(); }
+  });
+});
+
 </script>
 </body>
 </html>`;

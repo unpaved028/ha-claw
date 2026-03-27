@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.6
+
+### Added
+- **Action Log Persistence**: System actions and tool executions are now permanently stored in `actions.jsonl` and survive restarts.
+- **Rollback Support**: Added "Undo" capability for Home Assistant service calls. The system automatically calculates and records the inverse operation for easy rollback from the UI.
+
+### Changed
+- **Dashboard Restructure**: Materially improved UI navigation by nesting the **Aktionen** log as a sub-tab within the **Logs** page, providing a cleaner and more focused main navbar.
+
 ## 0.2.5
 
 ### Added
@@ -12,6 +21,16 @@
 - **Web UI**: Chat labels (Bot & User) are now dynamic and follow the names set in your profile.
 
 ## 0.2.3
+
+### Added
+- Create profile system (bot name, user name, personality) with JSON storage
+- Build onboarding flow for first-time setup in chat
+- Add profile/personality section to Settings page
+- Inject personality into butler system prompt dynamically
+- Build memory card system (CRUD, TTL, versioning, tags)
+- Build hybrid retrieval (keyword + relevance scoring) for memory cards
+- Registering memory tools for agent
+- Integrate memory retrieval into agentic loop (auto-inject relevant cards)
 
 ### Changed
 - Miscellaneous improvements and fixes from latest development update.

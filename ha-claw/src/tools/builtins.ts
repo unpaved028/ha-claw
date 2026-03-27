@@ -10,6 +10,7 @@ import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
 import * as mem from '../storage/memory-cards.js';
 import * as backlog from '../storage/backlog.js';
+import { logAction } from '../storage/action-log.js';
 
 export function registerBuiltinTools(): void {
   // ── get_current_time ─────────────────────────────────────
@@ -83,11 +84,16 @@ export function registerBuiltinTools(): void {
       },
     },
     async (args) => {
-      return store.create(args['collection'] as CollectionName, {
+      const col = args['collection'] as CollectionName;
+      const res = await store.create(col, {
         title: args['title'] ?? 'Untitled',
         content: args['content'] ?? '',
         tags: args['tags'] ?? [],
       });
+      if (col === 'notes') {
+        await logAction('note', `Notiz erstellt: ${res.title}`, 'store_write');
+      }
+      return res;
     },
     { required: ['collection', 'content'] },
   );
@@ -143,6 +149,7 @@ export function registerBuiltinTools(): void {
         tags: args['tags'] as string[] | undefined,
         ttlDays: (args['ttl_days'] as number) ?? 0,
       });
+      await logAction('system', `Erinnerung gespeichert: ${card.title}`, 'memory_remember');
       return { saved: true, id: card.id, title: card.title, tags: card.tags };
     },
     { required: ['title', 'content'] },
@@ -288,6 +295,7 @@ export function registerBuiltinTools(): void {
         tags: args['tags'] as string[] | undefined,
         proposedBy: 'agent',
       });
+      await logAction('task', `Optimierung vorgeschlagen: ${task.id} - ${task.title}`, 'backlog_propose');
       return { proposed: true, id: task.id, title: task.title, priority: task.priority };
     },
     { required: ['title', 'as_is', 'to_be', 'impact'] },
@@ -356,6 +364,9 @@ export function registerBuiltinTools(): void {
         args['id'] as string,
         updates as Parameters<typeof backlog.updateTask>[1],
       );
+      if (task && args['status']) {
+        await logAction('task', `Status von ${task.id} geändert auf: ${task.status}`, 'backlog_update');
+      }
       return task
         ? { updated: true, id: task.id, status: task.status }
         : { error: 'Task not found' };

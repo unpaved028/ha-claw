@@ -35,6 +35,7 @@ export interface Profile {
   botName: string;
   userName: string;
   personality: PersonalityTraits;
+  modelOverride: string;
   onboardingComplete: boolean;
   createdAt: string;
   updatedAt: string;
@@ -53,6 +54,7 @@ const DEFAULT_PROFILE: Profile = {
   botName: 'HA-Claw',
   userName: 'Architekt',
   personality: DEFAULT_PERSONALITY,
+  modelOverride: '',
   onboardingComplete: false,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

@@ -18,6 +18,7 @@
 import { registerTool } from './registry.js';
 import * as ha from '../core/ha-client.js';
 import { createLogger } from '../core/logger.js';
+import { logAction } from '../storage/action-log.js';
 
 const log = createLogger('ha-tools');
 
@@ -29,7 +30,27 @@ const SAFE_DOMAINS = new Set([
   'script', 'number', 'select', 'button',
 ]);
 
+const ROLLBACK_MAP: Record<string, string> = {
+  'turn_on': 'turn_off',
+  'turn_off': 'turn_on',
+  'open_cover': 'close_cover',
+  'close_cover': 'open_cover',
+  'lock': 'unlock',
+  'unlock': 'lock',
+};
+
+function getRollback(domain: string, service: string, entityId: string, data: Record<string, unknown>) {
+  const reverse = ROLLBACK_MAP[service];
+  if (reverse) {
+    return { domain, service: reverse, entity_id: entityId, data };
+  }
+  return undefined;
+}
+
 export function registerHATools(): void {
+  // ... (lines 34-100 unchanged)
+  // (Note: Skipping re-pasting ha_get_state and ha_search_entities for brevity, 
+  // but they must remain in the file)
   // ── ha_get_state ─────────────────────────────────────────
   registerTool(
     'ha_get_state',
@@ -129,10 +150,13 @@ export function registerHATools(): void {
         return { error: `Domain "${domain}" is not allowed in ha_call_service. Use ha_call_service_dangerous for security-sensitive domains.` };
       }
 
-      return ha.callService(domain, service, {
+      const res = await ha.callService(domain, service, {
         entity_id: entityId,
         ...extraData,
       });
+      const rollback = getRollback(domain, service, entityId, extraData);
+      await logAction('switch', `${domain}.${service} auf ${entityId}`, 'ha_call_service', rollback);
+      return res;
     },
     { dangerous: false, required: ['domain', 'service', 'entity_id'] },
   );
@@ -168,7 +192,10 @@ export function registerHATools(): void {
       const payload: Record<string, unknown> = { ...extraData };
       if (entityId) payload['entity_id'] = entityId;
 
-      return ha.callService(domain, service, payload);
+      const res = await ha.callService(domain, service, payload);
+      const rollback = entityId ? getRollback(domain, service, entityId, extraData) : undefined;
+      await logAction('switch', `${domain}.${service}${entityId ? ' auf ' + entityId : ''}`, 'ha_call_service_dangerous', rollback);
+      return res;
     },
     { dangerous: true, required: ['domain', 'service'] },
   );

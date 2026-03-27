@@ -18,6 +18,8 @@ import { dashboardHtml } from './dashboard.js';
 import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
 import * as backlog from '../storage/backlog.js';
+import { getToolDefinitions } from '../tools/registry.js';
+import * as actionLog from '../storage/action-log.js';
 
 const log = createLogger('web');
 const STARTUP_TIME = new Date().toISOString();
@@ -44,11 +46,13 @@ function loadButlerPrompt(): string {
 
 /** Build the agent config with dynamic personality injection. */
 function buildAgent() {
+  const profile = getProfile();
   const basePrompt = loadButlerPrompt();
   const personality = personalityPrompt();
   return {
     name: 'butler',
     systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}`,
+    model: profile.modelOverride || undefined,
   };
 }
 
@@ -130,13 +134,21 @@ export async function startWebServer(): Promise<void> {
     return {
       agent: { name: profile.botName, status: 'active' },
       profile,
-      model: appConfig.openRouterDefaultModel,
+      model: profile.modelOverride || appConfig.openRouterDefaultModel,
       mode: appConfig.isAddon ? 'addon' : 'standalone',
       tools: getToolNames(),
       uptime: process.uptime(),
       memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
       haAvailable: !!(appConfig.supervisorToken && appConfig.haApiUrl),
       telegramConfigured: !!appConfig.telegramBotToken,
+      // Add available models from config schema if possible, or just the default ones
+      availableModels: [
+        'google/gemini-2.0-flash-001',
+        'google/gemini-2.0-pro-exp-02-05:free',
+        'anthropic/claude-3.5-sonnet',
+        'deepseek/deepseek-chat',
+        'openai/gpt-4o'
+      ]
     };
   });
 
@@ -155,6 +167,49 @@ export async function startWebServer(): Promise<void> {
       uptime: process.uptime(),
       memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
     };
+  });
+
+  app.get('/api/actions', async () => {
+    const actions = await actionLog.listActions(100);
+    return { count: actions.length, actions };
+  });
+
+  app.delete('/api/actions', async () => {
+    await actionLog.clearActions();
+    return { cleared: true };
+  });
+
+  app.post<{ Body: { id: string } }>('/api/actions/rollback', async (req, reply) => {
+    const id = req.body?.id;
+    if (!id) { reply.status(400); return { error: 'Missing action ID' }; }
+    
+    const action = await actionLog.getActionById(id);
+    if (!action || !action.rollback) {
+      reply.status(404);
+      return { error: 'Rollback data not found for this action' };
+    }
+
+    const { domain, service, entity_id, data } = action.rollback;
+    log.info('Executing rollback', { id, domain, service, entity_id });
+    
+    try {
+      // Use HA client directly for rollback to avoid infinite loops or recursion
+      const { callService } = await import('../core/ha-client.js');
+      const res = await callService(domain, service, { entity_id, ...data });
+      
+      // Log the rollback itself as a new action
+      await actionLog.logAction('system', `Rollback: ${domain}.${service} auf ${entity_id}`, 'rollback');
+      
+      return res;
+    } catch (err) {
+      log.error('Rollback failed', { error: String(err) });
+      reply.status(500);
+      return { error: 'Rollback execution failed' };
+    }
+  });
+
+  app.get('/api/tools/details', async () => {
+    return getToolDefinitions();
   });
 
   app.delete('/api/logs', async () => {
