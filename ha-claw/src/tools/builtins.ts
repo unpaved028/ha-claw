@@ -311,7 +311,7 @@ export function registerBuiltinTools(): void {
       status: {
         type: 'string',
         description: 'Filter by status: proposed, approved, in_progress, done, rejected',
-        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected'],
+        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected', 'deferred'],
       },
       priority: {
         type: 'string',
@@ -348,7 +348,7 @@ export function registerBuiltinTools(): void {
       status: {
         type: 'string',
         description: 'New status: proposed, approved, in_progress, done, rejected',
-        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected'],
+        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected', 'deferred'],
       },
       priority: {
         type: 'string',

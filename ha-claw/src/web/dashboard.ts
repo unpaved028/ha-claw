@@ -1189,6 +1189,7 @@ body{
 .backlog-badge.status{background:var(--accent-glow);color:var(--accent)}
 .backlog-badge.status-done{background:rgba(74,222,128,0.12);color:var(--success)}
 .backlog-badge.status-rejected{background:rgba(239,68,68,0.12);color:var(--danger)}
+.backlog-badge.status-deferred{background:rgba(251,191,36,0.12);color:#fbbf24}
 .backlog-badge.category{background:var(--bg-surface);color:var(--text-muted);border:1px solid var(--border)}
 .backlog-item-details{
   display:grid;
@@ -1558,6 +1559,8 @@ body{
             <button class="backlog-filter" data-filter="approved" onclick="filterBacklog('approved',this)">Approved</button>
             <button class="backlog-filter" data-filter="in_progress" onclick="filterBacklog('in_progress',this)">In Progress</button>
             <button class="backlog-filter" data-filter="done" onclick="filterBacklog('done',this)">Done</button>
+            <button class="backlog-filter" data-filter="deferred" onclick="filterBacklog('deferred',this)">Deferred</button>
+            <button class="backlog-filter" data-filter="rejected" onclick="filterBacklog('rejected',this)">Rejected</button>
           </div>
 
           <div class="backlog-list" id="backlog-list">
@@ -2261,7 +2264,7 @@ function renderBacklog(){
   }
   list.innerHTML=filtered.map(t=>{
     const prioCls='priority-'+t.priority;
-    const statusCls=t.status==='done'?'status-done':t.status==='rejected'?'status-rejected':'status';
+    const statusCls=t.status==='done'?'status-done':t.status==='rejected'?'status-rejected':t.status==='deferred'?'status-deferred':'status';
     const actions=buildBacklogActions(t);
     return '<div class="backlog-item" data-id="'+t.id+'">'
       +'<div class="backlog-item-top">'
@@ -2288,13 +2291,22 @@ function buildBacklogActions(t){
   const btns=[];
   if(t.status==='proposed'){
     btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27approved\\x27)">Genehmigen</button>');
+    btns.push('<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27deferred\\x27)">Zurueckstellen</button>');
     btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27rejected\\x27)">Ablehnen</button>');
   }
   if(t.status==='approved'){
     btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27in_progress\\x27)">Starten</button>');
+    btns.push('<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27deferred\\x27)">Zurueckstellen</button>');
   }
   if(t.status==='in_progress'){
     btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27done\\x27)">Abschliessen</button>');
+  }
+  if(t.status==='deferred'){
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27proposed\\x27)">Reaktivieren</button>');
+    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27rejected\\x27)">Ablehnen</button>');
+  }
+  if(t.status==='rejected'){
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27proposed\\x27)">Reaktivieren</button>');
   }
   btns.push('<button class="backlog-action-btn delete" onclick="deleteBacklogTask(\\x27'+t.id+'\\x27)">Loeschen</button>');
   return btns.join('');

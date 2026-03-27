@@ -20,7 +20,7 @@ const BACKLOG_DIR = join(appConfig.dataPath, 'store', 'backlog');
 // ── Types ─────────────────────────────────────────────────
 
 export type Priority = 'low' | 'medium' | 'high';
-export type TaskStatus = 'proposed' | 'approved' | 'in_progress' | 'done' | 'rejected';
+export type TaskStatus = 'proposed' | 'approved' | 'in_progress' | 'done' | 'rejected' | 'deferred';
 
 export interface BacklogTask {
   id: string;
