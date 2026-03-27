@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4
+
+### Fixed
+- **Web UI**: Chat labels (Bot & User) are now dynamic and follow the names set in your profile.
+
 ## 0.2.3
 
 ### Changed
