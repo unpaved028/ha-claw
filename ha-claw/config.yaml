@@ -6,4 +6,43 @@ version: "0.2.4"
 slug: "ha-claw"
 description: "Local AI-powered Smart Home Assistant with Telegram & Web UI"
 url: "https://github.com/unpaved028/ha-claw"
-...
+
+# Supported architectures (HA Green = aarch64)
+arch:
+  - aarch64
+  - amd64
+
+# Lifecycle
+init: false
+startup: application
+boot: auto
+
+# ── Ingress (Web-UI in HA Sidebar) ────────────────────────────
+ingress: true
+ingress_port: 3100
+panel_icon: "mdi:robot-outline"
+panel_title: "HA-Claw"
+
+# ── API Access ────────────────────────────────────────────────
+homeassistant_api: true
+hassio_api: true
+
+# ── Persistent storage mapping ────────────────────────────────
+map:
+  - share:rw
+
+# ── User-configurable options (shown in Add-on UI) ────────────
+options:
+  openrouter_api_key: ""
+  openrouter_default_model: "openrouter/free"
+  telegram_bot_token: ""
+  telegram_allowed_user_ids: ""
+  log_level: "info"
+
+# ── Schema validation for options ─────────────────────────────
+schema:
+  openrouter_api_key: "str"
+  openrouter_default_model: "list(openrouter/free|openrouter/auto|google/gemini-2.5-flash-preview|google/gemini-2.0-flash-exp|meta-llama/llama-3.3-70b-instruct|moonshotai/kimi-k2.5|xiaomi/mimo-v2-pro|google/gemini-2.5-pro-preview|anthropic/claude-sonnet-4|anthropic/claude-opus-4.6|openai/gpt-4o-mini|openai/gpt-4o|mistralai/mistral-large)"
+  telegram_bot_token: "str?"
+  telegram_allowed_user_ids: "str?"
+  log_level: "list(debug|info|warn|error)"
