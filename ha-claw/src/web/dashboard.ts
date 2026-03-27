@@ -1375,7 +1375,7 @@ body{
       </div>
       <div class="statusbar">
         <span><span class="dot"></span>Online</span>
-        <span>v0.2.3</span>
+        <span>v0.2.6</span>
       </div>
     </div>
   </div>

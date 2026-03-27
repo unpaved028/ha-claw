@@ -63,7 +63,7 @@ export async function startWebServer(): Promise<void> {
 
   // Health
   app.get('/health', async () => ({
-    status: 'ok', version: '0.2.0', uptime: process.uptime(), startedAt: STARTUP_TIME,
+    status: 'ok', version: '0.2.6', uptime: process.uptime(), startedAt: STARTUP_TIME,
     mode: appConfig.isAddon ? 'addon' : 'standalone',
     memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
   }));
