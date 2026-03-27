@@ -30,6 +30,16 @@ const SAFE_DOMAINS = new Set([
   'script', 'number', 'select', 'button',
 ]);
 
+/** Expected state after common service calls (for verification). */
+const EXPECTED_STATE: Record<string, string> = {
+  'turn_on': 'on',
+  'turn_off': 'off',
+  'open_cover': 'open',
+  'close_cover': 'closed',
+  'lock': 'locked',
+  'unlock': 'unlocked',
+};
+
 const ROLLBACK_MAP: Record<string, string> = {
   'turn_on': 'turn_off',
   'turn_off': 'turn_on',
@@ -150,13 +160,33 @@ export function registerHATools(): void {
         return { error: `Domain "${domain}" is not allowed in ha_call_service. Use ha_call_service_dangerous for security-sensitive domains.` };
       }
 
+      // Capture state before action
+      let stateBefore: string | null = null;
+      try { stateBefore = (await ha.getState(entityId)).state; } catch { /* ignore */ }
+
       const res = await ha.callService(domain, service, {
         entity_id: entityId,
         ...extraData,
       });
       const rollback = getRollback(domain, service, entityId, extraData);
       await logAction('switch', `${domain}.${service} auf ${entityId}`, 'ha_call_service', rollback);
-      return res;
+
+      // Feedback loop: verify state changed after 1s
+      let verification: { verified: boolean; stateBefore: string | null; stateAfter: string | null } | undefined;
+      try {
+        await new Promise(r => setTimeout(r, 1000));
+        const stateAfter = (await ha.getState(entityId)).state;
+        const expectedState = EXPECTED_STATE[service];
+        const verified = expectedState
+          ? stateAfter === expectedState
+          : stateAfter !== stateBefore; // fallback: state should have changed
+        verification = { verified, stateBefore, stateAfter };
+        if (!verified) {
+          log.warn('Action verification failed', { entityId, service, stateBefore, stateAfter });
+        }
+      } catch { /* verification is non-critical */ }
+
+      return { ...res, verification };
     },
     { dangerous: false, required: ['domain', 'service', 'entity_id'] },
   );

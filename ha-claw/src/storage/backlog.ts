@@ -38,8 +38,8 @@ export interface BacklogTask {
   category: string;
   /** Optional tags for search */
   tags: string[];
-  /** Who proposed it: 'agent' or 'user' */
-  proposedBy: 'agent' | 'user';
+  /** Who proposed it */
+  proposedBy: 'agent' | 'user' | 'analysis';
   createdAt: string;
   updatedAt: string;
 }
@@ -66,7 +66,7 @@ export async function createTask(data: {
   priority?: Priority;
   category?: string;
   tags?: string[];
-  proposedBy?: 'agent' | 'user';
+  proposedBy?: 'agent' | 'user' | 'analysis';
 }): Promise<BacklogTask> {
   const id = 'T-' + randomUUID().slice(0, 6).toUpperCase();
   const now = new Date().toISOString();

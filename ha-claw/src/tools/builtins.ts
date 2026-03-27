@@ -10,6 +10,8 @@ import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
 import * as mem from '../storage/memory-cards.js';
 import * as backlog from '../storage/backlog.js';
+import * as scheduler from '../storage/scheduler.js';
+import { runAnalysis } from '../core/proactive-analysis.js';
 import { logAction } from '../storage/action-log.js';
 
 export function registerBuiltinTools(): void {
@@ -400,5 +402,93 @@ export function registerBuiltinTools(): void {
       return ok ? { deleted: true } : { error: 'Task not found' };
     },
     { dangerous: true, required: ['id'] },
+  );
+
+  // ── schedule_create ──────────────────────────────────────
+  registerTool(
+    'schedule_create',
+    'Create a scheduled/recurring job. The bot will automatically execute the given message at the specified times. Schedule formats: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00".',
+    {
+      name: { type: 'string', description: 'Short name for the job (e.g. "Morgens Rollläden hoch")' },
+      schedule: { type: 'string', description: 'Schedule: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00"' },
+      message: { type: 'string', description: 'The message/command to execute (as if the user typed it in chat)' },
+    },
+    async (args) => {
+      const job = await scheduler.createJob({
+        name: args['name'] as string,
+        schedule: args['schedule'] as string,
+        message: args['message'] as string,
+      });
+      await logAction('schedule', `Job erstellt: ${job.id} - ${job.name} (${job.schedule})`, 'schedule_create');
+      return { created: true, id: job.id, name: job.name, schedule: job.schedule, nextRun: job.nextRunAt };
+    },
+    { required: ['name', 'schedule', 'message'] },
+  );
+
+  // ── schedule_list ────────────────────────────────────────
+  registerTool(
+    'schedule_list',
+    'List all scheduled jobs with their status, next run time, and run count.',
+    {},
+    async () => {
+      const all = await scheduler.listJobs();
+      return {
+        count: all.length,
+        jobs: all.map(j => ({
+          id: j.id,
+          name: j.name,
+          schedule: j.schedule,
+          message: j.message,
+          enabled: j.enabled,
+          nextRunAt: j.nextRunAt,
+          lastRunAt: j.lastRunAt,
+          runCount: j.runCount,
+        })),
+      };
+    },
+  );
+
+  // ── schedule_toggle ──────────────────────────────────────
+  registerTool(
+    'schedule_toggle',
+    'Enable or disable a scheduled job.',
+    {
+      id: { type: 'string', description: 'Job ID (e.g. "J-A1B2C3")' },
+      enabled: { type: 'boolean', description: 'true to enable, false to disable' },
+    },
+    async (args) => {
+      const job = await scheduler.toggleJob(args['id'] as string, args['enabled'] as boolean);
+      if (!job) return { error: 'Job not found' };
+      await logAction('schedule', `Job ${job.enabled ? 'aktiviert' : 'deaktiviert'}: ${job.id}`, 'schedule_toggle');
+      return { id: job.id, enabled: job.enabled, nextRunAt: job.nextRunAt };
+    },
+    { required: ['id', 'enabled'] },
+  );
+
+  // ── schedule_delete ──────────────────────────────────────
+  registerTool(
+    'schedule_delete',
+    'Delete a scheduled job permanently.',
+    {
+      id: { type: 'string', description: 'Job ID to delete' },
+    },
+    async (args) => {
+      const ok = await scheduler.deleteJob(args['id'] as string);
+      if (!ok) return { error: 'Job not found' };
+      await logAction('schedule', `Job gelöscht: ${args['id']}`, 'schedule_delete');
+      return { deleted: true };
+    },
+    { dangerous: true, required: ['id'] },
+  );
+
+  // ── analyze_home ─────────────────────────────────────────
+  registerTool(
+    'analyze_home',
+    'Run a proactive analysis of the Home Assistant environment. Checks for: lights left on, stale sensors, unavailable devices, energy waste, open windows with active heating. Results are written to the backlog as improvement proposals.',
+    {},
+    async () => {
+      const summary = await runAnalysis();
+      return { summary };
+    },
   );
 }

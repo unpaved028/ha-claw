@@ -8,6 +8,7 @@
  * 4. Register HA tools (if SUPERVISOR_TOKEN available)
  * 5. Start web server (Ingress)
  * 6. Start Telegram bot (optional)
+ * 7. Start scheduler
  */
 
 import { appConfig } from './core/config.js';
@@ -19,10 +20,12 @@ import { initStorage } from './storage/json-store.js';
 import { initMemoryCards } from './storage/memory-cards.js';
 import { initBacklog } from './storage/backlog.js';
 import { initActionLog } from './storage/action-log.js';
+import { initScheduler, stopScheduler } from './storage/scheduler.js';
 import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
 import { getToolNames, applyDisabledTools } from './tools/registry.js';
-import { startWebServer } from './web/server.js';
+import { startWebServer, buildAgent } from './web/server.js';
+import { runAgenticLoop } from './core/agentic-loop.js';
 import { createBot, startBot } from './telegram/bot.js';
 
 const log = createLogger('main');
@@ -76,6 +79,7 @@ async function main(): Promise<void> {
 
     const shutdown = (sig: string) => {
       log.info(`Received ${sig}, shutting down...`);
+      stopScheduler();
       bot.stop();
       process.exit(0);
     };
@@ -85,11 +89,20 @@ async function main(): Promise<void> {
     log.info('Telegram not configured – bot disabled');
     const shutdown = (sig: string) => {
       log.info(`Received ${sig}`);
+      stopScheduler();
       process.exit(0);
     };
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
   }
+
+  // Step 7: Scheduler – runs jobs through the agentic loop
+  await initScheduler(async (job) => {
+    log.info('Scheduler executing job', { id: job.id, message: job.message });
+    const agent = buildAgent();
+    const result = await runAgenticLoop(job.message, agent);
+    return result.response;
+  });
 
   log.info('=== HA-Claw ready ===');
 }

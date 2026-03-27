@@ -11,6 +11,8 @@ import { createLogger, getLogBuffer, clearLogBuffer } from '../core/logger.js';
 import { getProfile, saveProfile, needsOnboarding, personalityPrompt, type Profile } from '../core/profile.js';
 import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboarding.js';
 import { getToolInfos, setToolEnabled } from '../tools/registry.js';
+import { listJobs, toggleJob, deleteJob } from '../storage/scheduler.js';
+import { getSchedulerSummary } from '../storage/scheduler.js';
 import { getEntityCache } from '../core/entity-cache.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
@@ -45,13 +47,13 @@ function loadButlerPrompt(): string {
 }
 
 /** Build the agent config with dynamic personality injection. */
-function buildAgent() {
+export function buildAgent() {
   const profile = getProfile();
   const basePrompt = loadButlerPrompt();
   const personality = personalityPrompt();
   return {
     name: 'butler',
-    systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}`,
+    systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}${getSchedulerSummary()}`,
     model: profile.modelOverride || undefined,
   };
 }
@@ -173,6 +175,29 @@ export async function startWebServer(): Promise<void> {
       const ok = await setToolEnabled(name, enabled);
       if (!ok) return { error: `Tool "${name}" not found` };
       return { name, enabled, tools: getToolInfos() };
+    },
+  );
+
+  // ── Scheduler API ────────────────────────────────────
+  app.get('/api/scheduler', async () => {
+    const all = await listJobs();
+    return { count: all.length, jobs: all };
+  });
+
+  app.put<{ Body: { id: string; enabled: boolean } }>(
+    '/api/scheduler/toggle',
+    async (req) => {
+      const { id, enabled } = req.body ?? {};
+      const job = await toggleJob(id, enabled);
+      return job ?? { error: 'Job not found' };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/scheduler/:id',
+    async (req) => {
+      const ok = await deleteJob(req.params.id);
+      return ok ? { deleted: true } : { error: 'Job not found' };
     },
   );
 

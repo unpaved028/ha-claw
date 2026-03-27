@@ -16,7 +16,7 @@ const ACTIONS_PATH = join(appConfig.dataPath, 'store', 'actions.jsonl');
 export interface ActionEntry {
   id: string;
   timestamp: string;
-  category: 'switch' | 'note' | 'task' | 'config' | 'system' | 'other';
+  category: 'switch' | 'note' | 'task' | 'config' | 'system' | 'schedule' | 'other';
   description: string;
   tool?: string;
   rollback?: {
