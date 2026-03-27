@@ -1375,7 +1375,7 @@ body{
       </div>
       <div class="statusbar">
         <span><span class="dot"></span>Online</span>
-        <span>v0.2.6.1</span>
+        <span>v0.2.7</span>
       </div>
     </div>
   </div>
@@ -1709,7 +1709,6 @@ body{
 </div>
 
 <script>
-console.log('HA-Claw: Script initializing...');
 const base='${basePath}';
 const msgs=document.getElementById('messages');
 const inp=document.getElementById('input');

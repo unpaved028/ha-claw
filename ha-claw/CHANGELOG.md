@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.7 (Release)
+
+### Fixed
+- **Web UI Stability**: Fixed a critical JavaScript parse error (lookbehind regex) that caused the dashboard to freeze and become non-responsive.
+- **Escaping Fixes**: Corrected backslash-escaping in `dashboard.ts` template literals for both Markdown parsing and `onclick` event handlers.
+- **CSS Formatting**: Fixed a typo in `.modal-body` padding that affected layout.
+
 ## 0.2.6
 
 ### Added
