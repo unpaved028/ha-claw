@@ -12,7 +12,7 @@ import { Bot } from 'grammy';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 import { getEntityCache } from '../core/entity-cache.js';
-import { personalityPrompt, needsOnboarding } from '../core/profile.js';
+import { getProfile, personalityPrompt, needsOnboarding } from '../core/profile.js';
 import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboarding.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
@@ -41,11 +41,13 @@ function loadButlerPrompt(): string {
 }
 
 function buildAgent() {
+  const profile = getProfile();
   const basePrompt = loadButlerPrompt();
   const personality = personalityPrompt();
   return {
     name: 'butler',
     systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}`,
+    model: profile.modelOverride || undefined,
   };
 }
 

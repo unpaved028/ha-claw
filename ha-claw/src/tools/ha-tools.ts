@@ -171,24 +171,41 @@ export function registerHATools(): void {
       const rollback = getRollback(domain, service, entityId, extraData);
       await logAction('switch', `${domain}.${service} auf ${entityId}`, 'ha_call_service', rollback);
 
-      // Feedback loop: verify state changed after 1s
-      let verification: { verified: boolean; stateBefore: string | null; stateAfter: string | null } | undefined;
+      // Feedback loop: verify state changed
+      let verification: { verified: boolean; stateBefore: string | null; stateAfter: string | null; warning?: string } | undefined;
       try {
-        await new Promise(r => setTimeout(r, 1000));
-        const stateAfter = (await ha.getState(entityId)).state;
-        const expectedState = EXPECTED_STATE[service];
-        const verified = expectedState
-          ? stateAfter === expectedState
-          : stateAfter !== stateBefore; // fallback: state should have changed
+        const waitMs = domain === 'climate' ? 3000 : 1500;
+        await new Promise(r => setTimeout(r, waitMs));
+        const afterEntity = await ha.getState(entityId);
+        const stateAfter = afterEntity.state;
+
+        let verified: boolean;
+        if (domain === 'climate' && service === 'set_temperature') {
+          // For set_temperature, check the temperature attribute, not the state
+          const targetTemp = extraData['temperature'] as number | undefined;
+          const currentTemp = afterEntity.attributes['temperature'] as number | undefined;
+          verified = targetTemp !== undefined && currentTemp === targetTemp;
+        } else {
+          const expectedState = EXPECTED_STATE[service];
+          verified = expectedState
+            ? stateAfter === expectedState
+            : stateAfter !== stateBefore; // fallback: state should have changed
+        }
+
         verification = { verified, stateBefore, stateAfter };
         if (!verified) {
           log.warn('Action verification failed', { entityId, service, stateBefore, stateAfter });
+          verification.warning = `WARNUNG: Aktion "${service}" auf "${entityId}" konnte nicht verifiziert werden. Zustand vorher: ${stateBefore}, nachher: ${stateAfter}. Die Aktion wurde moeglicherweise NICHT ausgefuehrt. Bitte dem Nutzer ehrlich mitteilen!`;
         }
       } catch { /* verification is non-critical */ }
 
-      return { ...res, verification };
+      const result: Record<string, unknown> = { ...res, verification };
+      if (verification && !verification.verified && verification.warning) {
+        result.IMPORTANT_WARNING = verification.warning;
+      }
+      return result;
     },
-    { dangerous: false, required: ['domain', 'service', 'entity_id'] },
+    { dangerous: false, required: ['domain', 'service', 'entity_id'], complexity: 1 },
   );
 
   // ── ha_call_service_dangerous (security-sensitive domains) ─
@@ -227,7 +244,7 @@ export function registerHATools(): void {
       await logAction('switch', `${domain}.${service}${entityId ? ' auf ' + entityId : ''}`, 'ha_call_service_dangerous', rollback);
       return res;
     },
-    { dangerous: true, required: ['domain', 'service'] },
+    { dangerous: true, required: ['domain', 'service'], complexity: 2 },
   );
 
   // ── ha_get_config ────────────────────────────────────────

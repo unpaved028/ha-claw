@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+- **HA Best Practices Skill**: New `ha_best_practices` tool provides the bot with reference knowledge for automations, helpers, templates, device control, and safe refactoring. Reference files are bundled in `agents/skills/ha-best-practices/`.
+- **Backlog Automation**: Approved backlog tasks are now automatically processed by the AI:
+  - `approved` → AI generates a concrete solution → `solution_proposed`
+  - User reviews and approves → `solution_approved`
+  - AI executes the solution → `done`
+  - New task fields: `solution`, `solutionApprovedAt`, `executionResult`
+  - Background processor polls every 30 seconds for tasks needing processing
+- **Tool Complexity Levels**: Each tool now has a complexity rating (1-3 stars). Settings UI allows mapping different LLM models to each complexity level:
+  - Level 1 (simple): get_state, search, basic service calls
+  - Level 2 (moderate): dangerous calls, home analysis
+  - Level 3 (complex): reserved for future advanced tools
+- **New Models**: Added Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5, Gemini 3.1 Pro, Gemini 3 Flash, Gemini 3.1 Flash Lite, GPT-5.4, GPT-5.4-mini
+- **Dynamic Version Display**: Version number in chat footer and health API is now read from `package.json` at startup instead of being hardcoded
+
+### Fixed
+- **Model Dropdown Duplication**: Settings page no longer duplicates model entries on each visit (dropdown is now cleared before populating)
+- **Telegram Model Override**: Telegram bot now uses the user's model selection from profile (previously always used the config default)
+- **Log/Actions Scrolling**: System Logs and Actions tabs are now scrollable when content overflows
+- **Device Control Verification**: Improved action verification:
+  - Wait time increased (1.5s general, 3s for climate)
+  - Climate `set_temperature` now checks the `temperature` attribute instead of entity state
+  - Failed verifications return `IMPORTANT_WARNING` that forces the bot to honestly report failures
+- **Hardcoded Version**: Removed hardcoded version strings from server.ts and dashboard.ts
+
+### Changed
+- **Model List Updated**: Removed outdated models (Claude 3.5 Sonnet, Gemini 2.0 Flash, GPT-4o). Only latest versions of each model family are shown.
+- **config.yaml Schema**: Add-on model selection now matches the web UI model list
+- **Butler Prompt**: Added rules for honest verification feedback and best practices consultation
+
+---
+
 ## 0.3.0
 
 ### Added

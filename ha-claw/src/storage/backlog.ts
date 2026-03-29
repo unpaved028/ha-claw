@@ -20,7 +20,7 @@ const BACKLOG_DIR = join(appConfig.dataPath, 'store', 'backlog');
 // ── Types ─────────────────────────────────────────────────
 
 export type Priority = 'low' | 'medium' | 'high';
-export type TaskStatus = 'proposed' | 'approved' | 'in_progress' | 'done' | 'rejected' | 'deferred';
+export type TaskStatus = 'proposed' | 'approved' | 'solution_proposed' | 'solution_approved' | 'executing' | 'in_progress' | 'done' | 'rejected' | 'deferred';
 
 export interface BacklogTask {
   id: string;
@@ -40,6 +40,12 @@ export interface BacklogTask {
   tags: string[];
   /** Who proposed it */
   proposedBy: 'agent' | 'user' | 'analysis';
+  /** Proposed solution (YAML, automation config, description) */
+  solution?: string;
+  /** When the solution was approved */
+  solutionApprovedAt?: string;
+  /** Execution result or error */
+  executionResult?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,7 +108,7 @@ export async function getTask(id: string): Promise<BacklogTask | null> {
 
 export async function updateTask(
   id: string,
-  updates: Partial<Pick<BacklogTask, 'title' | 'asIs' | 'toBe' | 'impact' | 'priority' | 'status' | 'category' | 'tags'>>,
+  updates: Partial<Pick<BacklogTask, 'title' | 'asIs' | 'toBe' | 'impact' | 'priority' | 'status' | 'category' | 'tags' | 'solution' | 'solutionApprovedAt' | 'executionResult'>>,
 ): Promise<BacklogTask | null> {
   const existing = await getTask(id);
   if (!existing) return null;

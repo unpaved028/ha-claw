@@ -31,11 +31,21 @@ export interface PersonalityTraits {
   verbosity: number;
 }
 
+export interface ComplexityModels {
+  /** Model for complexity level 1 (simple tools). Empty = use default. */
+  level1: string;
+  /** Model for complexity level 2 (moderate tools). Empty = use default. */
+  level2: string;
+  /** Model for complexity level 3 (complex tools). Empty = use default. */
+  level3: string;
+}
+
 export interface Profile {
   botName: string;
   userName: string;
   personality: PersonalityTraits;
   modelOverride: string;
+  complexityModels: ComplexityModels;
   onboardingComplete: boolean;
   createdAt: string;
   updatedAt: string;
@@ -50,11 +60,18 @@ const DEFAULT_PERSONALITY: PersonalityTraits = {
   verbosity: 2,
 };
 
+const DEFAULT_COMPLEXITY_MODELS: ComplexityModels = {
+  level1: '',
+  level2: '',
+  level3: '',
+};
+
 const DEFAULT_PROFILE: Profile = {
   botName: 'HA-Claw',
   userName: 'Architekt',
   personality: DEFAULT_PERSONALITY,
   modelOverride: '',
+  complexityModels: DEFAULT_COMPLEXITY_MODELS,
   onboardingComplete: false,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

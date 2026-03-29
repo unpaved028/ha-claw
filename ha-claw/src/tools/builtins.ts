@@ -491,6 +491,7 @@ export function registerBuiltinTools(): void {
       const summary = await runAnalysis();
       return { summary };
     },
+    { complexity: 2 },
   );
 
   // ── learn_correction ─────────────────────────────────────

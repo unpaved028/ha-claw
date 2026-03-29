@@ -25,6 +25,13 @@ import * as actionLog from '../storage/action-log.js';
 
 const log = createLogger('web');
 const STARTUP_TIME = new Date().toISOString();
+const PKG_VERSION = (() => {
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(resolve(dir, '../../package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch { return '0.0.0'; }
+})();
 const VALID = new Set(['notes', 'conversations', 'memory']);
 
 function loadButlerPrompt(): string {
@@ -65,7 +72,7 @@ export async function startWebServer(): Promise<void> {
 
   // Health
   app.get('/health', async () => ({
-    status: 'ok', version: '0.2.6', uptime: process.uptime(), startedAt: STARTUP_TIME,
+    status: 'ok', version: PKG_VERSION, uptime: process.uptime(), startedAt: STARTUP_TIME,
     mode: appConfig.isAddon ? 'addon' : 'standalone',
     memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
   }));
@@ -141,17 +148,24 @@ export async function startWebServer(): Promise<void> {
       tools: getToolInfos(),
       uptime: process.uptime(),
       memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
+      version: PKG_VERSION,
       haAvailable: !!(appConfig.supervisorToken && appConfig.haApiUrl),
       telegramConfigured: !!appConfig.telegramBotToken,
       availableModels: Array.from(new Set([
         appConfig.openRouterDefaultModel,
-        'google/gemini-2.5-flash-preview',
-        'google/gemini-2.0-flash-001',
-        'anthropic/claude-sonnet-4',
-        'anthropic/claude-3.5-sonnet',
+        // Anthropic
+        'anthropic/claude-opus-4.6',
+        'anthropic/claude-sonnet-4.6',
+        'anthropic/claude-haiku-4.5',
+        // Google
+        'google/gemini-3.1-pro-preview',
+        'google/gemini-3-flash-preview',
+        'google/gemini-3.1-flash-lite-preview',
+        // OpenAI
+        'openai/gpt-5.4',
+        'openai/gpt-5.4-mini',
+        // Sonstige
         'deepseek/deepseek-chat',
-        'openai/gpt-4o',
-        'openai/gpt-4.1-mini',
       ]))
     };
   });

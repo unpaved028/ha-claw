@@ -27,6 +27,7 @@ interface RegisteredTool {
   handler: ToolHandler;
   dangerous: boolean;
   enabled: boolean;
+  complexity: 1 | 2 | 3;
 }
 
 export interface ToolInfo {
@@ -34,6 +35,7 @@ export interface ToolInfo {
   description: string;
   dangerous: boolean;
   enabled: boolean;
+  complexity: 1 | 2 | 3;
 }
 
 // ── Registry ─────────────────────────────────────────────────
@@ -86,7 +88,7 @@ export function registerTool(
   description: string,
   parameters: Record<string, unknown>,
   handler: ToolHandler,
-  options: { dangerous?: boolean; required?: string[] } = {},
+  options: { dangerous?: boolean; required?: string[]; complexity?: 1 | 2 | 3 } = {},
 ): void {
   if (tools.has(name)) {
     log.warn(`Tool "${name}" already registered – overwriting`);
@@ -108,6 +110,7 @@ export function registerTool(
     handler,
     dangerous: options.dangerous ?? false,
     enabled: true, // enabled by default, applyDisabledTools() overrides later
+    complexity: options.complexity ?? 1,
   });
 
   log.info(`Tool registered: ${name}`, { dangerous: options.dangerous ?? false });
@@ -166,7 +169,15 @@ export function getToolInfos(): ToolInfo[] {
     description: t.definition.function.description,
     dangerous: t.dangerous,
     enabled: t.enabled,
+    complexity: t.complexity,
   }));
+}
+
+/**
+ * Get the complexity level of a tool.
+ */
+export function getToolComplexity(name: string): 1 | 2 | 3 {
+  return tools.get(name)?.complexity ?? 1;
 }
 
 /**

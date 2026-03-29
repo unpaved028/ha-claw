@@ -465,7 +465,7 @@ body{
 }
 
 /* ── Pages ───────────────────────────────────────────────── */
-.page{display:none;flex:1;flex-direction:column;overflow:hidden}
+.page{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0}
 .page.active{display:flex}
 
 .page-placeholder{
@@ -1238,7 +1238,7 @@ body{
 .backlog-action-btn.delete:hover{background:rgba(239,68,68,0.1)}
 
 /* ── Actions List ────────────────────────────────────────── */
-.actions-list{display:flex;flex-direction:column;gap:0.75rem;padding-bottom:2rem}
+.actions-list{display:flex;flex-direction:column;gap:0.75rem;padding-bottom:2rem;overflow-y:auto;flex:1;min-height:0}
 .action-entry{
   display:flex;gap:1rem;padding:0.85rem 1rem;
   background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
@@ -1293,8 +1293,8 @@ body{
   background:var(--accent);
   border-radius:2px;
 }
-.log-tab{display:none}
-.log-tab.active{display:block}
+.log-tab{display:none;flex-direction:column;flex:1;min-height:0}
+.log-tab.active{display:flex;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) var(--scrollbar-track)}
 
 /* ── Modal ──────────────────────────────────────────────── */
 .modal{
@@ -1390,7 +1390,7 @@ body{
       </div>
       <div class="statusbar">
         <span><span class="dot"></span>Online</span>
-        <span>v0.2.7</span>
+        <span id="app-version">v...</span>
       </div>
     </div>
   </div>
@@ -1444,10 +1444,36 @@ body{
                 <p class="welcome-sub" style="font-size:0.75rem;margin-top:0.4rem">Aenderungen ueberschreiben den Add-on Standard fuer diesen Browser.</p>
                 <div style="margin-top:0.8rem;padding:0.6rem;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:0.75rem;line-height:1.5">
                   <strong style="color:var(--accent)">Empfehlung:</strong> Fuer zuverlaessiges Tool-Calling und natuerliche Antworten:<br>
-                  &#9733; <strong>GPT-4o-mini</strong> – bestes Preis/Leistung<br>
-                  &#9733; <strong>Claude 3.5 Sonnet/Haiku</strong> – exzellentes Tool-Calling<br>
-                  &#9733; <strong>GPT-4o</strong> – Premium-Qualitaet<br>
-                  &#9888; Gemini Flash ist guenstig, aber oft unzuverlaessig bei Tool-Calls.
+                  &#9733; <strong>Claude Sonnet 4.6</strong> – ausgewogen, sehr gutes Tool-Calling<br>
+                  &#9733; <strong>Claude Opus 4.6</strong> – Top-Tier Reasoning, komplex<br>
+                  &#9733; <strong>GPT-5.4</strong> – leistungsstark<br>
+                  &#9733; <strong>Gemini 3.1 Pro</strong> – starke Alternative<br>
+                  &#128176; <strong>Claude Haiku 4.5 / Gemini Flash Lite</strong> – schnell &amp; guenstig
+                </div>
+
+                <div style="margin-top:1.5rem">
+                  <label class="profile-label">Modell pro Komplexitaetsgrad</label>
+                  <p class="welcome-sub" style="font-size:0.72rem;margin-bottom:0.6rem">Ordne verschiedene Modelle den Tool-Komplexitaetsstufen zu. Leer = Standard-Modell.</p>
+                  <div style="display:flex;flex-direction:column;gap:0.5rem">
+                    <div style="display:flex;align-items:center;gap:0.6rem">
+                      <span style="font-size:0.75rem;min-width:90px;color:var(--text-muted)">&#9733;&#9734;&#9734; Einfach</span>
+                      <select class="profile-input" id="complexity-model-1" onchange="saveComplexityModels()" style="flex:1;font-size:0.8rem">
+                        <option value="">Standard</option>
+                      </select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.6rem">
+                      <span style="font-size:0.75rem;min-width:90px;color:var(--text-muted)">&#9733;&#9733;&#9734; Mittel</span>
+                      <select class="profile-input" id="complexity-model-2" onchange="saveComplexityModels()" style="flex:1;font-size:0.8rem">
+                        <option value="">Standard</option>
+                      </select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.6rem">
+                      <span style="font-size:0.75rem;min-width:90px;color:var(--text-muted)">&#9733;&#9733;&#9733; Komplex</span>
+                      <select class="profile-input" id="complexity-model-3" onchange="saveComplexityModels()" style="flex:1;font-size:0.8rem">
+                        <option value="">Standard</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2110,6 +2136,12 @@ async function loadSettings(){
     const r=await fetch(base+'/api/settings');
     const d=await r.json();
 
+    // Version
+    if(d.version){
+      const vEl=document.getElementById('app-version');
+      if(vEl)vEl.textContent='v'+d.version;
+    }
+
     // Model
     const parts=d.model.split('/');
     const mName=parts.length>1?parts[1]:d.model;
@@ -2133,6 +2165,7 @@ async function loadSettings(){
     const sel=document.getElementById('model-select');
     const saved=localStorage.getItem('ha-claw-model-override');
     const activeModel=saved||d.model;
+    sel.innerHTML='';
     if(d.availableModels){
       d.availableModels.forEach(function(mid){
         const opt=document.createElement('option');
@@ -2155,6 +2188,28 @@ async function loadSettings(){
       document.getElementById('active-model-badge').style.background='var(--success)';
     }
 
+    // Complexity model dropdowns
+    if(d.availableModels){
+      [1,2,3].forEach(function(lvl){
+        const cSel=document.getElementById('complexity-model-'+lvl);
+        if(!cSel)return;
+        cSel.innerHTML='<option value="">Standard</option>';
+        d.availableModels.forEach(function(mid){
+          const opt=document.createElement('option');
+          opt.value=mid;
+          opt.textContent=mid;
+          cSel.appendChild(opt);
+        });
+      });
+      // Set saved values from profile
+      if(d.profile&&d.profile.complexityModels){
+        var cm=d.profile.complexityModels;
+        if(cm.level1){var e=document.getElementById('complexity-model-1');if(e)e.value=cm.level1;}
+        if(cm.level2){var e=document.getElementById('complexity-model-2');if(e)e.value=cm.level2;}
+        if(cm.level3){var e=document.getElementById('complexity-model-3');if(e)e.value=cm.level3;}
+      }
+    }
+
     // Security
     const secParts=[];
     if(d.haAvailable) secParts.push('HA API verbunden');
@@ -2172,6 +2227,8 @@ async function loadSettings(){
       const icon=TOOL_ICONS[name]||'&#128295;';
       const desc=TOOL_DESCS[name]||tool.description||'Registriertes Tool';
       const isDanger=tool.dangerous||DANGEROUS_TOOLS.has(name);
+      const complexity=tool.complexity||1;
+      const complexStars='&#9733;'.repeat(complexity)+'&#9734;'.repeat(3-complexity);
       grid.innerHTML+=
         '<div class="tool-card'+(enabled?'':' disabled')+'" id="tc-'+name+'">'
         +'<div class="tool-card-top">'
@@ -2183,6 +2240,7 @@ async function loadSettings(){
         +'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.5rem">'
           +'<span class="tool-card-badge'+(isDanger?' danger':'')+'">'+
             (isDanger?'Bestaetigung noetig':'Safe')+'</span>'
+          +'<span style="font-size:0.7rem;color:var(--accent);letter-spacing:0.1em" title="Komplexitaet '+complexity+'">'+complexStars+'</span>'
           +'<a href="#" onclick="showToolDetails(\\x27'+name+'\\x27);return false" style="font-size:0.65rem;color:var(--text-dim);text-decoration:none;opacity:0.7">Details &rarr;</a>'
         +'</div>'
         +'</div>';
@@ -2288,6 +2346,8 @@ function renderBacklog(){
         +'<div><div class="backlog-detail-label">To-Be</div><div class="backlog-detail-text">'+esc(t.toBe)+'</div></div>'
         +'<div class="backlog-item-impact"><div class="backlog-detail-label">Impact</div><div class="backlog-detail-text">'+esc(t.impact)+'</div></div>'
       +'</div>'
+      +(t.solution?'<div style="margin-top:0.5rem"><div class="backlog-detail-label">Vorgeschlagene Loesung</div><pre style="background:var(--bg-input);padding:0.75rem;border-radius:8px;overflow-x:auto;font-size:0.72rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:var(--text-muted)">'+esc(t.solution)+'</pre></div>':'')
+      +(t.executionResult?'<div style="margin-top:0.5rem"><div class="backlog-detail-label">Ergebnis</div><div class="backlog-detail-text">'+esc(t.executionResult)+'</div></div>':'')
       +'<div class="backlog-item-actions">'+actions+'</div>'
     +'</div>';
   }).join('');
@@ -2303,8 +2363,19 @@ function buildBacklogActions(t){
     btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27rejected\\x27)">Ablehnen</button>');
   }
   if(t.status==='approved'){
-    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27in_progress\\x27)">Starten</button>');
+    btns.push('<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; KI erarbeitet Loesung...</span>');
     btns.push('<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27deferred\\x27)">Zurueckstellen</button>');
+  }
+  if(t.status==='solution_proposed'){
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27solution_approved\\x27)">Loesung genehmigen</button>');
+    btns.push('<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27approved\\x27)">Neue Loesung</button>');
+    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27rejected\\x27)">Ablehnen</button>');
+  }
+  if(t.status==='solution_approved'){
+    btns.push('<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; Wird ausgefuehrt...</span>');
+  }
+  if(t.status==='executing'){
+    btns.push('<span style="color:#ed8936;font-size:0.72rem;font-style:italic">&#9881; Ausfuehrung laeuft...</span>');
   }
   if(t.status==='in_progress'){
     btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27done\\x27)">Abschliessen</button>');
@@ -2620,6 +2691,17 @@ async function updateModelOverride(){
   // Update current display
   document.getElementById('active-model-name').textContent=val.split('/').pop();
   document.getElementById('active-model-id').textContent=val;
+}
+
+async function saveComplexityModels(){
+  const complexityModels={
+    level1:(document.getElementById('complexity-model-1')||{}).value||'',
+    level2:(document.getElementById('complexity-model-2')||{}).value||'',
+    level3:(document.getElementById('complexity-model-3')||{}).value||'',
+  };
+  try{
+    await fetch(base+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({complexityModels})});
+  }catch(e){console.error('Save complexity models failed',e);}
 }
 
 // Script End

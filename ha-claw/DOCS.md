@@ -14,7 +14,7 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 | Option | Pflicht | Beschreibung |
 |--------|---------|-------------|
 | `openrouter_api_key` | ✅ | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai)) |
-| `openrouter_default_model` | ❌ | LLM Model (Standard: `google/gemini-2.5-flash-preview`) |
+| `openrouter_default_model` | ❌ | LLM Model (Standard: `openrouter/free`) |
 | `telegram_bot_token` | ❌ | Telegram Bot Token (von @BotFather) |
 | `telegram_allowed_user_ids` | ❌* | Telegram User-IDs die Zugriff haben (*Pflicht wenn Bot aktiv) |
 | `log_level` | ❌ | `debug`, `info`, `warn`, `error` (Standard: `info`) |

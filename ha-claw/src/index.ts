@@ -19,11 +19,13 @@ import { loadProfile } from './core/profile.js';
 import { initStorage } from './storage/json-store.js';
 import { initMemoryCards } from './storage/memory-cards.js';
 import { initBacklog } from './storage/backlog.js';
+import { initBacklogProcessor } from './storage/backlog-processor.js';
 import { initActionLog } from './storage/action-log.js';
 import { initLearning } from './storage/learning.js';
 import { initScheduler, stopScheduler } from './storage/scheduler.js';
 import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
+import { registerHABestPracticesTools } from './tools/ha-best-practices.js';
 import { getToolNames, applyDisabledTools } from './tools/registry.js';
 import { startWebServer, buildAgent } from './web/server.js';
 import { runAgenticLoop } from './core/agentic-loop.js';
@@ -54,6 +56,7 @@ async function main(): Promise<void> {
 
   // Step 4: Built-in tools (always)
   registerBuiltinTools();
+  registerHABestPracticesTools();
 
   // Step 4: HA tools + entity discovery (only when HA API is reachable)
   if (isHAAvailable()) {
@@ -105,6 +108,9 @@ async function main(): Promise<void> {
     const result = await runAgenticLoop(job.message, agent);
     return result.response;
   });
+
+  // Step 8: Backlog processor – auto-processes approved tasks
+  initBacklogProcessor(buildAgent);
 
   log.info('=== HA-Claw ready ===');
 }
