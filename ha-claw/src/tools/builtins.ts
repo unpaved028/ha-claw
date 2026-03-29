@@ -14,8 +14,45 @@ import * as scheduler from '../storage/scheduler.js';
 import * as learning from '../storage/learning.js';
 import { runAnalysis } from '../core/proactive-analysis.js';
 import { logAction } from '../storage/action-log.js';
+import { saveProfile, needsOnboarding } from '../core/profile.js';
 
 export function registerBuiltinTools(): void {
+  // ── save_onboarding_profile ───────────────────────────────
+  registerTool(
+    'save_onboarding_profile',
+    'Save the user profile after onboarding. Call this once you have collected bot name, user name, and personality preferences through natural conversation.',
+    {
+      bot_name: { type: 'string', description: 'The chosen name for the bot (e.g. "Jarvis", "Alfred")' },
+      user_name: { type: 'string', description: 'The user\'s name' },
+      directness: { type: 'number', description: 'Directness 1-5 (1=diplomatic, 5=very direct)' },
+      formality: { type: 'number', description: 'Formality 1-5 (1=casual, 5=professional)' },
+      humor: { type: 'number', description: 'Humor 1-5 (1=factual only, 5=very humorous)' },
+      verbosity: { type: 'number', description: 'Verbosity 1-5 (1=terse, 5=detailed)' },
+    },
+    async (args) => {
+      if (!needsOnboarding()) {
+        return { error: 'Onboarding already completed. Use profile settings to change personality.' };
+      }
+      const clamp = (n: number) => Math.max(1, Math.min(5, Math.round(n)));
+      const botName = (args['bot_name'] as string).trim();
+      const userName = (args['user_name'] as string).trim();
+      await saveProfile({
+        botName,
+        userName,
+        personality: {
+          directness: clamp(args['directness'] as number ?? 4),
+          formality: clamp(args['formality'] as number ?? 3),
+          humor: clamp(args['humor'] as number ?? 3),
+          verbosity: clamp(args['verbosity'] as number ?? 2),
+        },
+        onboardingComplete: true,
+      });
+      await logAction('system', `Onboarding abgeschlossen: Bot=${botName}, User=${userName}`, 'save_onboarding_profile');
+      return { saved: true, botName, userName };
+    },
+    { required: ['bot_name', 'user_name', 'directness', 'formality', 'humor', 'verbosity'] },
+  );
+
   // ── get_current_time ─────────────────────────────────────
   registerTool(
     'get_current_time',
@@ -408,10 +445,10 @@ export function registerBuiltinTools(): void {
   // ── schedule_create ──────────────────────────────────────
   registerTool(
     'schedule_create',
-    'Create a scheduled/recurring job. The bot will automatically execute the given message at the specified times. Schedule formats: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00".',
+    'Create a scheduled/recurring job. The bot will automatically execute the given message at the specified times. Schedule formats: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00".',
     {
       name: { type: 'string', description: 'Short name for the job (e.g. "Morgens Rollläden hoch")' },
-      schedule: { type: 'string', description: 'Schedule: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00"' },
+      schedule: { type: 'string', description: 'Schedule: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00"' },
       message: { type: 'string', description: 'The message/command to execute (as if the user typed it in chat)' },
     },
     async (args) => {
@@ -480,6 +517,31 @@ export function registerBuiltinTools(): void {
       return { deleted: true };
     },
     { dangerous: true, required: ['id'] },
+  );
+
+  // ── schedule_once ──────────────────────────────────────────
+  registerTool(
+    'schedule_once',
+    'Create a one-time timer or reminder. Fires once at the specified time, then auto-disables. Use for reminders ("Erinnere mich in 30min an den Muell") or delayed actions ("Schalte in 10min das Licht im Keller aus").',
+    {
+      name: { type: 'string', description: 'Short description (e.g. "Erinnerung: Muell rausbringen")' },
+      delay: { type: 'string', description: 'When to fire: "5m", "2h", "1h30m" (relative) or "14:30" (absolute time)' },
+      message: { type: 'string', description: 'The action or reminder message to execute (as if the user typed it in chat)' },
+    },
+    async (args) => {
+      const delay = (args['delay'] as string).trim();
+      // Convert to scheduler format: "14:30" → "once 14:30", "5m" → "once +5m"
+      const schedule = /^\d{1,2}:\d{2}$/.test(delay) ? `once ${delay}` : `once +${delay}`;
+      const job = await scheduler.createJob({
+        name: args['name'] as string,
+        schedule,
+        message: args['message'] as string,
+        oneshot: true,
+      });
+      await logAction('schedule', `Einmaliger Job erstellt: ${job.id} - ${job.name} (${schedule})`, 'schedule_once');
+      return { created: true, id: job.id, name: job.name, firesAt: job.nextRunAt };
+    },
+    { required: ['name', 'delay', 'message'] },
   );
 
   // ── analyze_home ─────────────────────────────────────────

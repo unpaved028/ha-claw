@@ -4,13 +4,20 @@
  * Allows the bot to schedule recurring tasks (e.g., "check temperature every 30 min",
  * "open blinds daily at 07:00"). Jobs are persisted and survive restarts.
  *
- * Schedule formats:
- * - "every 5m"      → every 5 minutes
- * - "every 2h"      → every 2 hours
- * - "daily 07:00"   → every day at 07:00
- * - "daily 22:30"   → every day at 22:30
- * - "weekdays 08:00"→ Mon–Fri at 08:00
- * - "weekends 10:00"→ Sat–Sun at 10:00
+ * Schedule formats (recurring):
+ * - "every 5m"         → every 5 minutes
+ * - "every 2h"         → every 2 hours
+ * - "daily 07:00"      → every day at 07:00
+ * - "daily 22:30"      → every day at 22:30
+ * - "weekdays 08:00"   → Mon–Fri at 08:00
+ * - "weekends 10:00"   → Sat–Sun at 10:00
+ * - "weekly mon 08:00" → every Monday at 08:00
+ *
+ * Schedule formats (one-shot):
+ * - "once +5m"         → in 5 minutes (then auto-disabled)
+ * - "once +2h"         → in 2 hours
+ * - "once +1h30m"      → in 1 hour 30 minutes
+ * - "once 14:30"       → at 14:30 today (or tomorrow if past)
  *
  * Each job fires a message through the agentic loop as if the user sent it.
  */
@@ -29,6 +36,7 @@ export interface ScheduledJob {
   schedule: string;          // human-readable schedule string
   message: string;           // message to send to the agentic loop
   enabled: boolean;
+  oneshot: boolean;          // one-time job (auto-disabled after execution)
   createdAt: string;
   lastRunAt: string | null;
   nextRunAt: string | null;
@@ -69,9 +77,9 @@ export async function initScheduler(exec: JobExecutor): Promise<void> {
     log.info('Scheduler initialized (empty)');
   }
 
-  // Recalculate next run times
+  // Recalculate next run times (skip oneshot – they keep their original fire time)
   for (const job of jobs) {
-    if (job.enabled) {
+    if (job.enabled && !job.oneshot) {
       job.nextRunAt = calcNextRun(job.schedule);
     }
   }
@@ -103,13 +111,25 @@ async function tick(): Promise<void> {
         job.lastRunAt = now.toISOString();
         job.lastResult = result.slice(0, 300);
         job.runCount++;
-        job.nextRunAt = calcNextRun(job.schedule);
-        log.info('Job completed', { id: job.id, nextRun: job.nextRunAt });
+        if (job.oneshot) {
+          job.enabled = false;
+          job.nextRunAt = null;
+          log.info('One-shot job completed and disabled', { id: job.id });
+        } else {
+          job.nextRunAt = calcNextRun(job.schedule);
+          log.info('Job completed', { id: job.id, nextRun: job.nextRunAt });
+        }
       } catch (err) {
         job.lastRunAt = now.toISOString();
         job.lastResult = `ERROR: ${String(err).slice(0, 200)}`;
-        job.nextRunAt = calcNextRun(job.schedule);
-        log.error('Job failed', { id: job.id, error: String(err) });
+        if (job.oneshot) {
+          job.enabled = false;
+          job.nextRunAt = null;
+          log.error('One-shot job failed and disabled', { id: job.id, error: String(err) });
+        } else {
+          job.nextRunAt = calcNextRun(job.schedule);
+          log.error('Job failed', { id: job.id, error: String(err) });
+        }
       }
       await persist();
     }
@@ -149,6 +169,29 @@ function calcNextRun(schedule: string): string | null {
     return nextTimeOfDay(now, parseInt(weMatch[1]!, 10), parseInt(weMatch[2]!, 10), [0, 6]);
   }
 
+  // "weekly <day> HH:MM"
+  const weeklyMatch = s.match(/^weekly\s+(mon|tue|wed|thu|fri|sat|sun)\s+(\d{1,2}):(\d{2})$/);
+  if (weeklyMatch) {
+    const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+    const day = dayMap[weeklyMatch[1]!]!;
+    return nextTimeOfDay(now, parseInt(weeklyMatch[2]!, 10), parseInt(weeklyMatch[3]!, 10), [day]);
+  }
+
+  // "once +5m", "once +2h", "once +1h30m"
+  const onceRelMatch = s.match(/^once\s+\+(?:(\d+)h)?(?:(\d+)m)?$/);
+  if (onceRelMatch && (onceRelMatch[1] || onceRelMatch[2])) {
+    const hours = parseInt(onceRelMatch[1] || '0', 10);
+    const mins = parseInt(onceRelMatch[2] || '0', 10);
+    const ms = (hours * 60 + mins) * 60_000;
+    return new Date(now.getTime() + ms).toISOString();
+  }
+
+  // "once 14:30" – absolute time today (or tomorrow if past)
+  const onceAbsMatch = s.match(/^once\s+(\d{1,2}):(\d{2})$/);
+  if (onceAbsMatch) {
+    return nextTimeOfDay(now, parseInt(onceAbsMatch[1]!, 10), parseInt(onceAbsMatch[2]!, 10));
+  }
+
   log.warn('Unknown schedule format', { schedule });
   return null;
 }
@@ -180,11 +223,12 @@ export async function createJob(opts: {
   name: string;
   schedule: string;
   message: string;
+  oneshot?: boolean;
 }): Promise<ScheduledJob> {
   // Validate schedule
   const nextRun = calcNextRun(opts.schedule);
   if (!nextRun) {
-    throw new Error(`Ungueltiges Schedule-Format: "${opts.schedule}". Erlaubt: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00"`);
+    throw new Error(`Ungueltiges Schedule-Format: "${opts.schedule}". Erlaubt: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00", "once +5m", "once 14:30"`);
   }
 
   const job: ScheduledJob = {
@@ -193,6 +237,7 @@ export async function createJob(opts: {
     schedule: opts.schedule,
     message: opts.message,
     enabled: true,
+    oneshot: opts.oneshot ?? false,
     createdAt: new Date().toISOString(),
     lastRunAt: null,
     nextRunAt: nextRun,
@@ -262,8 +307,10 @@ export async function deleteJob(id: string): Promise<boolean> {
 export function getSchedulerSummary(): string {
   const active = jobs.filter(j => j.enabled);
   if (active.length === 0) return '';
-  const lines = active.map(j =>
-    `- [${j.id}] "${j.name}" (${j.schedule}) → "${j.message}"${j.nextRunAt ? ' | naechster Lauf: ' + new Date(j.nextRunAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) : ''}`
-  );
+  const lines = active.map(j => {
+    const type = j.oneshot ? 'einmalig' : 'wiederkehrend';
+    const nextInfo = j.nextRunAt ? ' | naechster Lauf: ' + new Date(j.nextRunAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) : '';
+    return `- [${j.id}] "${j.name}" (${j.schedule}, ${type}) → "${j.message}"${nextInfo}`;
+  });
   return `\n## Aktive Scheduled Jobs\n${lines.join('\n')}`;
 }

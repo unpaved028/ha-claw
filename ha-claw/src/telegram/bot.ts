@@ -12,8 +12,9 @@ import { Bot } from 'grammy';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 import { getEntityCache } from '../core/entity-cache.js';
-import { getProfile, personalityPrompt, needsOnboarding } from '../core/profile.js';
-import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboarding.js';
+import { getProfile, personalityPrompt, needsOnboarding, saveProfile } from '../core/profile.js';
+import { isOnboarding, startOnboarding, endOnboarding, loadOnboardingPrompt } from '../core/onboarding.js';
+import { getSchedulerSummary } from '../storage/scheduler.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
 import * as store from '../storage/json-store.js';
@@ -46,10 +47,22 @@ function buildAgent() {
   const personality = personalityPrompt();
   return {
     name: 'butler',
-    systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}`,
+    systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}${getSchedulerSummary()}`,
     model: profile.modelOverride || undefined,
   };
 }
+
+function buildOnboardingAgent() {
+  const profile = getProfile();
+  const prompt = loadOnboardingPrompt();
+  return {
+    name: 'onboarding',
+    systemPrompt: prompt,
+    model: profile.modelOverride || undefined,
+  };
+}
+
+const ONBOARDING_TOOLS = ['save_onboarding_profile', 'get_current_time', 'schedule_create'];
 
 export function createBot(): Bot {
   if (!appConfig.telegramBotToken) {
@@ -98,18 +111,42 @@ export function createBot(): Bot {
 
     log.info('Processing message', { userId: ctx.from.id, length: text.length });
 
+    // Save Telegram chat ID for proactive notifications
+    const profile = getProfile();
+    if (!profile.telegramChatId) {
+      await saveProfile({ telegramChatId: chatId });
+    }
+
     // Show typing indicator
     await ctx.replyWithChatAction('typing');
 
-    // Onboarding intercept
-    if (needsOnboarding() || isOnboarding(sessionId)) {
-      if (!isOnboarding(sessionId)) {
-        const greeting = startOnboarding(sessionId);
-        await ctx.reply(greeting, { parse_mode: 'Markdown' }).catch(() => ctx.reply(greeting));
-        return;
+    // Onboarding: route through agentic loop with onboarding agent
+    if (needsOnboarding()) {
+      if (!isOnboarding(sessionId)) startOnboarding(sessionId);
+      try {
+        const agent = buildOnboardingAgent();
+        const confirmFn = createTelegramConfirmFn(bot, chatId);
+        const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', sessionId);
+        const history = record?.messages || [];
+        const result = await runAgenticLoop(text, agent, confirmFn, history, ONBOARDING_TOOLS);
+
+        // Persist history
+        const newMessages: ChatMessage[] = [
+          ...history,
+          { role: 'user', content: text },
+          { role: 'assistant', content: result.response },
+        ];
+        await store.upsert('conversations', sessionId, { messages: newMessages.slice(-20) });
+
+        // If onboarding completed, clean up session
+        if (!needsOnboarding()) endOnboarding(sessionId);
+
+        await sendTelegramResponse(ctx, result.response);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        log.error('Onboarding error', { error: errMsg });
+        await ctx.reply(`❌ Fehler: ${errMsg.slice(0, 200)}`);
       }
-      const response = await processOnboarding(sessionId, text);
-      await ctx.reply(response, { parse_mode: 'Markdown' }).catch(() => ctx.reply(response));
       return;
     }
 
@@ -117,12 +154,21 @@ export function createBot(): Bot {
       const confirmFn = createTelegramConfirmFn(bot, chatId);
       const agent = buildAgent();
 
+      // Daily greeting hint
+      let userMessage = text;
+      const today = new Date().toISOString().slice(0, 10);
+      const currentProfile = getProfile();
+      if (currentProfile.lastInteractionDate !== today) {
+        userMessage = `[System: Erste Nachricht des Nutzers heute. Begruesse ihn kurz passend zur Tageszeit, dann beantworte seine Frage.]\n\n${text}`;
+        await saveProfile({ lastInteractionDate: today });
+      }
+
       // 1. Load context/history
       const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', sessionId);
       const history = record?.messages || [];
 
       // 2. Run loop (passing history)
-      const result = await runAgenticLoop(text, agent, confirmFn, history);
+      const result = await runAgenticLoop(userMessage, agent, confirmFn, history);
 
       // 3. Persist history
       const newMessages: ChatMessage[] = [
@@ -134,18 +180,7 @@ export function createBot(): Bot {
       const limited = newMessages.slice(-20);
       await store.upsert('conversations', sessionId, { messages: limited });
 
-      // Send response (handle Telegram's 4096 char limit)
-      const response = result.response;
-      if (response.length <= 4096) {
-        await ctx.reply(response, { parse_mode: 'Markdown' }).catch(() =>
-          ctx.reply(response), // Fallback without markdown if parsing fails
-        );
-      } else {
-        // Split into chunks
-        for (let i = 0; i < response.length; i += 4096) {
-          await ctx.reply(response.slice(i, i + 4096));
-        }
-      }
+      await sendTelegramResponse(ctx, result.response);
 
       log.info('Response sent', {
         iterations: result.iterations,
@@ -163,6 +198,17 @@ export function createBot(): Bot {
   });
 
   return bot;
+}
+
+/** Send a response via Telegram, handling markdown fallback and 4096 char limit. */
+async function sendTelegramResponse(ctx: { reply: (text: string, opts?: Record<string, unknown>) => Promise<unknown> }, response: string): Promise<void> {
+  if (response.length <= 4096) {
+    await ctx.reply(response, { parse_mode: 'Markdown' }).catch(() => ctx.reply(response));
+  } else {
+    for (let i = 0; i < response.length; i += 4096) {
+      await ctx.reply(response.slice(i, i + 4096));
+    }
+  }
 }
 
 export async function startBot(bot: Bot): Promise<void> {

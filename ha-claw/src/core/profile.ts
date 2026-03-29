@@ -47,6 +47,8 @@ export interface Profile {
   modelOverride: string;
   complexityModels: ComplexityModels;
   onboardingComplete: boolean;
+  telegramChatId: number | null;
+  lastInteractionDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -73,6 +75,8 @@ const DEFAULT_PROFILE: Profile = {
   modelOverride: '',
   complexityModels: DEFAULT_COMPLEXITY_MODELS,
   onboardingComplete: false,
+  telegramChatId: null,
+  lastInteractionDate: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

@@ -13,7 +13,11 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 - **Tool Complexity Levels** — Map different LLM models to tool complexity (1-3) for cost optimization
 - **Self-Improvement** — Learns from corrections, tracks usage patterns, records errors for smarter retries
 - **Proactive Analysis** — Scans your home for energy waste, security gaps, maintenance issues, and automation opportunities
-- **Scheduler** — Recurring jobs (`every 5m`, `daily 07:00`, `weekdays 08:00`) executed through the agentic loop
+- **Conversational Onboarding** — Natural LLM-powered setup instead of rigid forms, with feature introduction and weekly analysis suggestion
+- **Scheduler** — Recurring jobs (`every 5m`, `daily 07:00`, `weekdays 08:00`, `weekly mon 08:00`) executed through the agentic loop
+- **One-Shot Timers & Reminders** — "Remind me in 30min to take out the trash" or "Turn off the basement light in 10min"
+- **Proactive Notifications** — Scheduler results sent via Telegram automatically (reminders, analysis reports, etc.)
+- **Daily Greeting** — Context-aware greeting on first interaction of the day
 - **Memory System** — Long-term memory cards with hybrid keyword/relevance retrieval
 - **Speech-to-Text** — Browser-based voice input in Web UI (German)
 - **Multi-LLM Support** — OpenRouter integration with model selection per complexity level

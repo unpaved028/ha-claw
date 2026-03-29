@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+- **Conversational Onboarding**: Replaced the rigid 7-step form with a natural LLM-powered conversation. The bot now intelligently extracts names from natural language (e.g., "Jarvis wäre cool" → Name = Jarvis), collects personality preferences conversationally, and introduces its features after setup.
+- **Feature Introduction**: After onboarding, the bot presents its capabilities (device control, scheduling, analysis, memory, learning) and emphasizes that it improves with use.
+- **Weekly Analysis Suggestion**: During onboarding, the bot offers to set up a weekly automated home analysis via `schedule_create`.
+- **One-Shot Timers & Reminders** (`schedule_once`): New tool for fire-once jobs — "Erinnere mich in 30min an den Müll" or "Schalte in 10min das Licht aus". Supports relative delays (`5m`, `2h`, `1h30m`) and absolute times (`14:30`).
+- **Weekly Schedule Format**: New `weekly <day> HH:MM` format for the scheduler (e.g., `weekly mon 08:00`).
+- **Proactive Telegram Notifications**: Scheduler job results are now automatically sent via Telegram. Enables reminders, analysis reports, and delayed actions to reach the user proactively.
+- **Daily Greeting**: First message of the day receives a context-aware greeting hint, making the bot feel more alive and personal.
+- **Tool Filtering**: Agentic loop now supports a `toolFilter` parameter to restrict available tools per agent (used during onboarding to limit to setup-relevant tools only).
+
+### Changed
+- **Onboarding Architecture**: Onboarding now routes through the agentic loop with a dedicated system prompt (`agents/onboarding.md`) instead of a deterministic state machine. No more literal input-as-name bugs.
+- **Profile Extended**: Added `telegramChatId` (for proactive notifications) and `lastInteractionDate` (for daily greeting) fields.
+- **Scheduler Extended**: `ScheduledJob` now has a `oneshot` flag. One-shot jobs auto-disable after execution. New schedule parsers for `once +Xm`, `once HH:MM`, and `weekly <day> HH:MM`.
+- **Butler Prompt Updated**: Added `schedule_once` tool documentation and timer/reminder examples.
+
+---
+
 ## 0.4.0
 
 ### Added

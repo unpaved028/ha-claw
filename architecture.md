@@ -51,7 +51,7 @@ ha-claw/
 │   │   ├── entity-cache.ts      # HA entity discovery, grouped by area
 │   │   ├── ha-client.ts         # Home Assistant REST API client
 │   │   ├── logger.ts            # Pino-based structured logger
-│   │   ├── onboarding.ts        # First-run profile setup flow
+│   │   ├── onboarding.ts        # LLM-based conversational onboarding
 │   │   ├── openrouter.ts        # OpenRouter API client (OpenAI-compatible)
 │   │   ├── proactive-analysis.ts# Home analysis modules (energy, security, etc.)
 │   │   ├── profile.ts           # User profile (name, personality, model overrides)
@@ -63,7 +63,7 @@ ha-claw/
 │   │   ├── backlog-processor.ts # Automated task processing (approve → solve → execute)
 │   │   ├── action-log.ts        # Persistent action/tool execution log
 │   │   ├── learning.ts          # Self-improvement (corrections, patterns, errors)
-│   │   └── scheduler.ts         # Recurring job scheduler
+│   │   └── scheduler.ts         # Job scheduler (recurring + one-shot timers)
 │   ├── tools/
 │   │   ├── registry.ts          # Tool registration, complexity levels, enable/disable
 │   │   ├── ha-tools.ts          # HA service calls, entity queries, verification
@@ -78,6 +78,7 @@ ha-claw/
 │       └── whitelist.ts         # User ID whitelist guard
 ├── agents/
 │   ├── butler.md                # Main agent system prompt
+│   ├── onboarding.md            # Conversational onboarding prompt
 │   ├── cie.md                   # CIE (Continuous Improvement Engine) prompt
 │   ├── KI-Systemarchitekt.md    # System architect prompt
 │   └── skills/
@@ -91,7 +92,7 @@ ha-claw/
 ## Key Components
 
 ### Agentic Loop (`core/agentic-loop.ts`)
-The core LLM interaction loop. Sends messages to the configured LLM via OpenRouter, parses tool call responses, executes tools, and feeds results back. Hard limit of 10 iterations prevents runaway loops. Automatically injects entity cache, memory cards, and learning context into the system prompt.
+The core LLM interaction loop. Sends messages to the configured LLM via OpenRouter, parses tool call responses, executes tools, and feeds results back. Hard limit of 10 iterations prevents runaway loops. Automatically injects entity cache, memory cards, and learning context into the system prompt. Supports an optional `toolFilter` parameter to restrict available tools per agent (used during onboarding).
 
 ### Tool Registry (`tools/registry.ts`)
 Central registry for all tools. Each tool has:
@@ -153,7 +154,7 @@ All data stored as JSON files in `/data/store/`:
 - `backlog/` — Improvement tasks (individual files)
 - `actions.jsonl` — Action/tool execution log
 - `learning.json` — Self-improvement data
-- `scheduler.json` — Recurring job definitions
+- `scheduler.json` — Job definitions (recurring + one-shot timers)
 
 All storage is automatically included in HA backups.
 

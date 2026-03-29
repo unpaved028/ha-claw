@@ -15,7 +15,7 @@ import { appConfig } from './core/config.js';
 import { createLogger } from './core/logger.js';
 import { isHAAvailable } from './core/ha-client.js';
 import { buildEntityCache } from './core/entity-cache.js';
-import { loadProfile } from './core/profile.js';
+import { loadProfile, getProfile } from './core/profile.js';
 import { initStorage } from './storage/json-store.js';
 import { initMemoryCards } from './storage/memory-cards.js';
 import { initBacklog } from './storage/backlog.js';
@@ -78,14 +78,15 @@ async function main(): Promise<void> {
   await startWebServer();
 
   // Step 6: Telegram (optional)
+  let telegramBot: ReturnType<typeof createBot> | null = null;
   if (appConfig.telegramBotToken) {
-    const bot = createBot();
-    await startBot(bot);
+    telegramBot = createBot();
+    await startBot(telegramBot);
 
     const shutdown = (sig: string) => {
       log.info(`Received ${sig}, shutting down...`);
       stopScheduler();
-      bot.stop();
+      telegramBot!.stop();
       process.exit(0);
     };
     process.on('SIGINT', () => shutdown('SIGINT'));
@@ -101,11 +102,32 @@ async function main(): Promise<void> {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
   }
 
-  // Step 7: Scheduler – runs jobs through the agentic loop
+  // Step 7: Scheduler – runs jobs through the agentic loop + proactive notifications
   await initScheduler(async (job) => {
     log.info('Scheduler executing job', { id: job.id, message: job.message });
     const agent = buildAgent();
     const result = await runAgenticLoop(job.message, agent);
+
+    // Send proactive notification via Telegram if available
+    const currentProfile = getProfile();
+    if (telegramBot && currentProfile.telegramChatId) {
+      try {
+        const response = result.response;
+        // Respect Telegram's 4096 char limit
+        if (response.length <= 4096) {
+          await telegramBot.api.sendMessage(currentProfile.telegramChatId, response, { parse_mode: 'Markdown' })
+            .catch(() => telegramBot!.api.sendMessage(currentProfile.telegramChatId!, response));
+        } else {
+          for (let i = 0; i < response.length; i += 4096) {
+            await telegramBot.api.sendMessage(currentProfile.telegramChatId, response.slice(i, i + 4096));
+          }
+        }
+        log.info('Proactive notification sent via Telegram', { jobId: job.id });
+      } catch (err) {
+        log.warn('Failed to send Telegram notification', { jobId: job.id, error: String(err) });
+      }
+    }
+
     return result.response;
   });
 

@@ -9,7 +9,7 @@ import Fastify from 'fastify';
 import { appConfig } from '../core/config.js';
 import { createLogger, getLogBuffer, clearLogBuffer } from '../core/logger.js';
 import { getProfile, saveProfile, needsOnboarding, personalityPrompt, type Profile } from '../core/profile.js';
-import { isOnboarding, startOnboarding, processOnboarding } from '../core/onboarding.js';
+import { isOnboarding, startOnboarding, endOnboarding, loadOnboardingPrompt } from '../core/onboarding.js';
 import { getToolInfos, setToolEnabled } from '../tools/registry.js';
 import { listJobs, toggleJob, deleteJob } from '../storage/scheduler.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
@@ -65,6 +65,18 @@ export function buildAgent() {
   };
 }
 
+function buildOnboardingAgent() {
+  const profile = getProfile();
+  const prompt = loadOnboardingPrompt();
+  return {
+    name: 'onboarding',
+    systemPrompt: prompt,
+    model: profile.modelOverride || undefined,
+  };
+}
+
+const ONBOARDING_TOOLS = ['save_onboarding_profile', 'get_current_time', 'schedule_create'];
+
 const WEB_SESSION = 'web';
 
 export async function startWebServer(): Promise<void> {
@@ -92,26 +104,43 @@ export async function startWebServer(): Promise<void> {
     }
     log.info('Web chat request', { length: message.length });
 
-    // Onboarding: intercept if first-time setup
-    if (needsOnboarding() || isOnboarding(WEB_SESSION)) {
-      if (!isOnboarding(WEB_SESSION)) {
-        // First message triggers onboarding start
-        const greeting = startOnboarding(WEB_SESSION);
-        return { response: greeting, iterations: 0, toolCalls: [] };
-      }
-      const response = await processOnboarding(WEB_SESSION, message);
-      return { response, iterations: 0, toolCalls: [] };
+    // Onboarding: route through agentic loop with onboarding agent
+    if (needsOnboarding()) {
+      if (!isOnboarding(WEB_SESSION)) startOnboarding(WEB_SESSION);
+      const agent = buildOnboardingAgent();
+      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
+      const history = record?.messages || [];
+      const result = await runAgenticLoop(message, agent, undefined, history, ONBOARDING_TOOLS);
+
+      const newMessages: ChatMessage[] = [
+        ...history,
+        { role: 'user', content: message },
+        { role: 'assistant', content: result.response },
+      ];
+      await store.upsert('conversations', WEB_SESSION, { messages: newMessages.slice(-20) });
+
+      if (!needsOnboarding()) endOnboarding(WEB_SESSION);
+      return result;
     }
 
     // Normal: agentic loop with dynamic personality
     const agent = buildAgent();
+
+    // Daily greeting hint
+    let userMessage = message;
+    const today = new Date().toISOString().slice(0, 10);
+    const currentProfile = getProfile();
+    if (currentProfile.lastInteractionDate !== today) {
+      userMessage = `[System: Erste Nachricht des Nutzers heute. Begruesse ihn kurz passend zur Tageszeit, dann beantworte seine Frage.]\n\n${message}`;
+      await saveProfile({ lastInteractionDate: today });
+    }
 
     // 1. Load history
     const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
     const history = record?.messages || [];
 
     // 2. Run loop (passing history)
-    const result = await runAgenticLoop(message, agent, undefined, history);
+    const result = await runAgenticLoop(userMessage, agent, undefined, history);
 
     // 3. Persist updated history
     const newMessages: ChatMessage[] = [

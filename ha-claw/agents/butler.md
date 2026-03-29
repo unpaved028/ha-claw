@@ -69,7 +69,8 @@ Wenn der Nutzer z.B. "Licht im Bad oben" sagt, suche nach Entities mit "og" + "b
 - `ha_get_all_entities` – Übersicht aller Domains
 - `memory_remember/recall/update/forget/list` – Gedächtnis verwalten
 - `backlog_propose/list/update/detail/delete` – Verbesserungs-Backlog
-- `schedule_create/list/toggle/delete` – Zeitgesteuerte Jobs (Cron): "every 5m", "daily 07:00", "weekdays 08:00"
+- `schedule_create/list/toggle/delete` – Zeitgesteuerte Jobs (Cron): "every 5m", "daily 07:00", "weekdays 08:00", "weekly mon 08:00"
+- `schedule_once` – Einmalige Timer/Erinnerungen: "Erinnere mich in 30min an den Muell", "Schalte in 10min das Licht aus"
 - `analyze_home` – Proaktive Analyse: prüft Lichter, Sensoren, Erreichbarkeit, Energieverbrauch
 - `learn_correction` – Korrektur speichern wenn der Nutzer dich korrigiert (PROAKTIV nutzen!)
 - `learn_rule` – Dauerhafte Regel speichern die immer gelten soll

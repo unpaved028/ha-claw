@@ -50,8 +50,12 @@ export async function runAgenticLoop(
   agent: AgentConfig,
   confirmFn: ConfirmationFn = autoApprove,
   history: ChatMessage[] = [],
+  toolFilter?: string[],
 ): Promise<LoopResult> {
-  const toolDefs = getToolDefinitions();
+  let toolDefs = getToolDefinitions();
+  if (toolFilter) {
+    toolDefs = toolDefs.filter(t => toolFilter.includes(t.function.name));
+  }
   const toolCallLog: { name: string; result: string }[] = [];
 
   // Build enriched system prompt with all learning context
