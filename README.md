@@ -7,7 +7,7 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 - **AI Agent with Tool Calling** — Agentic loop with up to 10 iterations, calling HA services, querying entities, and managing data
 - **Web UI (Ingress)** — Embedded dashboard accessible via HA sidebar with chat, settings, backlog, logs, and tool management
 - **Telegram Bot** — Full chat interface with inline-keyboard safety gate for dangerous actions
-- **Home Assistant Integration** — Entity discovery, service calls with verification, area-based entity cache
+- **Home Assistant Integration** — Entity discovery, service calls with verification, Floor → Area → Entity spatial hierarchy, group resolution, automation inspection
 - **HA Best Practices** — Built-in knowledge base for automations, templates, helpers, device control, and safe refactoring
 - **Backlog Automation** — AI proposes, generates, and executes improvement tasks through an approval workflow
 - **Tool Complexity Levels** — Map different LLM models to tool complexity (1-3) for cost optimization
@@ -51,7 +51,7 @@ Meta-models `openrouter/free` and `openrouter/auto` are also available.
 | Option | Required | Description |
 |--------|----------|-------------|
 | `openrouter_api_key` | Yes | Your OpenRouter API key ([openrouter.ai](https://openrouter.ai)) |
-| `openrouter_default_model` | No | Default LLM model (default: `openrouter/free`) |
+| `openrouter_default_model` | No | Default LLM model (default: `anthropic/claude-haiku-4.5`) |
 | `telegram_bot_token` | No | Telegram Bot Token (from @BotFather) |
 | `telegram_allowed_user_ids` | No* | Comma-separated Telegram User IDs (*required if bot is active) |
 | `log_level` | No | `debug`, `info`, `warn`, `error` (default: `info`) |

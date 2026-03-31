@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.1
+
+### Added
+- **Floor → Area → Entity Hierarchy**: Entity cache now organizes devices by floor (Stockwerk) → area (Bereich) → entities, giving the bot full spatial awareness of the home structure.
+- **`ha_list_areas` Tool**: Lists all areas/rooms with their floor assignments and entity counts. Supports optional floor filter.
+- **`ha_resolve_group` Tool**: Resolves `group.*` entities to their individual members with current states, so the bot can understand and work with HA groups.
+- **`ha_get_automation_config` Tool**: Reads full automation configuration (triggers, conditions, actions), so the bot can explain and analyze automations in plain language.
+- **Entity Cache Compression**: Same-domain entities with identical state (≥3) are compressed into a single line (e.g., "3× light (alle off)") to save LLM tokens.
+
+### Fixed
+- **Version Display on Mobile**: Version number now appears immediately on page load instead of only after navigating to the Settings tab. Previously showed "v..." until the user opened Settings.
+- **Bot Room/Floor Awareness**: The bot now understands the spatial hierarchy (floors, areas) and can answer questions like "What devices are in room X?" or "Show me all rooms on the upper floor" directly from its entity cache.
+- **Group and Automation Understanding**: The bot can now resolve group memberships and read automation configurations instead of only seeing entity states.
+
+### Changed
+- **Butler Prompt**: Added rules for floor hierarchy understanding, group resolution, and automation inspection. Documented three new tools.
+- **Default Model**: `anthropic/claude-haiku-4.5` set as default model in config.yaml.
+
+---
+
 ## 0.5.0
 
 ### Added

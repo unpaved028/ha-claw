@@ -145,6 +145,60 @@ export async function getAreaEntityMap(): Promise<Record<string, string[]>> {
 }
 
 /**
+ * Get floor → area mapping. Returns a map of floor_name → area_name[].
+ * Requires HA 2023.12+ (floors() Jinja2 function). Returns {} on older versions.
+ */
+export async function getFloorAreaMap(): Promise<Record<string, string[]>> {
+  try {
+    const tpl = `{% set result = namespace(data={}) %}{% for floor_id in floors() %}{% set fname = floor_name(floor_id) %}{% set area_ids = floor_areas(floor_id) %}{% set area_names = area_ids | map('area_name') | list %}{% set _ = result.data.update({fname: area_names}) %}{% endfor %}{{ result.data | tojson }}`;
+    const raw = await renderTemplate(tpl);
+    return JSON.parse(raw) as Record<string, string[]>;
+  } catch (err) {
+    log.warn('Floor-area mapping failed (HA < 2023.12?)', { error: String(err) });
+    return {};
+  }
+}
+
+/**
+ * Get members of a group entity. Returns entity_id[] of group members.
+ */
+export async function getGroupMembers(entityId: string): Promise<string[]> {
+  try {
+    const state = await getState(entityId);
+    const members = state.attributes['entity_id'];
+    if (Array.isArray(members)) return members as string[];
+    return [];
+  } catch (err) {
+    log.warn('Group member resolution failed', { entityId, error: String(err) });
+    return [];
+  }
+}
+
+/**
+ * Get full automation configuration (triggers, conditions, actions).
+ */
+export async function getAutomationConfig(entityId: string): Promise<Record<string, unknown>> {
+  try {
+    const objectId = entityId.replace(/^automation\./, '');
+    return await haFetch<Record<string, unknown>>(`/config/automation/config/${objectId}`);
+  } catch (err) {
+    log.warn('Automation config fetch failed, falling back to state', { entityId, error: String(err) });
+    try {
+      const state = await getState(entityId);
+      return {
+        entity_id: entityId,
+        state: state.state,
+        friendly_name: state.attributes['friendly_name'] ?? null,
+        last_triggered: state.attributes['last_triggered'] ?? null,
+        note: 'Full config unavailable – showing basic state info only',
+      };
+    } catch {
+      return { error: 'Automation not found', entity_id: entityId };
+    }
+  }
+}
+
+/**
  * Get HA configuration info.
  */
 export async function getConfig(): Promise<Record<string, unknown>> {

@@ -2,7 +2,7 @@
 # Reference: https://developers.home-assistant.io/docs/add-ons/configuration
 
 name: "HA-Claw"
-version: "0.5.0"
+version: "0.5.1"
 slug: "ha-claw"
 description: "Local AI-powered Smart Home Assistant with Telegram & Web UI"
 url: "https://github.com/unpaved028/ha-claw"
@@ -34,7 +34,7 @@ map:
 # ── User-configurable options (shown in Add-on UI) ────────────
 options:
   openrouter_api_key: ""
-  openrouter_default_model: "openrouter/free"
+  openrouter_default_model: "anthropic/claude-haiku-4.5"
   telegram_bot_token: ""
   telegram_allowed_user_ids: ""
   log_level: "info"

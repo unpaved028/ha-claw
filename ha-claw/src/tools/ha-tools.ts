@@ -285,5 +285,103 @@ export function registerHATools(): void {
     },
   );
 
-  log.info('HA tools registered', { count: 6 });
+  // ── ha_list_areas ────────────────────────────────────────
+  registerTool(
+    'ha_list_areas',
+    'List all areas/rooms in Home Assistant with their floor assignments and entity counts. Use this to understand the spatial structure of the home.',
+    {
+      floor: {
+        type: 'string',
+        description: 'Optional: filter by floor name (e.g. "Erdgeschoss")',
+      },
+    },
+    async (args) => {
+      const filterFloor = ((args['floor'] as string) ?? '').toLowerCase();
+      const [areaMap, floorMap] = await Promise.all([
+        ha.getAreaEntityMap(),
+        ha.getFloorAreaMap(),
+      ]);
+
+      // Build reverse map: area → floor
+      const areaToFloor = new Map<string, string>();
+      for (const [floorName, areaNames] of Object.entries(floorMap)) {
+        for (const aName of areaNames) {
+          areaToFloor.set(aName, floorName);
+        }
+      }
+
+      // Build result grouped by floor
+      const floors: Record<string, { area: string; entity_count: number }[]> = {};
+      for (const [areaName, entityIds] of Object.entries(areaMap)) {
+        const floorName = areaToFloor.get(areaName) || 'Kein Stockwerk';
+        if (filterFloor && floorName.toLowerCase() !== filterFloor) continue;
+        if (!floors[floorName]) floors[floorName] = [];
+        floors[floorName].push({ area: areaName, entity_count: entityIds.length });
+      }
+
+      return { floors };
+    },
+  );
+
+  // ── ha_resolve_group ────────────────────────────────────
+  registerTool(
+    'ha_resolve_group',
+    'Resolve a group entity to its individual member entities with their current states. Use this to understand what devices belong to a group.',
+    {
+      entity_id: {
+        type: 'string',
+        description: 'The group entity ID (e.g. "group.all_lights", "group.wohnzimmer")',
+      },
+    },
+    async (args) => {
+      const entityId = args['entity_id'] as string;
+      if (!entityId) return { error: 'entity_id is required' };
+
+      const members = await ha.getGroupMembers(entityId);
+      if (members.length === 0) {
+        return { error: `No members found for ${entityId} (not a group or empty)` };
+      }
+
+      const memberStates = await Promise.all(
+        members.map(async (mid) => {
+          try {
+            const s = await ha.getState(mid);
+            return {
+              entity_id: mid,
+              state: s.state,
+              friendly_name: s.attributes['friendly_name'] ?? null,
+            };
+          } catch {
+            return { entity_id: mid, state: 'unknown', friendly_name: null };
+          }
+        }),
+      );
+
+      return { group: entityId, member_count: members.length, members: memberStates };
+    },
+    { required: ['entity_id'] },
+  );
+
+  // ── ha_get_automation_config ────────────────────────────
+  registerTool(
+    'ha_get_automation_config',
+    'Get the full configuration of a Home Assistant automation including triggers, conditions, and actions. Use this to understand what an automation does.',
+    {
+      entity_id: {
+        type: 'string',
+        description: 'The automation entity ID (e.g. "automation.motion_light_flur")',
+      },
+    },
+    async (args) => {
+      const entityId = args['entity_id'] as string;
+      if (!entityId || !entityId.startsWith('automation.')) {
+        return { error: 'entity_id must start with "automation."' };
+      }
+
+      return ha.getAutomationConfig(entityId);
+    },
+    { required: ['entity_id'] },
+  );
+
+  log.info('HA tools registered', { count: 9 });
 }

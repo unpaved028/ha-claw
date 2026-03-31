@@ -1777,6 +1777,7 @@ const micBtn=document.getElementById('mic');
       }
       if(d.profile.botName) window.botName=d.profile.botName.toUpperCase();
     }
+    if(d.version){const vEl=document.getElementById('app-version');if(vEl)vEl.textContent='v'+d.version;}
     // After names are loaded, fetch history
     loadChatHistory();
   }catch(e){}
@@ -2070,6 +2071,9 @@ const TOOL_ICONS={
   'ha_search_entities':tIcon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
   'ha_get_config':tIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
   'ha_get_all_entities':tIcon('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'),
+  'ha_list_areas':tIcon('<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><rect x="9" y="14" width="6" height="8"/>'),
+  'ha_resolve_group':tIcon('<circle cx="9" cy="7" r="4"/><circle cx="17" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>'),
+  'ha_get_automation_config':tIcon('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/>'),
   'get_current_time':tIcon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
   'get_system_info':tIcon('<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
   'store_list':tIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>'),
@@ -2103,6 +2107,9 @@ const TOOL_DESCS={
   'ha_search_entities':'Geraete nach Name/Domain suchen',
   'ha_get_config':'HA Systemkonfiguration lesen',
   'ha_get_all_entities':'Uebersicht aller Entitaeten',
+  'ha_list_areas':'Alle Bereiche und Stockwerke anzeigen',
+  'ha_resolve_group':'Gruppen in Einzelgeraete aufloesen',
+  'ha_get_automation_config':'Automation-Details lesen (Trigger, Aktionen)',
   'get_current_time':'Aktuelle Uhrzeit und Datum',
   'get_system_info':'CPU, RAM, Uptime',
   'store_list':'Notizen und Eintraege auflisten',

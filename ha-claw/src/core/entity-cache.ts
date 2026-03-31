@@ -2,9 +2,10 @@
  * entity-cache.ts – Fetches all HA entities at startup and builds a compact
  * summary for injection into the agent system prompt.
  *
- * Groups entities by AREA (room) first, then by domain within each area.
+ * Groups entities by FLOOR → AREA (room) → domain.
  * Entities without an area are grouped under "Ohne Bereich".
- * This makes it much easier for the LLM to understand spatial context.
+ * Areas without a floor are grouped under "Kein Stockwerk".
+ * Compresses same-domain/same-state entities (≥3) into one line to save tokens.
  */
 
 import * as ha from './ha-client.js';
@@ -15,19 +16,21 @@ const log = createLogger('entity-cache');
 let cachedSummary = '';
 
 /**
- * Fetch all entities, resolve area mappings, and build a compact summary.
+ * Fetch all entities, resolve area + floor mappings, and build a compact summary.
  * Called once at startup. Failures are non-fatal.
  */
 export async function buildEntityCache(): Promise<string> {
   try {
-    const [states, areaMap] = await Promise.all([
+    const [states, areaMap, floorMap] = await Promise.all([
       ha.getStates(),
       ha.getAreaEntityMap(),
+      ha.getFloorAreaMap(),
     ]);
 
     log.info('Entity cache: fetched data', {
       entities: states.length,
       areas: Object.keys(areaMap).length,
+      floors: Object.keys(floorMap).length,
     });
 
     // Build reverse map: entity_id → area_name
@@ -35,6 +38,14 @@ export async function buildEntityCache(): Promise<string> {
     for (const [areaName, entityIds] of Object.entries(areaMap)) {
       for (const eid of entityIds) {
         entityToArea.set(eid, areaName);
+      }
+    }
+
+    // Build reverse map: area_name → floor_name
+    const areaToFloor = new Map<string, string>();
+    for (const [floorName, areaNames] of Object.entries(floorMap)) {
+      for (const aName of areaNames) {
+        areaToFloor.set(aName, floorName);
       }
     }
 
@@ -58,16 +69,6 @@ export async function buildEntityCache(): Promise<string> {
       domainMap.get(info.domain)!.push({ id: info.id, name: info.name, state: info.state });
     }
 
-    // Build compact text
-    const lines: string[] = [];
-
-    // Important areas first (sorted), "Ohne Bereich" last
-    const areaNames = [...grouped.keys()].sort((a, b) => {
-      if (a === 'Ohne Bereich') return 1;
-      if (b === 'Ohne Bereich') return -1;
-      return a.localeCompare(b, 'de');
-    });
-
     // Only show actionable domains in cache (skip sensor, binary_sensor etc. to save tokens)
     const ACTIONABLE_DOMAINS = new Set([
       'light', 'switch', 'scene', 'media_player', 'cover', 'fan',
@@ -77,20 +78,81 @@ export async function buildEntityCache(): Promise<string> {
       'automation',
     ]);
 
-    for (const area of areaNames) {
-      const domainMap = grouped.get(area)!;
-      const relevantDomains = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).sort();
-      if (relevantDomains.length === 0) continue; // skip areas with only sensors
+    // Group areas by floor
+    const floorAreas = new Map<string, string[]>();
+    const allAreas = [...grouped.keys()];
+    for (const area of allAreas) {
+      const floor = areaToFloor.get(area) || 'Kein Stockwerk';
+      if (!floorAreas.has(floor)) floorAreas.set(floor, []);
+      floorAreas.get(floor)!.push(area);
+    }
 
-      lines.push(`## ${area}`);
-      for (const domain of relevantDomains) {
-        const entities = domainMap.get(domain)!;
-        for (const e of entities) {
-          const label = e.name ? `${e.name}` : e.id;
-          lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
+    // Sort floors alphabetically, "Kein Stockwerk" last
+    const floorNames = [...floorAreas.keys()].sort((a, b) => {
+      if (a === 'Kein Stockwerk') return 1;
+      if (b === 'Kein Stockwerk') return -1;
+      return a.localeCompare(b, 'de');
+    });
+
+    // Build compact text
+    const lines: string[] = [];
+
+    for (const floor of floorNames) {
+      const areas = floorAreas.get(floor)!.sort((a, b) => {
+        if (a === 'Ohne Bereich') return 1;
+        if (b === 'Ohne Bereich') return -1;
+        return a.localeCompare(b, 'de');
+      });
+
+      // Check if any area in this floor has actionable entities
+      const hasActionable = areas.some(area => {
+        const domainMap = grouped.get(area)!;
+        return [...domainMap.keys()].some(d => ACTIONABLE_DOMAINS.has(d));
+      });
+      if (!hasActionable) continue;
+
+      lines.push(`# ${floor}`);
+
+      for (const area of areas) {
+        const domainMap = grouped.get(area)!;
+        const relevantDomains = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).sort();
+        if (relevantDomains.length === 0) continue;
+
+        lines.push(`## ${area}`);
+        for (const domain of relevantDomains) {
+          const entities = domainMap.get(domain)!;
+
+          // Compress: if ≥3 entities of same domain share the same state, group them
+          if (entities.length >= 3) {
+            const byState = new Map<string, typeof entities>();
+            for (const e of entities) {
+              if (!byState.has(e.state)) byState.set(e.state, []);
+              byState.get(e.state)!.push(e);
+            }
+
+            let allCompressed = true;
+            for (const [state, group] of byState) {
+              if (group.length >= 3) {
+                const ids = group.map(e => `\`${e.id}\``).join(', ');
+                lines.push(`- ${group.length}× ${domain} (alle ${state}): ${ids}`);
+              } else {
+                allCompressed = false;
+                for (const e of group) {
+                  const label = e.name ? `${e.name}` : e.id;
+                  lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
+                }
+              }
+            }
+            if (allCompressed) continue;
+          } else {
+            for (const e of entities) {
+              const label = e.name ? `${e.name}` : e.id;
+              lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
+            }
+          }
         }
+        lines.push('');
       }
-      lines.push('');
     }
 
     // Append a sensor summary (count only, not individual entities)
@@ -100,7 +162,8 @@ export async function buildEntityCache(): Promise<string> {
 
     cachedSummary = lines.join('\n');
     log.info('Entity cache built', {
-      areas: areaNames.length,
+      floors: floorNames.length,
+      areas: allAreas.length,
       chars: cachedSummary.length,
     });
 

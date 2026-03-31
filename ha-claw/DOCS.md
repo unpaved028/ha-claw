@@ -17,7 +17,7 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 | Option | Pflicht | Beschreibung |
 |--------|---------|-------------|
 | `openrouter_api_key` | ✅ | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai)) |
-| `openrouter_default_model` | ❌ | LLM Model (Standard: `openrouter/free`) |
+| `openrouter_default_model` | ❌ | LLM Model (Standard: `anthropic/claude-haiku-4.5`) |
 | `telegram_bot_token` | ❌ | Telegram Bot Token (von @BotFather) |
 | `telegram_allowed_user_ids` | ❌* | Telegram User-IDs die Zugriff haben (*Pflicht wenn Bot aktiv) |
 | `log_level` | ❌ | `debug`, `info`, `warn`, `error` (Standard: `info`) |
@@ -66,6 +66,20 @@ Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Ba
 - **scheduler** – Geplante Jobs und Timer
 - **backlog** – Verbesserungsvorschläge
 - **learning** – Gelernte Korrekturen und Regeln
+
+## Raumstruktur & Automationen
+
+HA-Claw versteht die räumliche Struktur deines Zuhauses:
+
+- **Stockwerke → Bereiche → Geräte**: Der Bot kennt die Zuordnung von Geräten zu Räumen und Räumen zu Stockwerken
+- **Gruppen**: Der Bot kann `group.*` Entities auflösen und die einzelnen Mitglieder anzeigen
+- **Automationen**: Der Bot kann Automations-Konfigurationen lesen (Trigger, Bedingungen, Aktionen) und in einfacher Sprache erklären
+
+Beispiele:
+- "Welche Geräte sind im Wohnzimmer?"
+- "Zeig mir alle Räume im Obergeschoss"
+- "Was macht die Automation Bewegungslicht Flur?"
+- "Welche Geräte sind in der Gruppe Wohnzimmer?"
 
 ## Support
 
