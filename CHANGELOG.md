@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.2
+
+### Fixed
+- **Area/Floor Detection Reliability**: Replaced fragile Jinja2 template approach with direct HA Registry API calls (`/config/area_registry/list`, `/config/entity_registry/list`, `/config/device_registry/list`, `/config/floor_registry/list`). This fixes the issue where the bot could not see rooms, areas, or floors.
+- **3-Tier Fallback**: Area and floor detection now tries three methods in order: 1) HA Registry API (most reliable), 2) Jinja2 Template (legacy fallback), 3) Entity-ID pattern parsing (infers rooms from naming conventions like `lgt_og_bad_1` → OG Bad).
+- **Device-Inherited Areas**: Entities now correctly inherit their area from their device when no direct area is assigned, matching HA's native behavior.
+- **Template API Timeout**: `renderTemplate()` now has a 10-second timeout to prevent hanging on unresponsive HA instances.
+
+### Changed
+- **Improved Logging**: Area and floor detection now logs which method succeeded and how many results were found, making debugging much easier.
+
+---
+
 ## 0.5.1
 
 ### Added
