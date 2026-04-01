@@ -7,6 +7,7 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 - **AI Agent with Tool Calling** — Agentic loop with up to 10 iterations, calling HA services, querying entities, and managing data
 - **Web UI (Ingress)** — Embedded dashboard accessible via HA sidebar with chat, settings, backlog, logs, and tool management
 - **Telegram Bot** — Full chat interface with inline-keyboard safety gate for dangerous actions
+- **Web Safety Gate** — Confirmation modal for dangerous actions (locks, alarms, automations) in the Web UI
 - **Home Assistant Integration** — Entity discovery, service calls with verification, Floor → Area → Entity spatial hierarchy, group resolution, automation inspection
 - **HA Best Practices** — Built-in knowledge base for automations, templates, helpers, device control, and safe refactoring
 - **Backlog Automation** — AI proposes, generates, and executes improvement tasks through an approval workflow

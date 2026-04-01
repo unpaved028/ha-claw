@@ -87,7 +87,7 @@ export function registerHATools(): void {
   // ── ha_search_entities ───────────────────────────────────
   registerTool(
     'ha_search_entities',
-    'Search Home Assistant entities by name or domain. Returns a list of matching entity IDs with their current state. Use this to find entities before interacting with them.',
+    'Search Home Assistant entities by name, domain, or area/room. Returns a list of matching entity IDs with their current state. Use this to find entities before interacting with them.',
     {
       query: {
         type: 'string',
@@ -95,7 +95,11 @@ export function registerHATools(): void {
       },
       domain: {
         type: 'string',
-        description: 'Optional: filter by domain (e.g. "light", "sensor", "switch", "climate")',
+        description: 'Optional: filter by domain (e.g. "light", "sensor", "switch", "climate", "binary_sensor")',
+      },
+      area: {
+        type: 'string',
+        description: 'Optional: filter by area/room name (e.g. "Wohnzimmer", "OG Bad"). Matches area names from the entity cache.',
       },
       limit: {
         type: 'number',
@@ -105,13 +109,27 @@ export function registerHATools(): void {
     async (args) => {
       const query = ((args['query'] as string) ?? '').toLowerCase();
       const domain = (args['domain'] as string) ?? '';
+      const areaFilter = ((args['area'] as string) ?? '').toLowerCase();
       const limit = (args['limit'] as number) ?? 20;
+
+      // If area filter is set, resolve area → entity_ids first
+      let areaEntityIds: Set<string> | null = null;
+      if (areaFilter) {
+        const areaMap = await ha.getAreaEntityMap();
+        areaEntityIds = new Set<string>();
+        for (const [areaName, entityIds] of Object.entries(areaMap)) {
+          if (areaName.toLowerCase().includes(areaFilter)) {
+            for (const eid of entityIds) areaEntityIds.add(eid);
+          }
+        }
+      }
 
       const allStates = await ha.getStates();
 
       const filtered = allStates
         .filter((s) => {
           if (domain && !s.entity_id.startsWith(domain + '.')) return false;
+          if (areaEntityIds && !areaEntityIds.has(s.entity_id)) return false;
           if (!query) return true;
           const name = String(s.attributes['friendly_name'] ?? '').toLowerCase();
           return s.entity_id.includes(query) || name.includes(query);
@@ -121,6 +139,7 @@ export function registerHATools(): void {
           entity_id: s.entity_id,
           state: s.state,
           friendly_name: s.attributes['friendly_name'] ?? null,
+          device_class: s.attributes['device_class'] ?? null,
         }));
 
       return { count: filtered.length, entities: filtered };

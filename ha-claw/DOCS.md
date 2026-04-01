@@ -67,6 +67,12 @@ Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Ba
 - **backlog** – Verbesserungsvorschläge
 - **learning** – Gelernte Korrekturen und Regeln
 
+## Sicherheit bei Geraetesteuerung
+
+Gefaehrliche Aktionen (Schloesser, Alarmanlagen, Automationen, Loeschungen) erfordern eine Bestaetigung:
+- **Telegram**: Inline-Buttons (Ja/Nein) direkt im Chat
+- **Web UI**: Bestaetigungs-Modal mit Details zur geplanten Aktion. Automatische Ablehnung nach 60 Sekunden.
+
 ## Raumstruktur & Automationen
 
 HA-Claw versteht die räumliche Struktur deines Zuhauses:

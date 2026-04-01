@@ -65,6 +65,16 @@ async function main(): Promise<void> {
 
     // Step 4b: Build entity cache for agent context
     await buildEntityCache();
+
+    // Step 4c: Periodic cache refresh (every 30 minutes)
+    setInterval(async () => {
+      try {
+        await buildEntityCache();
+        log.info('Entity cache refreshed (periodic)');
+      } catch (err) {
+        log.warn('Periodic cache refresh failed', { error: String(err) });
+      }
+    }, 30 * 60 * 1000);
   } else {
     log.info('Home Assistant API not available – HA tools disabled');
   }

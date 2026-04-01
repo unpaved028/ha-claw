@@ -6,6 +6,7 @@
  * Entities without an area are grouped under "Ohne Bereich".
  * Areas without a floor are grouped under "Kein Stockwerk".
  * Compresses same-domain/same-state entities (≥3) into one line to save tokens.
+ * Includes important binary_sensor device classes (window, door, motion, smoke, moisture).
  */
 
 import * as ha from './ha-client.js';
@@ -15,9 +16,15 @@ const log = createLogger('entity-cache');
 
 let cachedSummary = '';
 
+/** Device classes of binary_sensor to include in cache (safety/spatial relevance). */
+const IMPORTANT_SENSOR_CLASSES = new Set([
+  'window', 'door', 'motion', 'smoke', 'moisture',
+  'garage_door', 'lock', 'opening', 'presence', 'occupancy',
+]);
+
 /**
  * Fetch all entities, resolve area + floor mappings, and build a compact summary.
- * Called once at startup. Failures are non-fatal.
+ * Called once at startup. Can be called again to refresh.
  */
 export async function buildEntityCache(): Promise<string> {
   try {
@@ -49,27 +56,29 @@ export async function buildEntityCache(): Promise<string> {
       }
     }
 
-    // Build state lookup
-    const stateMap = new Map<string, { id: string; name: string; state: string; domain: string }>();
+    // Build state lookup (include device_class for sensor filtering)
+    interface EntityInfo { id: string; name: string; state: string; domain: string; deviceClass: string; }
+    const stateMap = new Map<string, EntityInfo>();
     for (const s of states) {
       const dot = s.entity_id.indexOf('.');
       const domain = s.entity_id.slice(0, dot);
       const name = String(s.attributes['friendly_name'] ?? '');
-      stateMap.set(s.entity_id, { id: s.entity_id, name, state: s.state, domain });
+      const deviceClass = String(s.attributes['device_class'] ?? '');
+      stateMap.set(s.entity_id, { id: s.entity_id, name, state: s.state, domain, deviceClass });
     }
 
     // Group: area → domain → entities
-    const grouped = new Map<string, Map<string, { id: string; name: string; state: string }[]>>();
+    const grouped = new Map<string, Map<string, EntityInfo[]>>();
 
     for (const [eid, info] of stateMap) {
       const area = entityToArea.get(eid) || 'Ohne Bereich';
       if (!grouped.has(area)) grouped.set(area, new Map());
       const domainMap = grouped.get(area)!;
       if (!domainMap.has(info.domain)) domainMap.set(info.domain, []);
-      domainMap.get(info.domain)!.push({ id: info.id, name: info.name, state: info.state });
+      domainMap.get(info.domain)!.push(info);
     }
 
-    // Only show actionable domains in cache (skip sensor, binary_sensor etc. to save tokens)
+    // Actionable domains shown with full detail
     const ACTIONABLE_DOMAINS = new Set([
       'light', 'switch', 'scene', 'media_player', 'cover', 'fan',
       'climate', 'vacuum', 'humidifier', 'water_heater', 'script',
@@ -104,61 +113,79 @@ export async function buildEntityCache(): Promise<string> {
         return a.localeCompare(b, 'de');
       });
 
-      // Check if any area in this floor has actionable entities
-      const hasActionable = areas.some(area => {
+      // Check if any area in this floor has relevant entities (actionable OR important sensors)
+      const hasRelevant = areas.some(area => {
         const domainMap = grouped.get(area)!;
-        return [...domainMap.keys()].some(d => ACTIONABLE_DOMAINS.has(d));
+        if ([...domainMap.keys()].some(d => ACTIONABLE_DOMAINS.has(d))) return true;
+        // Check for important binary_sensors
+        const binarySensors = domainMap.get('binary_sensor') ?? [];
+        return binarySensors.some(e => IMPORTANT_SENSOR_CLASSES.has(e.deviceClass));
       });
-      if (!hasActionable) continue;
+      if (!hasRelevant) continue;
 
       lines.push(`# ${floor}`);
 
       for (const area of areas) {
         const domainMap = grouped.get(area)!;
         const relevantDomains = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).sort();
-        if (relevantDomains.length === 0) continue;
+
+        // Filter important binary_sensors for this area
+        const importantSensors = (domainMap.get('binary_sensor') ?? [])
+          .filter(e => IMPORTANT_SENSOR_CLASSES.has(e.deviceClass));
+
+        if (relevantDomains.length === 0 && importantSensors.length === 0) continue;
 
         lines.push(`## ${area}`);
+
+        // Actionable domains
         for (const domain of relevantDomains) {
           const entities = domainMap.get(domain)!;
 
           // Compress: if ≥3 entities of same domain share the same state, group them
           if (entities.length >= 3) {
-            const byState = new Map<string, typeof entities>();
+            const byState = new Map<string, EntityInfo[]>();
             for (const e of entities) {
               if (!byState.has(e.state)) byState.set(e.state, []);
               byState.get(e.state)!.push(e);
             }
 
-            let allCompressed = true;
             for (const [state, group] of byState) {
               if (group.length >= 3) {
                 const ids = group.map(e => `\`${e.id}\``).join(', ');
                 lines.push(`- ${group.length}× ${domain} (alle ${state}): ${ids}`);
               } else {
-                allCompressed = false;
                 for (const e of group) {
-                  const label = e.name ? `${e.name}` : e.id;
+                  const label = e.name || e.id;
                   lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
                 }
               }
             }
-            if (allCompressed) continue;
           } else {
             for (const e of entities) {
-              const label = e.name ? `${e.name}` : e.id;
+              const label = e.name || e.id;
               lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
             }
           }
         }
+
+        // Important sensors section (compact)
+        if (importantSensors.length > 0) {
+          const sensorParts = importantSensors.map(e => {
+            const label = e.name || e.id;
+            const stateDE = e.state === 'on' ? 'offen' : e.state === 'off' ? 'zu' : e.state;
+            return `${label} (${stateDE})`;
+          });
+          lines.push(`- _Sensoren:_ ${sensorParts.join(', ')}`);
+        }
+
         lines.push('');
       }
     }
 
-    // Append a sensor summary (count only, not individual entities)
+    // Append remaining sensor summary (count only for non-important sensors)
     const sensorCount = states.filter(s => s.entity_id.startsWith('sensor.')).length;
     const binarySensorCount = states.filter(s => s.entity_id.startsWith('binary_sensor.')).length;
-    lines.push(`_Sensoren: ${sensorCount} sensor, ${binarySensorCount} binary_sensor – nutze ha_search_entities oder ha_get_state um Sensorwerte abzufragen._`);
+    lines.push(`_Weitere Sensoren: ${sensorCount} sensor, ${binarySensorCount} binary_sensor – nutze ha_search_entities oder ha_get_state um Sensorwerte abzufragen._`);
 
     cachedSummary = lines.join('\n');
     log.info('Entity cache built', {

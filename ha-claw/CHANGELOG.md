@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+- **Sensor Awareness in Entity Cache**: Important `binary_sensor` device classes (window, door, motion, smoke, moisture, garage_door, presence) are now included in the entity cache per room. The bot can directly see which windows/doors are open in each area.
+- **Typing Indicator**: Web UI now shows an animated "denkt nach..." indicator while the bot is processing, so users know the bot is working.
+- **Web Safety Gate**: Dangerous tool calls (locks, alarms, automations, deletions) now show a confirmation modal in the Web UI before execution — matching the existing Telegram safety gate. Auto-denies after 60 seconds.
+- **Area Filter for Entity Search**: `ha_search_entities` tool now supports an optional `area` parameter to filter results by room/area name (e.g., "find all sensors in Wohnzimmer").
+- **Periodic Entity Cache Refresh**: Entity cache now auto-refreshes every 30 minutes instead of only at startup. Also added a manual `/api/cache/refresh` endpoint.
+
+### Changed
+- **Entity Cache Format**: Sensor section per area now shows compact sensor list (e.g., "Sensoren: Fenster Bad (zu), Tür Flur (offen)") instead of hiding all sensors.
+- **Search Results**: `ha_search_entities` now includes `device_class` in results for better context.
+
+---
+
 ## 0.5.2
 
 ### Fixed

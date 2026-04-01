@@ -279,6 +279,20 @@ body{
   margin-right:3rem;
   border:1px solid var(--msg-bot-border);
 }
+.msg.typing{opacity:0.7;font-style:italic}
+.typing-dots span{animation:blink 1.4s infinite both}
+.typing-dots span:nth-child(2){animation-delay:0.2s}
+.typing-dots span:nth-child(3){animation-delay:0.4s}
+@keyframes blink{0%,80%,100%{opacity:0}40%{opacity:1}}
+.confirm-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999}
+.confirm-modal{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+.confirm-title{font-weight:700;font-size:1.1em;margin-bottom:0.75rem;color:var(--accent)}
+.confirm-body{font-size:0.9em;line-height:1.5;margin-bottom:1rem}
+.confirm-body pre{background:var(--bg);padding:0.5rem;border-radius:6px;font-size:0.82em;overflow-x:auto;margin-top:0.5rem}
+.confirm-actions{display:flex;gap:0.75rem;justify-content:flex-end}
+.confirm-btn{padding:0.5rem 1.2rem;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:0.9em}
+.confirm-btn.approve{background:var(--accent);color:#fff}
+.confirm-btn.deny{background:var(--msg-user-bg);color:var(--text)}
 .msg strong{font-weight:600}
 .msg em{font-style:italic}
 .msg code{
@@ -2030,16 +2044,83 @@ function toggleMic(){
   };
 }
 
+// ── Typing indicator ─────────────────────────────────────
+function showTyping(){
+  const existing=document.getElementById('typing-indicator');
+  if(existing)return;
+  const group=document.createElement('div');
+  group.className='msg-group';
+  group.id='typing-indicator';
+  const label=document.createElement('div');
+  label.className='msg-label';
+  label.innerHTML='<span class="msg-label-icon">&#9889;</span> '+(window.botName||'HA-CLAW');
+  group.appendChild(label);
+  const bubble=document.createElement('div');
+  bubble.className='msg bot typing';
+  bubble.innerHTML='<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> denkt nach...';
+  group.appendChild(bubble);
+  msgs.appendChild(group);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+function hideTyping(){
+  const el=document.getElementById('typing-indicator');
+  if(el)el.remove();
+}
+
+// ── Safety Gate (confirmation modal for dangerous tools) ──
+let confirmPollTimer=null;
+function startConfirmPolling(){
+  if(confirmPollTimer)return;
+  confirmPollTimer=setInterval(async()=>{
+    try{
+      const r=await fetch(base+'/api/confirm/pending');
+      const d=await r.json();
+      if(d.pending){
+        clearInterval(confirmPollTimer);confirmPollTimer=null;
+        showConfirmModal(d.id,d.toolName,d.args);
+      }
+    }catch(e){}
+  },800);
+}
+function stopConfirmPolling(){
+  if(confirmPollTimer){clearInterval(confirmPollTimer);confirmPollTimer=null;}
+}
+function showConfirmModal(id,toolName,args){
+  const overlay=document.createElement('div');
+  overlay.className='confirm-overlay';
+  overlay.id='confirm-overlay';
+  const argsStr=Object.entries(args).map(([k,v])=>k+': '+JSON.stringify(v)).join('\\n');
+  overlay.innerHTML='<div class="confirm-modal">'
+    +'<div class="confirm-title">Sicherheitsabfrage</div>'
+    +'<div class="confirm-body">Tool <strong>'+escHtml2(toolName)+'</strong> moechte ausgefuehrt werden:<pre>'+escHtml2(argsStr)+'</pre></div>'
+    +'<div class="confirm-actions">'
+    +'<button class="confirm-btn approve" onclick="respondConfirm(\\''+id+'\\',true)">Ausfuehren</button>'
+    +'<button class="confirm-btn deny" onclick="respondConfirm(\\''+id+'\\',false)">Ablehnen</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+}
+async function respondConfirm(id,approved){
+  try{
+    await fetch(base+'/api/confirm/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});
+  }catch(e){}
+  const ov=document.getElementById('confirm-overlay');if(ov)ov.remove();
+  startConfirmPolling();
+}
+
 // ── Send ──────────────────────────────────────────────────
 async function sendMsg(){
   const t=inp.value.trim();if(!t)return;
   inp.value='';addMsg(t,'user');sendBtn.disabled=true;inp.disabled=true;
+  showTyping();
+  startConfirmPolling();
   try{
     const r=await fetch(base+'/api/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({message:t})
     });
+    stopConfirmPolling();
+    hideTyping();
     const d=await r.json();
     const g=addMsg(d.response||JSON.stringify(d),'bot');
     if(d.iterations){
@@ -2048,7 +2129,7 @@ async function sendMsg(){
       m.textContent=d.iterations+' Iteration(en), '+d.toolCalls.length+' Tool-Aufruf(e)';
       g.appendChild(m);
     }
-  }catch(e){addMsg('Fehler: '+e.message,'bot');}
+  }catch(e){stopConfirmPolling();hideTyping();addMsg('Fehler: '+e.message,'bot');}
   sendBtn.disabled=false;inp.disabled=false;inp.focus();
 }
 

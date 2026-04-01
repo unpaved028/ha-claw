@@ -13,8 +13,8 @@ import { isOnboarding, startOnboarding, endOnboarding, loadOnboardingPrompt } fr
 import { getToolInfos, setToolEnabled } from '../tools/registry.js';
 import { listJobs, toggleJob, deleteJob } from '../storage/scheduler.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
-import { getEntityCache } from '../core/entity-cache.js';
-import { runAgenticLoop } from '../core/agentic-loop.js';
+import { getEntityCache, buildEntityCache } from '../core/entity-cache.js';
+import { runAgenticLoop, type ConfirmationFn } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
 import { dashboardHtml } from './dashboard.js';
 import * as store from '../storage/json-store.js';
@@ -25,6 +25,34 @@ import * as actionLog from '../storage/action-log.js';
 
 const log = createLogger('web');
 const STARTUP_TIME = new Date().toISOString();
+
+// ── Web Safety Gate (confirmation for dangerous tools) ────
+interface PendingConfirmation {
+  id: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  resolve: (approved: boolean) => void;
+}
+let pendingConfirmation: PendingConfirmation | null = null;
+let confirmCounter = 0;
+
+function createWebConfirmFn(): ConfirmationFn {
+  return async (toolName: string, args: Record<string, unknown>): Promise<boolean> => {
+    const id = String(++confirmCounter);
+    log.info('Web safety gate: awaiting confirmation', { id, toolName });
+    return new Promise<boolean>((resolve) => {
+      pendingConfirmation = { id, toolName, args, resolve };
+      // Auto-deny after 60s
+      setTimeout(() => {
+        if (pendingConfirmation?.id === id) {
+          pendingConfirmation = null;
+          resolve(false);
+          log.warn('Web confirmation timed out', { id, toolName });
+        }
+      }, 60_000);
+    });
+  };
+}
 const PKG_VERSION = (() => {
   try {
     const dir = dirname(fileURLToPath(import.meta.url));
@@ -139,8 +167,9 @@ export async function startWebServer(): Promise<void> {
     const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
     const history = record?.messages || [];
 
-    // 2. Run loop (passing history)
-    const result = await runAgenticLoop(userMessage, agent, undefined, history);
+    // 2. Run loop (passing history) with web safety gate
+    const webConfirmFn = createWebConfirmFn();
+    const result = await runAgenticLoop(userMessage, agent, webConfirmFn, history);
 
     // 3. Persist updated history
     const newMessages: ChatMessage[] = [
@@ -159,6 +188,36 @@ export async function startWebServer(): Promise<void> {
   app.get('/api/chat/history', async () => {
     const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
     return record?.messages || [];
+  });
+
+  // ── Web Safety Gate Endpoints ────────────────────────
+  app.get('/api/confirm/pending', async () => {
+    if (!pendingConfirmation) return { pending: false };
+    return {
+      pending: true,
+      id: pendingConfirmation.id,
+      toolName: pendingConfirmation.toolName,
+      args: pendingConfirmation.args,
+    };
+  });
+
+  app.post<{ Params: { id: string }; Body: { approved: boolean } }>('/api/confirm/:id', async (req) => {
+    const { id } = req.params;
+    const { approved } = req.body;
+    if (!pendingConfirmation || pendingConfirmation.id !== id) {
+      return { error: 'No matching pending confirmation' };
+    }
+    log.info('Web confirmation received', { id, approved });
+    pendingConfirmation.resolve(approved);
+    pendingConfirmation = null;
+    return { ok: true };
+  });
+
+  // ── Entity Cache Refresh ─────────────────────────────
+  app.post('/api/cache/refresh', async () => {
+    log.info('Manual entity cache refresh triggered');
+    const cache = await buildEntityCache();
+    return { ok: true, chars: cache.length };
   });
 
   // ── Onboarding status ─────────────────────────────────
