@@ -1,6 +1,6 @@
 {
   "name": "ha-claw",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "HA-Claw – Local AI Smart Home Assistant (HA Add-on)",
   "type": "module",
   "engines": {

@@ -285,7 +285,7 @@ body{
 .typing-dots span:nth-child(3){animation-delay:0.4s}
 @keyframes blink{0%,80%,100%{opacity:0}40%{opacity:1}}
 .confirm-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999}
-.confirm-modal{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+.confirm-modal{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
 .confirm-title{font-weight:700;font-size:1.1em;margin-bottom:0.75rem;color:var(--accent)}
 .confirm-body{font-size:0.9em;line-height:1.5;margin-bottom:1rem}
 .confirm-body pre{background:var(--bg);padding:0.5rem;border-radius:6px;font-size:0.82em;overflow-x:auto;margin-top:0.5rem}

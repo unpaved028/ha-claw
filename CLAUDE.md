@@ -3,7 +3,7 @@
 ## Was ist HA-Claw?
 Lokaler KI-Assistent als Home Assistant Add-on. Agentic Loop mit Tool Calling, Web UI (Ingress), Telegram Bot. Nutzt OpenRouter für LLM-Zugang.
 
-## Aktuelle Version: 0.6.5
+## Aktuelle Version: 0.6.6
 
 ## Architektur (Kerndateien)
 
@@ -86,6 +86,9 @@ ha-claw/
 | 0.6.1 | 2026-04-02 | Fenster/Tür-Sensor Identifikation Fix, Butler-Prompt Sensor-Awareness |
 | 0.6.2 | 2026-04-02 | Backlog Processor: Event-driven statt 30s-Polling, zero Token cost when idle |
 | 0.6.3 | 2026-04-03 | HA Area/Floor Mapping Fix für HA 2026.x (2-Tier Template/ID-Parsing Fallback) |
+| 0.6.4 | 2026-04-03 | Search tool extended with device_class filter for better sensor detection |
+| 0.6.5 | 2026-04-03 | Automation/Script editing support, native HA ID logic for automation loading |
+| 0.6.6 | 2026-04-03 | Fixed Web UI transparent confirmation modal background |
 
 ## Nächste Schritte (Roadmap)
 

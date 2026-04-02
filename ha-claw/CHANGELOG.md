@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.6
+
+### Fixed
+
+- **Web UI – Confirmation Modal**: Fixed transparent background in the safety gate confirmation modal. Added explicit theme variables `--bg-card` and `--border` to ensure correct rendering in Dark and Claw themes.
+
+---
+
 ## 0.6.5
 
 ### Added
