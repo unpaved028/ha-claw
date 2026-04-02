@@ -433,7 +433,7 @@ export function registerHATools(): void {
     { required: ['entity_id'] },
   );
 
-  // ── ha_get_automation_config ────────────────────────────
+  // ── ha_get_automation_config ───────────────────────────
   registerTool(
     'ha_get_automation_config',
     'Get the full configuration of a Home Assistant automation including triggers, conditions, and actions. Use this to understand what an automation does.',
@@ -448,11 +448,77 @@ export function registerHATools(): void {
       if (!entityId || !entityId.startsWith('automation.')) {
         return { error: 'entity_id must start with "automation."' };
       }
-
       return ha.getAutomationConfig(entityId);
     },
     { required: ['entity_id'] },
   );
 
-  log.info('HA tools registered', { count: 9 });
+  // ── ha_save_automation_config ─────────────────────────────
+  registerTool(
+    'ha_save_automation_config',
+    'Update the configuration of an existing Home Assistant automation. WARNING: This will overwrite the existing configuration. Use ha_get_automation_config first to get the current config.',
+    {
+      id: {
+        type: 'string',
+        description:
+          'The internal ID of the automation (NOT the entity_id). You get this from the "id" attribute of the automation state or the "id" field in the config.',
+      },
+      config: {
+        type: 'object',
+        description: 'The new automation configuration (triggers, conditions, actions, etc.)',
+      },
+    },
+    async args => {
+      const id = args['id'] as string;
+      const config = args['config'] as Record<string, unknown>;
+      if (!id || !config) return { error: 'id and config are required' };
+      return ha.saveAutomationConfig(id, config);
+    },
+    { dangerous: true, required: ['id', 'config'], complexity: 3 },
+  );
+
+  // ── ha_get_script_config ────────────────────────────────
+  registerTool(
+    'ha_get_script_config',
+    'Get the full configuration of a Home Assistant script including the sequence of actions. Use this to understand what a script does.',
+    {
+      entity_id: {
+        type: 'string',
+        description: 'The script entity ID (e.g. "script.gute_nacht")',
+      },
+    },
+    async args => {
+      const entityId = args['entity_id'] as string;
+      if (!entityId || !entityId.startsWith('script.')) {
+        return { error: 'entity_id must start with "script."' };
+      }
+      return ha.getScriptConfig(entityId);
+    },
+    { required: ['entity_id'] },
+  );
+
+  // ── ha_save_script_config ────────────────────────────────
+  registerTool(
+    'ha_save_script_config',
+    'Update the configuration of an existing Home Assistant script. WARNING: This will overwrite the existing configuration. Use ha_get_script_config first to get the current config.',
+    {
+      id: {
+        type: 'string',
+        description: 'The internal ID of the script (NOT the entity_id).',
+      },
+      config: {
+        type: 'object',
+        description: 'The new script configuration (sequence, fields, etc.)',
+      },
+    },
+    async args => {
+      const id = args['id'] as string;
+      const config = args['config'] as Record<string, unknown>;
+      if (!id || !config) return { error: 'id and config are required' };
+      return ha.saveScriptConfig(id, config);
+    },
+    { dangerous: true, required: ['id', 'config'], complexity: 3 },
+  );
+
+  log.info('HA tools registered', { count: 12 });
 }

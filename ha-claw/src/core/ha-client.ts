@@ -325,12 +325,23 @@ export async function getGroupMembers(entityId: string): Promise<string[]> {
 }
 
 /**
+ * Get internal ID from entity state. Useful for config APIs.
+ */
+async function getInternalId(entityId: string): Promise<string> {
+  const state = await getState(entityId);
+  const id = state.attributes['id'] as string | undefined;
+  if (id) return id;
+  // Fallback to suffix
+  return entityId.split('.')[1]!;
+}
+
+/**
  * Get full automation configuration (triggers, conditions, actions).
  */
 export async function getAutomationConfig(entityId: string): Promise<Record<string, unknown>> {
   try {
-    const objectId = entityId.replace(/^automation\./, '');
-    return await haFetch<Record<string, unknown>>(`/config/automation/config/${objectId}`);
+    const id = await getInternalId(entityId);
+    return await haFetch<Record<string, unknown>>(`/config/automation/config/${id}`);
   } catch (err) {
     log.warn('Automation config fetch failed, falling back to state', {
       entityId,
@@ -343,12 +354,62 @@ export async function getAutomationConfig(entityId: string): Promise<Record<stri
         state: state.state,
         friendly_name: state.attributes['friendly_name'] ?? null,
         last_triggered: state.attributes['last_triggered'] ?? null,
-        note: 'Full config unavailable – showing basic state info only',
+        note: 'Full config unavailable – showing basic state info only (Is this automation defined in YAML instead of UI?)',
       };
     } catch {
       return { error: 'Automation not found', entity_id: entityId };
     }
   }
+}
+
+/**
+ * Save automation configuration.
+ */
+export async function saveAutomationConfig(
+  id: string,
+  config: Record<string, unknown>,
+): Promise<HAServiceResponse> {
+  log.info('Saving automation config', { id });
+  await haFetch<unknown>(`/config/automation/config/${id}`, 'POST', config);
+  return { success: true };
+}
+
+/**
+ * Get full script configuration.
+ */
+export async function getScriptConfig(entityId: string): Promise<Record<string, unknown>> {
+  try {
+    const id = await getInternalId(entityId);
+    return await haFetch<Record<string, unknown>>(`/config/script/config/${id}`);
+  } catch (err) {
+    log.warn('Script config fetch failed, falling back to state', {
+      entityId,
+      error: String(err),
+    });
+    try {
+      const state = await getState(entityId);
+      return {
+        entity_id: entityId,
+        state: state.state,
+        friendly_name: state.attributes['friendly_name'] ?? null,
+        note: 'Full config unavailable – showing basic state info only',
+      };
+    } catch {
+      return { error: 'Script not found', entity_id: entityId };
+    }
+  }
+}
+
+/**
+ * Save script configuration.
+ */
+export async function saveScriptConfig(
+  id: string,
+  config: Record<string, unknown>,
+): Promise<HAServiceResponse> {
+  log.info('Saving script config', { id });
+  await haFetch<unknown>(`/config/script/config/${id}`, 'POST', config);
+  return { success: true };
 }
 
 /**

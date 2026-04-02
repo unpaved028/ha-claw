@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.5
+
+### Added
+
+- **Script-Unterstützung**: Neue Tools `ha_get_script_config` und `ha_save_script_config` zum Lesen und Bearbeiten von Skripten hinzugefügt.
+- **Automation-Editing**: Neues Tool `ha_save_automation_config` zum Bearbeiten bestehender Automationen hinzugefügt.
+
+### Fixed
+
+- **Automation-Konfiguration**: `ha_get_automation_config` nutzt nun die interne `id` aus den Entity-Attributen. Dies löst das Problem, dass UI-gepflegte Automationen oft nicht über ihren `entity_id` Suffix geladen werden konnten.
+
+---
+
 ## 0.6.4
 
 ### Fixed
