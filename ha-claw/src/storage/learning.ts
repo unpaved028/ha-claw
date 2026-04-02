@@ -63,10 +63,12 @@ export async function addCorrection(data: {
 
 export function findRelevantCorrections(query: string, max = 3): Correction[] {
   const words = query.toLowerCase().split(/\s+/);
-  const scored = corrections.map(c => {
-    const matches = c.keywords.filter(k => words.some(w => w.includes(k) || k.includes(w)));
-    return { correction: c, score: matches.length };
-  }).filter(s => s.score > 0)
+  const scored = corrections
+    .map(c => {
+      const matches = c.keywords.filter(k => words.some(w => w.includes(k) || k.includes(w)));
+      return { correction: c, score: matches.length };
+    })
+    .filter(s => s.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, max);
 
@@ -80,8 +82,8 @@ export function findRelevantCorrections(query: string, max = 3): Correction[] {
 
 export function buildCorrectionContext(corrections: Correction[]): string {
   if (corrections.length === 0) return '';
-  const lines = corrections.map(c =>
-    `- Wenn "${c.userIntent}" → NICHT ${c.wrongAction}, SONDERN ${c.correctAction}`
+  const lines = corrections.map(
+    c => `- Wenn "${c.userIntent}" → NICHT ${c.wrongAction}, SONDERN ${c.correctAction}`,
   );
   return `\n## Gelernte Korrekturen\nDiese Fehler wurden in der Vergangenheit korrigiert. Beachte sie:\n${lines.join('\n')}`;
 }
@@ -164,10 +166,10 @@ export async function togglePromptPatch(id: string, enabled: boolean): Promise<P
 // ═══════════════════════════════════════════════════════════════
 
 export interface UsageEvent {
-  action: string;       // e.g. "light.turn_off"
-  entityId: string;     // e.g. "light.wohnzimmer"
-  hour: number;         // 0-23
-  dayOfWeek: number;    // 0-6 (Sun-Sat)
+  action: string; // e.g. "light.turn_off"
+  entityId: string; // e.g. "light.wohnzimmer"
+  hour: number; // 0-23
+  dayOfWeek: number; // 0-6 (Sun-Sat)
   timestamp: string;
 }
 
@@ -246,8 +248,8 @@ export async function detectPatterns(): Promise<DetectedPattern[]> {
     const days = [...new Set(nearPeak.map(e => e.dayOfWeek))].sort();
 
     // Check if already detected
-    const existingIdx = detectedPatterns.findIndex(p =>
-      p.action === action && p.entityId === entityId && p.typicalHour === peakHour
+    const existingIdx = detectedPatterns.findIndex(
+      p => p.action === action && p.entityId === entityId && p.typicalHour === peakHour,
     );
 
     if (existingIdx >= 0) {
@@ -292,9 +294,7 @@ export async function markPatternSuggested(id: string): Promise<void> {
 export function buildPatternContext(): string {
   const mature = detectedPatterns.filter(p => p.occurrences >= 5);
   if (mature.length === 0) return '';
-  const lines = mature.map(p =>
-    `- ${p.description} (${p.occurrences}x beobachtet)`
-  );
+  const lines = mature.map(p => `- ${p.description} (${p.occurrences}x beobachtet)`);
   return `\n## Erkannte Nutzungsmuster\n${lines.join('\n')}\nWenn passend, schlage vor diese als Automatisierung anzulegen.`;
 }
 
@@ -365,8 +365,9 @@ export function getErrorSummary(): ErrorSummary[] {
 export function buildErrorContext(): string {
   const summary = getErrorSummary().slice(0, 5);
   if (summary.length === 0) return '';
-  const lines = summary.map(s =>
-    `- ${s.tool}${s.entityId ? ' (' + s.entityId + ')' : ''}: ${s.count}x fehlgeschlagen, letzter Fehler: "${s.lastError}"`
+  const lines = summary.map(
+    s =>
+      `- ${s.tool}${s.entityId ? ' (' + s.entityId + ')' : ''}: ${s.count}x fehlgeschlagen, letzter Fehler: "${s.lastError}"`,
   );
   return `\n## Bekannte Probleme\nDiese Tools/Entities haben wiederholt Fehler:\n${lines.join('\n')}\nVermeide diese oder informiere den Nutzer.`;
 }
@@ -402,11 +403,21 @@ async function loadJson<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
-async function persistCorrections(): Promise<void> { await saveJson(CORRECTIONS_FILE, corrections); }
-async function persistPatches(): Promise<void> { await saveJson(PATCHES_FILE, promptPatches); }
-async function persistEvents(): Promise<void> { await saveJson(EVENTS_FILE, usageEvents); }
-async function persistPatterns(): Promise<void> { await saveJson(PATTERNS_FILE, detectedPatterns); }
-async function persistErrors(): Promise<void> { await saveJson(ERROR_FILE, errorLog); }
+async function persistCorrections(): Promise<void> {
+  await saveJson(CORRECTIONS_FILE, corrections);
+}
+async function persistPatches(): Promise<void> {
+  await saveJson(PATCHES_FILE, promptPatches);
+}
+async function persistEvents(): Promise<void> {
+  await saveJson(EVENTS_FILE, usageEvents);
+}
+async function persistPatterns(): Promise<void> {
+  await saveJson(PATTERNS_FILE, detectedPatterns);
+}
+async function persistErrors(): Promise<void> {
+  await saveJson(ERROR_FILE, errorLog);
+}
 
 async function saveJson(path: string, data: unknown): Promise<void> {
   try {
@@ -417,8 +428,35 @@ async function saveJson(path: string, data: unknown): Promise<void> {
 }
 
 function extractKeywords(text: string): string[] {
-  const stop = new Set(['der', 'die', 'das', 'ein', 'eine', 'und', 'oder', 'nicht', 'im', 'in', 'auf', 'an', 'aus', 'ist', 'ich', 'du', 'mein', 'den', 'dem', 'es', 'the', 'a', 'is', 'to', 'of']);
-  return text.toLowerCase()
+  const stop = new Set([
+    'der',
+    'die',
+    'das',
+    'ein',
+    'eine',
+    'und',
+    'oder',
+    'nicht',
+    'im',
+    'in',
+    'auf',
+    'an',
+    'aus',
+    'ist',
+    'ich',
+    'du',
+    'mein',
+    'den',
+    'dem',
+    'es',
+    'the',
+    'a',
+    'is',
+    'to',
+    'of',
+  ]);
+  return text
+    .toLowerCase()
     .replace(/[^a-zäöüß0-9\s_-]/g, '')
     .split(/\s+/)
     .filter(w => w.length > 2 && !stop.has(w))

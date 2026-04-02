@@ -1,4 +1,3 @@
-
 import { initActionLog, logAction } from './src/storage/action-log.js';
 import { initStorage } from './src/storage/json-store.js';
 
@@ -10,7 +9,7 @@ async function test() {
   await logAction('system', 'Scratch test action', 'test_script', {
     domain: 'light',
     service: 'turn_off',
-    entity_id: 'light.test'
+    entity_id: 'light.test',
   });
   console.log('Done.');
 }

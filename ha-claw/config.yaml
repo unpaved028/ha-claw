@@ -1,11 +1,11 @@
 # HA-Claw Add-on Manifest
 # Reference: https://developers.home-assistant.io/docs/add-ons/configuration
 
-name: "HA-Claw"
-version: "0.6.2"
-slug: "ha-claw"
-description: "Local AI-powered Smart Home Assistant with Telegram & Web UI"
-url: "https://github.com/unpaved028/ha-claw"
+name: 'HA-Claw'
+version: '0.6.3'
+slug: 'ha-claw'
+description: 'Local AI-powered Smart Home Assistant with Telegram & Web UI'
+url: 'https://github.com/unpaved028/ha-claw'
 
 # Supported architectures (HA Green = aarch64)
 arch:
@@ -20,8 +20,8 @@ boot: auto
 # ── Ingress (Web-UI in HA Sidebar) ────────────────────────────
 ingress: true
 ingress_port: 3100
-panel_icon: "mdi:robot-outline"
-panel_title: "HA-Claw"
+panel_icon: 'mdi:robot-outline'
+panel_title: 'HA-Claw'
 
 # ── API Access ────────────────────────────────────────────────
 homeassistant_api: true
@@ -33,16 +33,16 @@ map:
 
 # ── User-configurable options (shown in Add-on UI) ────────────
 options:
-  openrouter_api_key: ""
-  openrouter_default_model: "anthropic/claude-haiku-4.5"
-  telegram_bot_token: ""
-  telegram_allowed_user_ids: ""
-  log_level: "info"
+  openrouter_api_key: ''
+  openrouter_default_model: 'anthropic/claude-haiku-4.5'
+  telegram_bot_token: ''
+  telegram_allowed_user_ids: ''
+  log_level: 'info'
 
 # ── Schema validation for options ─────────────────────────────
 schema:
-  openrouter_api_key: "str"
-  openrouter_default_model: "list(openrouter/free|openrouter/auto|anthropic/claude-opus-4.6|anthropic/claude-sonnet-4.6|anthropic/claude-haiku-4.5|google/gemini-3.1-pro-preview|google/gemini-3-flash-preview|google/gemini-3.1-flash-lite-preview|openai/gpt-5.4|openai/gpt-5.4-mini|deepseek/deepseek-chat)"
-  telegram_bot_token: "str?"
-  telegram_allowed_user_ids: "str?"
-  log_level: "list(debug|info|warn|error)"
+  openrouter_api_key: 'str'
+  openrouter_default_model: 'list(openrouter/free|openrouter/auto|anthropic/claude-opus-4.6|anthropic/claude-sonnet-4.6|anthropic/claude-haiku-4.5|google/gemini-3.1-pro-preview|google/gemini-3-flash-preview|google/gemini-3.1-flash-lite-preview|openai/gpt-5.4|openai/gpt-5.4-mini|deepseek/deepseek-chat)'
+  telegram_bot_token: 'str?'
+  telegram_allowed_user_ids: 'str?'
+  log_level: 'list(debug|info|warn|error)'

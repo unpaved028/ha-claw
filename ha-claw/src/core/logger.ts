@@ -36,7 +36,7 @@ const SECRETS_TO_REDACT: string[] = [
   appConfig.openRouterApiKey,
   appConfig.telegramBotToken ?? '',
   appConfig.supervisorToken ?? '',
-].filter((s) => s.length > 0);
+].filter(s => s.length > 0);
 
 function redact(message: string): string {
   let redacted = message;
@@ -77,7 +77,7 @@ function emit(level: LogLevel, component: string, message: string, data?: Record
 export function getLogBuffer(minLevel?: LogLevel): LogEntry[] {
   if (!minLevel) return [...logBuffer];
   const min = LOG_LEVELS[minLevel];
-  return logBuffer.filter((e) => LOG_LEVELS[e.level] >= min);
+  return logBuffer.filter(e => LOG_LEVELS[e.level] >= min);
 }
 
 /**

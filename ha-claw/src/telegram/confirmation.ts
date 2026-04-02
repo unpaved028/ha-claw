@@ -24,7 +24,7 @@ let confirmationCounter = 0;
  * Must be called once during bot setup.
  */
 export function setupConfirmationHandler(bot: Bot): void {
-  bot.on('callback_query:data', async (ctx) => {
+  bot.on('callback_query:data', async ctx => {
     const data = ctx.callbackQuery.data;
 
     // Format: "confirm:<id>:yes" or "confirm:<id>:no"
@@ -78,7 +78,7 @@ export function createTelegramConfirmFn(
       reply_markup: keyboard,
     });
 
-    return new Promise<boolean>((resolve) => {
+    return new Promise<boolean>(resolve => {
       pendingConfirmations.set(callbackId, resolve);
 
       // Auto-deny after timeout

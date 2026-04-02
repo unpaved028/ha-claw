@@ -22,16 +22,21 @@ export function registerBuiltinTools(): void {
     'save_onboarding_profile',
     'Save the user profile after onboarding. Call this once you have collected bot name, user name, and personality preferences through natural conversation.',
     {
-      bot_name: { type: 'string', description: 'The chosen name for the bot (e.g. "Jarvis", "Alfred")' },
-      user_name: { type: 'string', description: 'The user\'s name' },
+      bot_name: {
+        type: 'string',
+        description: 'The chosen name for the bot (e.g. "Jarvis", "Alfred")',
+      },
+      user_name: { type: 'string', description: "The user's name" },
       directness: { type: 'number', description: 'Directness 1-5 (1=diplomatic, 5=very direct)' },
       formality: { type: 'number', description: 'Formality 1-5 (1=casual, 5=professional)' },
       humor: { type: 'number', description: 'Humor 1-5 (1=factual only, 5=very humorous)' },
       verbosity: { type: 'number', description: 'Verbosity 1-5 (1=terse, 5=detailed)' },
     },
-    async (args) => {
+    async args => {
       if (!needsOnboarding()) {
-        return { error: 'Onboarding already completed. Use profile settings to change personality.' };
+        return {
+          error: 'Onboarding already completed. Use profile settings to change personality.',
+        };
       }
       const clamp = (n: number) => Math.max(1, Math.min(5, Math.round(n)));
       const botName = (args['bot_name'] as string).trim();
@@ -40,14 +45,18 @@ export function registerBuiltinTools(): void {
         botName,
         userName,
         personality: {
-          directness: clamp(args['directness'] as number ?? 4),
-          formality: clamp(args['formality'] as number ?? 3),
-          humor: clamp(args['humor'] as number ?? 3),
-          verbosity: clamp(args['verbosity'] as number ?? 2),
+          directness: clamp((args['directness'] as number) ?? 4),
+          formality: clamp((args['formality'] as number) ?? 3),
+          humor: clamp((args['humor'] as number) ?? 3),
+          verbosity: clamp((args['verbosity'] as number) ?? 2),
         },
         onboardingComplete: true,
       });
-      await logAction('system', `Onboarding abgeschlossen: Bot=${botName}, User=${userName}`, 'save_onboarding_profile');
+      await logAction(
+        'system',
+        `Onboarding abgeschlossen: Bot=${botName}, User=${userName}`,
+        'save_onboarding_profile',
+      );
       return { saved: true, botName, userName };
     },
     { required: ['bot_name', 'user_name', 'directness', 'formality', 'humor', 'verbosity'] },
@@ -76,7 +85,7 @@ export function registerBuiltinTools(): void {
         enum: ['notes', 'conversations', 'memory'],
       },
     },
-    async (args) => {
+    async args => {
       const records = await store.list(args['collection'] as CollectionName);
       return { count: records.length, records };
     },
@@ -95,11 +104,8 @@ export function registerBuiltinTools(): void {
       },
       id: { type: 'string', description: 'Record ID' },
     },
-    async (args) => {
-      const record = await store.read(
-        args['collection'] as CollectionName,
-        args['id'] as string,
-      );
+    async args => {
+      const record = await store.read(args['collection'] as CollectionName, args['id'] as string);
       return record ?? { error: 'Record not found' };
     },
     { required: ['collection', 'id'] },
@@ -123,7 +129,7 @@ export function registerBuiltinTools(): void {
         description: 'Optional tags for categorization',
       },
     },
-    async (args) => {
+    async args => {
       const col = args['collection'] as CollectionName;
       const res = await store.create(col, {
         title: args['title'] ?? 'Untitled',
@@ -150,11 +156,8 @@ export function registerBuiltinTools(): void {
       },
       id: { type: 'string', description: 'Record ID to delete' },
     },
-    async (args) => {
-      const ok = await store.remove(
-        args['collection'] as CollectionName,
-        args['id'] as string,
-      );
+    async args => {
+      const ok = await store.remove(args['collection'] as CollectionName, args['id'] as string);
       return ok ? { deleted: true } : { error: 'Record not found' };
     },
     { dangerous: true, required: ['collection', 'id'] },
@@ -173,7 +176,8 @@ export function registerBuiltinTools(): void {
         enum: ['fact', 'decision', 'preference', 'context', 'routine'],
       },
       tags: {
-        type: 'array', items: { type: 'string' },
+        type: 'array',
+        items: { type: 'string' },
         description: 'Keywords for later retrieval (auto-extracted if omitted)',
       },
       ttl_days: {
@@ -181,7 +185,7 @@ export function registerBuiltinTools(): void {
         description: 'Days until expiry (0 = permanent, default 0)',
       },
     },
-    async (args) => {
+    async args => {
       const card = await mem.createCard({
         title: args['title'] as string,
         content: args['content'] as string,
@@ -203,14 +207,14 @@ export function registerBuiltinTools(): void {
       query: { type: 'string', description: 'Search query (keywords, topic, or question)' },
       max_results: { type: 'number', description: 'Max results (default 5)' },
     },
-    async (args) => {
+    async args => {
       const results = await mem.searchCards(
         args['query'] as string,
         (args['max_results'] as number) ?? 5,
       );
       return {
         count: results.length,
-        memories: results.map((r) => ({
+        memories: results.map(r => ({
           id: r.card.id,
           title: r.card.title,
           content: r.card.content,
@@ -234,7 +238,7 @@ export function registerBuiltinTools(): void {
       content: { type: 'string', description: 'Updated content' },
       title: { type: 'string', description: 'Updated title (optional)' },
     },
-    async (args) => {
+    async args => {
       const updated = await mem.updateCard(args['id'] as string, {
         content: args['content'] as string,
         title: args['title'] as string | undefined,
@@ -253,7 +257,7 @@ export function registerBuiltinTools(): void {
     {
       id: { type: 'string', description: 'Memory card ID to delete' },
     },
-    async (args) => {
+    async args => {
       const ok = await mem.deleteCard(args['id'] as string);
       return ok ? { deleted: true } : { error: 'Memory card not found' };
     },
@@ -269,7 +273,7 @@ export function registerBuiltinTools(): void {
       const cards = await mem.listCards();
       return {
         count: cards.length,
-        cards: cards.map((c) => ({
+        cards: cards.map(c => ({
           id: c.id,
           title: c.title,
           category: c.category,
@@ -320,11 +324,12 @@ export function registerBuiltinTools(): void {
         enum: ['energy', 'comfort', 'security', 'automation', 'maintenance'],
       },
       tags: {
-        type: 'array', items: { type: 'string' },
+        type: 'array',
+        items: { type: 'string' },
         description: 'Optional keywords for the task',
       },
     },
-    async (args) => {
+    async args => {
       const task = await backlog.createTask({
         title: args['title'] as string,
         asIs: args['as_is'] as string,
@@ -335,7 +340,11 @@ export function registerBuiltinTools(): void {
         tags: args['tags'] as string[] | undefined,
         proposedBy: 'agent',
       });
-      await logAction('task', `Optimierung vorgeschlagen: ${task.id} - ${task.title}`, 'backlog_propose');
+      await logAction(
+        'task',
+        `Optimierung vorgeschlagen: ${task.id} - ${task.title}`,
+        'backlog_propose',
+      );
       return { proposed: true, id: task.id, title: task.title, priority: task.priority };
     },
     { required: ['title', 'as_is', 'to_be', 'impact'] },
@@ -357,14 +366,14 @@ export function registerBuiltinTools(): void {
         enum: ['low', 'medium', 'high'],
       },
     },
-    async (args) => {
+    async args => {
       const tasks = await backlog.listTasks({
         status: args['status'] as backlog.TaskStatus | undefined,
         priority: args['priority'] as backlog.Priority | undefined,
       });
       return {
         count: tasks.length,
-        tasks: tasks.map((t) => ({
+        tasks: tasks.map(t => ({
           id: t.id,
           title: t.title,
           priority: t.priority,
@@ -395,7 +404,7 @@ export function registerBuiltinTools(): void {
       },
       title: { type: 'string', description: 'Updated title' },
     },
-    async (args) => {
+    async args => {
       const updates: Record<string, unknown> = {};
       if (args['status']) updates['status'] = args['status'];
       if (args['priority']) updates['priority'] = args['priority'];
@@ -405,7 +414,11 @@ export function registerBuiltinTools(): void {
         updates as Parameters<typeof backlog.updateTask>[1],
       );
       if (task && args['status']) {
-        await logAction('task', `Status von ${task.id} geändert auf: ${task.status}`, 'backlog_update');
+        await logAction(
+          'task',
+          `Status von ${task.id} geändert auf: ${task.status}`,
+          'backlog_update',
+        );
       }
       return task
         ? { updated: true, id: task.id, status: task.status }
@@ -421,7 +434,7 @@ export function registerBuiltinTools(): void {
     {
       id: { type: 'string', description: 'Task ID' },
     },
-    async (args) => {
+    async args => {
       const task = await backlog.getTask(args['id'] as string);
       return task ?? { error: 'Task not found' };
     },
@@ -435,7 +448,7 @@ export function registerBuiltinTools(): void {
     {
       id: { type: 'string', description: 'Task ID to delete' },
     },
-    async (args) => {
+    async args => {
       const ok = await backlog.deleteTask(args['id'] as string);
       return ok ? { deleted: true } : { error: 'Task not found' };
     },
@@ -447,18 +460,38 @@ export function registerBuiltinTools(): void {
     'schedule_create',
     'Create a scheduled/recurring job. The bot will automatically execute the given message at the specified times. Schedule formats: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00".',
     {
-      name: { type: 'string', description: 'Short name for the job (e.g. "Morgens Rollläden hoch")' },
-      schedule: { type: 'string', description: 'Schedule: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00"' },
-      message: { type: 'string', description: 'The message/command to execute (as if the user typed it in chat)' },
+      name: {
+        type: 'string',
+        description: 'Short name for the job (e.g. "Morgens Rollläden hoch")',
+      },
+      schedule: {
+        type: 'string',
+        description:
+          'Schedule: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00"',
+      },
+      message: {
+        type: 'string',
+        description: 'The message/command to execute (as if the user typed it in chat)',
+      },
     },
-    async (args) => {
+    async args => {
       const job = await scheduler.createJob({
         name: args['name'] as string,
         schedule: args['schedule'] as string,
         message: args['message'] as string,
       });
-      await logAction('schedule', `Job erstellt: ${job.id} - ${job.name} (${job.schedule})`, 'schedule_create');
-      return { created: true, id: job.id, name: job.name, schedule: job.schedule, nextRun: job.nextRunAt };
+      await logAction(
+        'schedule',
+        `Job erstellt: ${job.id} - ${job.name} (${job.schedule})`,
+        'schedule_create',
+      );
+      return {
+        created: true,
+        id: job.id,
+        name: job.name,
+        schedule: job.schedule,
+        nextRun: job.nextRunAt,
+      };
     },
     { required: ['name', 'schedule', 'message'] },
   );
@@ -494,10 +527,14 @@ export function registerBuiltinTools(): void {
       id: { type: 'string', description: 'Job ID (e.g. "J-A1B2C3")' },
       enabled: { type: 'boolean', description: 'true to enable, false to disable' },
     },
-    async (args) => {
+    async args => {
       const job = await scheduler.toggleJob(args['id'] as string, args['enabled'] as boolean);
       if (!job) return { error: 'Job not found' };
-      await logAction('schedule', `Job ${job.enabled ? 'aktiviert' : 'deaktiviert'}: ${job.id}`, 'schedule_toggle');
+      await logAction(
+        'schedule',
+        `Job ${job.enabled ? 'aktiviert' : 'deaktiviert'}: ${job.id}`,
+        'schedule_toggle',
+      );
       return { id: job.id, enabled: job.enabled, nextRunAt: job.nextRunAt };
     },
     { required: ['id', 'enabled'] },
@@ -510,7 +547,7 @@ export function registerBuiltinTools(): void {
     {
       id: { type: 'string', description: 'Job ID to delete' },
     },
-    async (args) => {
+    async args => {
       const ok = await scheduler.deleteJob(args['id'] as string);
       if (!ok) return { error: 'Job not found' };
       await logAction('schedule', `Job gelöscht: ${args['id']}`, 'schedule_delete');
@@ -524,11 +561,20 @@ export function registerBuiltinTools(): void {
     'schedule_once',
     'Create a one-time timer or reminder. Fires once at the specified time, then auto-disables. Use for reminders ("Erinnere mich in 30min an den Muell") or delayed actions ("Schalte in 10min das Licht im Keller aus").',
     {
-      name: { type: 'string', description: 'Short description (e.g. "Erinnerung: Muell rausbringen")' },
-      delay: { type: 'string', description: 'When to fire: "5m", "2h", "1h30m" (relative) or "14:30" (absolute time)' },
-      message: { type: 'string', description: 'The action or reminder message to execute (as if the user typed it in chat)' },
+      name: {
+        type: 'string',
+        description: 'Short description (e.g. "Erinnerung: Muell rausbringen")',
+      },
+      delay: {
+        type: 'string',
+        description: 'When to fire: "5m", "2h", "1h30m" (relative) or "14:30" (absolute time)',
+      },
+      message: {
+        type: 'string',
+        description: 'The action or reminder message to execute (as if the user typed it in chat)',
+      },
     },
-    async (args) => {
+    async args => {
       const delay = (args['delay'] as string).trim();
       // Convert to scheduler format: "14:30" → "once 14:30", "5m" → "once +5m"
       const schedule = /^\d{1,2}:\d{2}$/.test(delay) ? `once ${delay}` : `once +${delay}`;
@@ -538,7 +584,11 @@ export function registerBuiltinTools(): void {
         message: args['message'] as string,
         oneshot: true,
       });
-      await logAction('schedule', `Einmaliger Job erstellt: ${job.id} - ${job.name} (${schedule})`, 'schedule_once');
+      await logAction(
+        'schedule',
+        `Einmaliger Job erstellt: ${job.id} - ${job.name} (${schedule})`,
+        'schedule_once',
+      );
       return { created: true, id: job.id, name: job.name, firesAt: job.nextRunAt };
     },
     { required: ['name', 'delay', 'message'] },
@@ -565,7 +615,7 @@ export function registerBuiltinTools(): void {
       wrong_action: { type: 'string', description: 'What you did wrong' },
       correct_action: { type: 'string', description: 'What the correct action is' },
     },
-    async (args) => {
+    async args => {
       const c = await learning.addCorrection({
         userIntent: args['user_intent'] as string,
         wrongAction: args['wrong_action'] as string,
@@ -581,10 +631,16 @@ export function registerBuiltinTools(): void {
     'learn_rule',
     'Add a permanent rule to the system prompt. Use when you learn a general rule from user feedback that should always apply (e.g., "Immer zuerst im OG suchen wenn Bad gesagt wird").',
     {
-      rule: { type: 'string', description: 'The rule to remember (one sentence, clear and actionable)' },
-      reason: { type: 'string', description: 'Why this rule was added (user feedback, correction, etc.)' },
+      rule: {
+        type: 'string',
+        description: 'The rule to remember (one sentence, clear and actionable)',
+      },
+      reason: {
+        type: 'string',
+        description: 'Why this rule was added (user feedback, correction, etc.)',
+      },
     },
-    async (args) => {
+    async args => {
       const p = await learning.addPromptPatch({
         rule: args['rule'] as string,
         reason: args['reason'] as string,
@@ -627,9 +683,19 @@ export function registerBuiltinTools(): void {
         Promise.resolve(learning.getErrorSummary()),
       ]);
       return {
-        corrections: corrections.map(c => ({ id: c.id, intent: c.userIntent, wrong: c.wrongAction, correct: c.correctAction, hits: c.hitCount })),
+        corrections: corrections.map(c => ({
+          id: c.id,
+          intent: c.userIntent,
+          wrong: c.wrongAction,
+          correct: c.correctAction,
+          hits: c.hitCount,
+        })),
         rules: patches.map(p => ({ id: p.id, rule: p.rule, enabled: p.enabled, source: p.source })),
-        patterns: patterns.map(p => ({ id: p.id, description: p.description, occurrences: p.occurrences })),
+        patterns: patterns.map(p => ({
+          id: p.id,
+          description: p.description,
+          occurrences: p.occurrences,
+        })),
         errors: errors.slice(0, 10),
       };
     },

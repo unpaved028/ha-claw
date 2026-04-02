@@ -26,11 +26,16 @@ interface HAServiceResponse {
   data?: unknown;
 }
 
-// ── HA Registry API response types ───────────────────────────
-interface HAAreaEntry { area_id: string; name: string; floor_id: string | null; }
-interface HAFloorEntry { floor_id: string; name: string; level: number | null; }
-interface HAEntityEntry { entity_id: string; area_id: string | null; device_id: string | null; }
-interface HADeviceEntry { id: string; area_id: string | null; }
+// ── HA Template API response types ───────────────────────────
+interface AreaTemplateEntry {
+  id: string;
+  name: string;
+  entities: string[];
+}
+interface FloorTemplateEntry {
+  name: string;
+  areas: string[];
+}
 
 /**
  * Check if HA API is available (supervisor token + url present).
@@ -42,11 +47,7 @@ export function isHAAvailable(): boolean {
 /**
  * Call the HA REST API.
  */
-async function haFetch<T>(
-  path: string,
-  method = 'GET',
-  body?: unknown,
-): Promise<T> {
+async function haFetch<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   if (!appConfig.supervisorToken) {
     throw new Error('No SUPERVISOR_TOKEN – HA API unavailable');
   }
@@ -109,11 +110,7 @@ export async function callService(
   data: Record<string, unknown> = {},
 ): Promise<HAServiceResponse> {
   log.info('Calling HA service', { domain, service, data });
-  const result = await haFetch<unknown>(
-    `/services/${domain}/${service}`,
-    'POST',
-    data,
-  );
+  const result = await haFetch<unknown>(`/services/${domain}/${service}`, 'POST', data);
   return { success: true, data: result };
 }
 
@@ -147,78 +144,68 @@ export async function renderTemplate(template: string): Promise<string> {
 
 // ── Known entity-ID abbreviations for fallback parsing ───────
 const FLOOR_ABBREVS: Record<string, string> = {
-  eg: 'EG', og: 'OG', dg: 'DG', kg: 'KG', ug: 'UG',
+  eg: 'EG',
+  og: 'OG',
+  dg: 'DG',
+  kg: 'KG',
+  ug: 'UG',
 };
 const ROOM_ABBREVS: Record<string, string> = {
-  wz: 'Wohnzimmer', sz: 'Schlafzimmer', ku: 'Kueche', bad: 'Bad',
-  fl: 'Flur', kizi: 'Kinderzimmer', az: 'Arbeitszimmer',
-  gz: 'Gaestezimmer', hwr: 'HWR', th: 'Treppenhaus',
+  wz: 'Wohnzimmer',
+  sz: 'Schlafzimmer',
+  ku: 'Kueche',
+  bad: 'Bad',
+  fl: 'Flur',
+  kizi: 'Kinderzimmer',
+  az: 'Arbeitszimmer',
+  gz: 'Gaestezimmer',
+  hwr: 'HWR',
+  th: 'Treppenhaus',
 };
 
-// ── Tier 1: HA Registry API ──────────────────────────────────
-
-async function getAreaEntityMapFromRegistry(): Promise<Record<string, string[]>> {
-  const [areas, entities, devices] = await Promise.all([
-    haFetch<HAAreaEntry[]>('/config/area_registry/list', 'POST'),
-    haFetch<HAEntityEntry[]>('/config/entity_registry/list', 'POST'),
-    haFetch<HADeviceEntry[]>('/config/device_registry/list', 'POST'),
-  ]);
-
-  const areaIdToName = new Map<string, string>();
-  for (const a of areas) areaIdToName.set(a.area_id, a.name);
-
-  const deviceIdToAreaId = new Map<string, string>();
-  for (const d of devices) {
-    if (d.area_id) deviceIdToAreaId.set(d.id, d.area_id);
-  }
-
-  const result: Record<string, string[]> = {};
-  for (const e of entities) {
-    const areaId = e.area_id ?? (e.device_id ? deviceIdToAreaId.get(e.device_id) : undefined) ?? null;
-    if (!areaId) continue;
-    const areaName = areaIdToName.get(areaId);
-    if (!areaName) continue;
-    if (!result[areaName]) result[areaName] = [];
-    result[areaName].push(e.entity_id);
-  }
-  return result;
-}
-
-async function getFloorAreaMapFromRegistry(): Promise<Record<string, string[]>> {
-  const [floors, areas] = await Promise.all([
-    haFetch<HAFloorEntry[]>('/config/floor_registry/list', 'POST'),
-    haFetch<HAAreaEntry[]>('/config/area_registry/list', 'POST'),
-  ]);
-
-  const floorIdToName = new Map<string, string>();
-  for (const f of floors) floorIdToName.set(f.floor_id, f.name);
-
-  const result: Record<string, string[]> = {};
-  for (const a of areas) {
-    if (!a.floor_id) continue;
-    const floorName = floorIdToName.get(a.floor_id);
-    if (!floorName) continue;
-    if (!result[floorName]) result[floorName] = [];
-    result[floorName].push(a.name);
-  }
-  return result;
-}
-
-// ── Tier 2: Jinja2 Template (legacy) ─────────────────────────
+// ── Tier 1: Jinja2 Template API ──────────────────────────────
+// Uses the array-concat pattern (namespace + list append) which is
+// compatible with HA 2026.x Jinja2. The old REST-based registry
+// endpoints (/config/*_registry/list POST) are WebSocket-only and
+// the old namespace.data.update({}) pattern returns 400 errors.
 
 async function getAreaEntityMapFromTemplate(): Promise<Record<string, string[]>> {
-  const tpl = `{% set result = namespace(data={}) %}{% for area_id in areas() %}{% set area_name = area_name(area_id) %}{% set entities = area_entities(area_id) %}{% set _ = result.data.update({area_name: entities}) %}{% endfor %}{{ result.data | tojson }}`;
+  const tpl = [
+    '{% set ns = namespace(out=[]) %}',
+    '{% for a in areas() %}',
+    '{% set ns.out = ns.out + [{"name": area_name(a), "entities": area_entities(a)}] %}',
+    '{% endfor %}',
+    '{{ ns.out | tojson }}',
+  ].join('');
   const raw = await renderTemplate(tpl);
-  return JSON.parse(raw) as Record<string, string[]>;
+  const entries = JSON.parse(raw) as AreaTemplateEntry[];
+  const result: Record<string, string[]> = {};
+  for (const e of entries) {
+    if (e.entities.length > 0) result[e.name] = e.entities;
+  }
+  return result;
 }
 
 async function getFloorAreaMapFromTemplate(): Promise<Record<string, string[]>> {
-  const tpl = `{% set result = namespace(data={}) %}{% for floor_id in floors() %}{% set fname = floor_name(floor_id) %}{% set area_ids = floor_areas(floor_id) %}{% set area_names = area_ids | map('area_name') | list %}{% set _ = result.data.update({fname: area_names}) %}{% endfor %}{{ result.data | tojson }}`;
+  const tpl = [
+    '{% set ns = namespace(out=[]) %}',
+    '{% for fid in floors() %}',
+    '{% set fname = floor_name(fid) %}',
+    '{% set fa = floor_areas(fid) | map("area_name") | list %}',
+    '{% set ns.out = ns.out + [{"name": fname, "areas": fa}] %}',
+    '{% endfor %}',
+    '{{ ns.out | tojson }}',
+  ].join('');
   const raw = await renderTemplate(tpl);
-  return JSON.parse(raw) as Record<string, string[]>;
+  const entries = JSON.parse(raw) as FloorTemplateEntry[];
+  const result: Record<string, string[]> = {};
+  for (const e of entries) {
+    if (e.areas.length > 0) result[e.name] = e.areas;
+  }
+  return result;
 }
 
-// ── Tier 3: Entity-ID pattern parsing ────────────────────────
+// ── Tier 2: Entity-ID pattern parsing ────────────────────────
 
 async function inferAreasFromEntityIds(): Promise<Record<string, string[]>> {
   const states = await getStates();
@@ -252,26 +239,14 @@ async function inferFloorsFromEntityIds(): Promise<Record<string, string[]>> {
   return result;
 }
 
-// ── Public API with 3-tier fallback ──────────────────────────
+// ── Public API with 2-tier fallback ──────────────────────────
 
 /**
  * Get area → entity mapping. Returns a map of area_name → entity_id[].
- * Tries: 1) HA Registry API  2) Jinja2 Template  3) Entity-ID parsing
+ * Tries: 1) Jinja2 Template API  2) Entity-ID parsing fallback
  */
 export async function getAreaEntityMap(): Promise<Record<string, string[]>> {
-  // Tier 1: Registry API (most reliable)
-  try {
-    const result = await getAreaEntityMapFromRegistry();
-    if (Object.keys(result).length > 0) {
-      log.info('Area mapping via registry', { areas: Object.keys(result).length });
-      return result;
-    }
-    log.debug('Registry returned 0 areas, trying template');
-  } catch (err) {
-    log.warn('Area mapping via registry failed, trying template', { error: String(err) });
-  }
-
-  // Tier 2: Jinja2 Template
+  // Tier 1: Jinja2 Template API (reliable in HA 2024.x+)
   try {
     const result = await getAreaEntityMapFromTemplate();
     if (Object.keys(result).length > 0) {
@@ -280,10 +255,12 @@ export async function getAreaEntityMap(): Promise<Record<string, string[]>> {
     }
     log.debug('Template returned 0 areas, trying entity-ID parsing');
   } catch (err) {
-    log.warn('Area mapping via template failed, trying entity-ID parsing', { error: String(err) });
+    log.warn('Area mapping via template failed, trying entity-ID parsing', {
+      error: String(err),
+    });
   }
 
-  // Tier 3: Entity-ID pattern parsing
+  // Tier 2: Entity-ID pattern parsing (best-effort fallback)
   try {
     const result = await inferAreasFromEntityIds();
     if (Object.keys(result).length > 0) {
@@ -300,22 +277,10 @@ export async function getAreaEntityMap(): Promise<Record<string, string[]>> {
 
 /**
  * Get floor → area mapping. Returns a map of floor_name → area_name[].
- * Tries: 1) HA Registry API  2) Jinja2 Template  3) Entity-ID parsing
+ * Tries: 1) Jinja2 Template API  2) Entity-ID parsing fallback
  */
 export async function getFloorAreaMap(): Promise<Record<string, string[]>> {
-  // Tier 1: Registry API
-  try {
-    const result = await getFloorAreaMapFromRegistry();
-    if (Object.keys(result).length > 0) {
-      log.info('Floor mapping via registry', { floors: Object.keys(result).length });
-      return result;
-    }
-    log.debug('Registry returned 0 floors, trying template');
-  } catch (err) {
-    log.warn('Floor mapping via registry failed, trying template', { error: String(err) });
-  }
-
-  // Tier 2: Jinja2 Template
+  // Tier 1: Jinja2 Template API
   try {
     const result = await getFloorAreaMapFromTemplate();
     if (Object.keys(result).length > 0) {
@@ -324,10 +289,12 @@ export async function getFloorAreaMap(): Promise<Record<string, string[]>> {
     }
     log.debug('Template returned 0 floors, trying entity-ID parsing');
   } catch (err) {
-    log.warn('Floor mapping via template failed, trying entity-ID parsing', { error: String(err) });
+    log.warn('Floor mapping via template failed, trying entity-ID parsing', {
+      error: String(err),
+    });
   }
 
-  // Tier 3: Entity-ID pattern parsing
+  // Tier 2: Entity-ID pattern parsing
   try {
     const result = await inferFloorsFromEntityIds();
     if (Object.keys(result).length > 0) {
@@ -365,7 +332,10 @@ export async function getAutomationConfig(entityId: string): Promise<Record<stri
     const objectId = entityId.replace(/^automation\./, '');
     return await haFetch<Record<string, unknown>>(`/config/automation/config/${objectId}`);
   } catch (err) {
-    log.warn('Automation config fetch failed, falling back to state', { entityId, error: String(err) });
+    log.warn('Automation config fetch failed, falling back to state', {
+      entityId,
+      error: String(err),
+    });
     try {
       const state = await getState(entityId);
       return {

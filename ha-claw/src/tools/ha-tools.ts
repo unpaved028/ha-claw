@@ -24,32 +24,51 @@ const log = createLogger('ha-tools');
 
 /** Domains safe for everyday control without user confirmation. */
 const SAFE_DOMAINS = new Set([
-  'light', 'switch', 'scene', 'media_player', 'cover', 'fan',
-  'input_boolean', 'input_number', 'input_select', 'input_text',
-  'climate', 'vacuum', 'humidifier', 'water_heater',
-  'script', 'number', 'select', 'button',
+  'light',
+  'switch',
+  'scene',
+  'media_player',
+  'cover',
+  'fan',
+  'input_boolean',
+  'input_number',
+  'input_select',
+  'input_text',
+  'climate',
+  'vacuum',
+  'humidifier',
+  'water_heater',
+  'script',
+  'number',
+  'select',
+  'button',
 ]);
 
 /** Expected state after common service calls (for verification). */
 const EXPECTED_STATE: Record<string, string> = {
-  'turn_on': 'on',
-  'turn_off': 'off',
-  'open_cover': 'open',
-  'close_cover': 'closed',
-  'lock': 'locked',
-  'unlock': 'unlocked',
+  turn_on: 'on',
+  turn_off: 'off',
+  open_cover: 'open',
+  close_cover: 'closed',
+  lock: 'locked',
+  unlock: 'unlocked',
 };
 
 const ROLLBACK_MAP: Record<string, string> = {
-  'turn_on': 'turn_off',
-  'turn_off': 'turn_on',
-  'open_cover': 'close_cover',
-  'close_cover': 'open_cover',
-  'lock': 'unlock',
-  'unlock': 'lock',
+  turn_on: 'turn_off',
+  turn_off: 'turn_on',
+  open_cover: 'close_cover',
+  close_cover: 'open_cover',
+  lock: 'unlock',
+  unlock: 'lock',
 };
 
-function getRollback(domain: string, service: string, entityId: string, data: Record<string, unknown>) {
+function getRollback(
+  domain: string,
+  service: string,
+  entityId: string,
+  data: Record<string, unknown>,
+) {
   const reverse = ROLLBACK_MAP[service];
   if (reverse) {
     return { domain, service: reverse, entity_id: entityId, data };
@@ -59,7 +78,7 @@ function getRollback(domain: string, service: string, entityId: string, data: Re
 
 export function registerHATools(): void {
   // ... (lines 34-100 unchanged)
-  // (Note: Skipping re-pasting ha_get_state and ha_search_entities for brevity, 
+  // (Note: Skipping re-pasting ha_get_state and ha_search_entities for brevity,
   // but they must remain in the file)
   // ── ha_get_state ─────────────────────────────────────────
   registerTool(
@@ -71,7 +90,7 @@ export function registerHATools(): void {
         description: 'The entity ID (e.g. "light.wohnzimmer", "sensor.temperature_outdoor")',
       },
     },
-    async (args) => {
+    async args => {
       const state = await ha.getState(args['entity_id'] as string);
       return {
         entity_id: state.entity_id,
@@ -95,18 +114,20 @@ export function registerHATools(): void {
       },
       domain: {
         type: 'string',
-        description: 'Optional: filter by domain (e.g. "light", "sensor", "switch", "climate", "binary_sensor")',
+        description:
+          'Optional: filter by domain (e.g. "light", "sensor", "switch", "climate", "binary_sensor")',
       },
       area: {
         type: 'string',
-        description: 'Optional: filter by area/room name (e.g. "Wohnzimmer", "OG Bad"). Matches area names from the entity cache.',
+        description:
+          'Optional: filter by area/room name (e.g. "Wohnzimmer", "OG Bad"). Matches area names from the entity cache.',
       },
       limit: {
         type: 'number',
         description: 'Max results to return (default 20)',
       },
     },
-    async (args) => {
+    async args => {
       const query = ((args['query'] as string) ?? '').toLowerCase();
       const domain = (args['domain'] as string) ?? '';
       const areaFilter = ((args['area'] as string) ?? '').toLowerCase();
@@ -127,7 +148,7 @@ export function registerHATools(): void {
       const allStates = await ha.getStates();
 
       const filtered = allStates
-        .filter((s) => {
+        .filter(s => {
           if (domain && !s.entity_id.startsWith(domain + '.')) return false;
           if (areaEntityIds && !areaEntityIds.has(s.entity_id)) return false;
           if (!query) return true;
@@ -135,7 +156,7 @@ export function registerHATools(): void {
           return s.entity_id.includes(query) || name.includes(query);
         })
         .slice(0, limit)
-        .map((s) => ({
+        .map(s => ({
           entity_id: s.entity_id,
           state: s.state,
           friendly_name: s.attributes['friendly_name'] ?? null,
@@ -169,29 +190,47 @@ export function registerHATools(): void {
         description: 'Optional service data (e.g. {"brightness": 128, "color_temp": 300})',
       },
     },
-    async (args) => {
+    async args => {
       const domain = args['domain'] as string;
       const service = args['service'] as string;
       const entityId = args['entity_id'] as string;
       const extraData = (args['data'] as Record<string, unknown>) ?? {};
 
       if (!SAFE_DOMAINS.has(domain)) {
-        return { error: `Domain "${domain}" is not allowed in ha_call_service. Use ha_call_service_dangerous for security-sensitive domains.` };
+        return {
+          error: `Domain "${domain}" is not allowed in ha_call_service. Use ha_call_service_dangerous for security-sensitive domains.`,
+        };
       }
 
       // Capture state before action
       let stateBefore: string | null = null;
-      try { stateBefore = (await ha.getState(entityId)).state; } catch { /* ignore */ }
+      try {
+        stateBefore = (await ha.getState(entityId)).state;
+      } catch {
+        /* ignore */
+      }
 
       const res = await ha.callService(domain, service, {
         entity_id: entityId,
         ...extraData,
       });
       const rollback = getRollback(domain, service, entityId, extraData);
-      await logAction('switch', `${domain}.${service} auf ${entityId}`, 'ha_call_service', rollback);
+      await logAction(
+        'switch',
+        `${domain}.${service} auf ${entityId}`,
+        'ha_call_service',
+        rollback,
+      );
 
       // Feedback loop: verify state changed
-      let verification: { verified: boolean; stateBefore: string | null; stateAfter: string | null; warning?: string } | undefined;
+      let verification:
+        | {
+            verified: boolean;
+            stateBefore: string | null;
+            stateAfter: string | null;
+            warning?: string;
+          }
+        | undefined;
       try {
         const waitMs = domain === 'climate' ? 3000 : 1500;
         await new Promise(r => setTimeout(r, waitMs));
@@ -206,9 +245,7 @@ export function registerHATools(): void {
           verified = targetTemp !== undefined && currentTemp === targetTemp;
         } else {
           const expectedState = EXPECTED_STATE[service];
-          verified = expectedState
-            ? stateAfter === expectedState
-            : stateAfter !== stateBefore; // fallback: state should have changed
+          verified = expectedState ? stateAfter === expectedState : stateAfter !== stateBefore; // fallback: state should have changed
         }
 
         verification = { verified, stateBefore, stateAfter };
@@ -216,7 +253,9 @@ export function registerHATools(): void {
           log.warn('Action verification failed', { entityId, service, stateBefore, stateAfter });
           verification.warning = `WARNUNG: Aktion "${service}" auf "${entityId}" konnte nicht verifiziert werden. Zustand vorher: ${stateBefore}, nachher: ${stateAfter}. Die Aktion wurde moeglicherweise NICHT ausgefuehrt. Bitte dem Nutzer ehrlich mitteilen!`;
         }
-      } catch { /* verification is non-critical */ }
+      } catch {
+        /* verification is non-critical */
+      }
 
       const result: Record<string, unknown> = { ...res, verification };
       if (verification && !verification.verified && verification.warning) {
@@ -234,7 +273,8 @@ export function registerHATools(): void {
     {
       domain: {
         type: 'string',
-        description: 'Service domain (e.g. "lock", "alarm_control_panel", "automation", "homeassistant")',
+        description:
+          'Service domain (e.g. "lock", "alarm_control_panel", "automation", "homeassistant")',
       },
       service: {
         type: 'string',
@@ -249,7 +289,7 @@ export function registerHATools(): void {
         description: 'Optional service data',
       },
     },
-    async (args) => {
+    async args => {
       const domain = args['domain'] as string;
       const service = args['service'] as string;
       const entityId = args['entity_id'] as string | undefined;
@@ -260,7 +300,12 @@ export function registerHATools(): void {
 
       const res = await ha.callService(domain, service, payload);
       const rollback = entityId ? getRollback(domain, service, entityId, extraData) : undefined;
-      await logAction('switch', `${domain}.${service}${entityId ? ' auf ' + entityId : ''}`, 'ha_call_service_dangerous', rollback);
+      await logAction(
+        'switch',
+        `${domain}.${service}${entityId ? ' auf ' + entityId : ''}`,
+        'ha_call_service_dangerous',
+        rollback,
+      );
       return res;
     },
     { dangerous: true, required: ['domain', 'service'], complexity: 2 },
@@ -293,7 +338,7 @@ export function registerHATools(): void {
     async () => {
       const states = await ha.getStates();
       const domains: Record<string, number> = {};
-      states.forEach((s) => {
+      states.forEach(s => {
         const d = s.entity_id.split('.')[0]!;
         domains[d] = (domains[d] ?? 0) + 1;
       });
@@ -314,12 +359,9 @@ export function registerHATools(): void {
         description: 'Optional: filter by floor name (e.g. "Erdgeschoss")',
       },
     },
-    async (args) => {
+    async args => {
       const filterFloor = ((args['floor'] as string) ?? '').toLowerCase();
-      const [areaMap, floorMap] = await Promise.all([
-        ha.getAreaEntityMap(),
-        ha.getFloorAreaMap(),
-      ]);
+      const [areaMap, floorMap] = await Promise.all([ha.getAreaEntityMap(), ha.getFloorAreaMap()]);
 
       // Build reverse map: area → floor
       const areaToFloor = new Map<string, string>();
@@ -352,7 +394,7 @@ export function registerHATools(): void {
         description: 'The group entity ID (e.g. "group.all_lights", "group.wohnzimmer")',
       },
     },
-    async (args) => {
+    async args => {
       const entityId = args['entity_id'] as string;
       if (!entityId) return { error: 'entity_id is required' };
 
@@ -362,7 +404,7 @@ export function registerHATools(): void {
       }
 
       const memberStates = await Promise.all(
-        members.map(async (mid) => {
+        members.map(async mid => {
           try {
             const s = await ha.getState(mid);
             return {
@@ -391,7 +433,7 @@ export function registerHATools(): void {
         description: 'The automation entity ID (e.g. "automation.motion_light_flur")',
       },
     },
-    async (args) => {
+    async args => {
       const entityId = args['entity_id'] as string;
       if (!entityId || !entityId.startsWith('automation.')) {
         return { error: 'entity_id must start with "automation."' };

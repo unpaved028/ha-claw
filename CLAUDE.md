@@ -3,7 +3,7 @@
 ## Was ist HA-Claw?
 Lokaler KI-Assistent als Home Assistant Add-on. Agentic Loop mit Tool Calling, Web UI (Ingress), Telegram Bot. Nutzt OpenRouter für LLM-Zugang.
 
-## Aktuelle Version: 0.6.2
+## Aktuelle Version: 0.6.3
 
 ## Architektur (Kerndateien)
 
@@ -85,6 +85,7 @@ ha-claw/
 | 0.6.0 | 2026-04-01 | Sensoren im Cache, Typing-Indikator, Web Safety Gate, Area-Filter Suche, Auto-Refresh Cache |
 | 0.6.1 | 2026-04-02 | Fenster/Tür-Sensor Identifikation Fix, Butler-Prompt Sensor-Awareness |
 | 0.6.2 | 2026-04-02 | Backlog Processor: Event-driven statt 30s-Polling, zero Token cost when idle |
+| 0.6.3 | 2026-04-03 | HA Area/Floor Mapping Fix für HA 2026.x (2-Tier Template/ID-Parsing Fallback) |
 
 ## Nächste Schritte (Roadmap)
 
@@ -108,6 +109,6 @@ ha-claw/
 
 ## Bekannte Probleme
 - Dashboard ist ein 2700-Zeilen HTML-String in TypeScript (schwer wartbar)
-- Kein Linting (eslint) oder Formatting (prettier) konfiguriert
+- ~~Kein Linting (eslint) oder Formatting (prettier) konfiguriert~~ → gelöst (ESLint v9 flat config + Prettier, `npm run lint` / `npm run format:fix`)
 - Memory Card Suche ist O(n) Linear-Scan (wird bei 1000+ Cards langsam)
 - ~~Backlog Processor pollt alle 30s~~ → gelöst in v0.6.2 (event-driven)

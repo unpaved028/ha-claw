@@ -19,10 +19,13 @@ interface KnowledgeEntry {
   content: string;
 }
 
-let knowledge: KnowledgeEntry[] = [];
+const knowledge: KnowledgeEntry[] = [];
 
 function loadKnowledge(): void {
-  const dir = resolve(dirname(fileURLToPath(import.meta.url)), '../../agents/skills/ha-best-practices');
+  const dir = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../agents/skills/ha-best-practices',
+  );
   try {
     const files = readdirSync(dir).filter(f => f.endsWith('.md') || f.endsWith('.yaml'));
     for (const file of files) {
@@ -45,10 +48,11 @@ export function registerHABestPracticesTools(): void {
     {
       topic: {
         type: 'string',
-        description: 'Topic to retrieve. One of: automation-patterns, device-control, helper-selection, safe-refactoring, template-guidelines, examples. Or a keyword to search across all topics.',
+        description:
+          'Topic to retrieve. One of: automation-patterns, device-control, helper-selection, safe-refactoring, template-guidelines, examples. Or a keyword to search across all topics.',
       },
     },
-    async (args) => {
+    async args => {
       const query = ((args['topic'] as string) ?? '').toLowerCase().replace(/-/g, ' ');
 
       // Exact match first
@@ -58,8 +62,8 @@ export function registerHABestPracticesTools(): void {
       }
 
       // Keyword search
-      const matches = knowledge.filter(k =>
-        k.topic.includes(query) || k.content.toLowerCase().includes(query)
+      const matches = knowledge.filter(
+        k => k.topic.includes(query) || k.content.toLowerCase().includes(query),
       );
       if (matches.length === 1) {
         return { topic: matches[0].topic, file: matches[0].file, content: matches[0].content };

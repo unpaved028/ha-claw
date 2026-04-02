@@ -67,14 +67,17 @@ async function main(): Promise<void> {
     await buildEntityCache();
 
     // Step 4c: Periodic cache refresh (every 30 minutes)
-    setInterval(async () => {
-      try {
-        await buildEntityCache();
-        log.info('Entity cache refreshed (periodic)');
-      } catch (err) {
-        log.warn('Periodic cache refresh failed', { error: String(err) });
-      }
-    }, 30 * 60 * 1000);
+    setInterval(
+      async () => {
+        try {
+          await buildEntityCache();
+          log.info('Entity cache refreshed (periodic)');
+        } catch (err) {
+          log.warn('Periodic cache refresh failed', { error: String(err) });
+        }
+      },
+      30 * 60 * 1000,
+    );
   } else {
     log.info('Home Assistant API not available – HA tools disabled');
   }
@@ -113,7 +116,7 @@ async function main(): Promise<void> {
   }
 
   // Step 7: Scheduler – runs jobs through the agentic loop + proactive notifications
-  await initScheduler(async (job) => {
+  await initScheduler(async job => {
     log.info('Scheduler executing job', { id: job.id, message: job.message });
     const agent = buildAgent();
     const result = await runAgenticLoop(job.message, agent);
@@ -125,11 +128,15 @@ async function main(): Promise<void> {
         const response = result.response;
         // Respect Telegram's 4096 char limit
         if (response.length <= 4096) {
-          await telegramBot.api.sendMessage(currentProfile.telegramChatId, response, { parse_mode: 'Markdown' })
+          await telegramBot.api
+            .sendMessage(currentProfile.telegramChatId, response, { parse_mode: 'Markdown' })
             .catch(() => telegramBot!.api.sendMessage(currentProfile.telegramChatId!, response));
         } else {
           for (let i = 0; i < response.length; i += 4096) {
-            await telegramBot.api.sendMessage(currentProfile.telegramChatId, response.slice(i, i + 4096));
+            await telegramBot.api.sendMessage(
+              currentProfile.telegramChatId,
+              response.slice(i, i + 4096),
+            );
           }
         }
         log.info('Proactive notification sent via Telegram', { jobId: job.id });
@@ -147,7 +154,7 @@ async function main(): Promise<void> {
   log.info('=== HA-Claw ready ===');
 }
 
-main().catch((err) => {
+main().catch(err => {
   log.error('Fatal startup error', { error: String(err) });
   console.error(err);
   process.exit(1);

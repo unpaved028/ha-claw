@@ -33,10 +33,10 @@ const log = createLogger('scheduler');
 export interface ScheduledJob {
   id: string;
   name: string;
-  schedule: string;          // human-readable schedule string
-  message: string;           // message to send to the agentic loop
+  schedule: string; // human-readable schedule string
+  message: string; // message to send to the agentic loop
   enabled: boolean;
-  oneshot: boolean;          // one-time job (auto-disabled after execution)
+  oneshot: boolean; // one-time job (auto-disabled after execution)
   createdAt: string;
   lastRunAt: string | null;
   nextRunAt: string | null;
@@ -160,7 +160,12 @@ function calcNextRun(schedule: string): string | null {
   // "weekdays HH:MM"
   const wdMatch = s.match(/^weekdays\s+(\d{1,2}):(\d{2})$/);
   if (wdMatch) {
-    return nextTimeOfDay(now, parseInt(wdMatch[1]!, 10), parseInt(wdMatch[2]!, 10), [1, 2, 3, 4, 5]);
+    return nextTimeOfDay(
+      now,
+      parseInt(wdMatch[1]!, 10),
+      parseInt(wdMatch[2]!, 10),
+      [1, 2, 3, 4, 5],
+    );
   }
 
   // "weekends HH:MM"
@@ -172,7 +177,15 @@ function calcNextRun(schedule: string): string | null {
   // "weekly <day> HH:MM"
   const weeklyMatch = s.match(/^weekly\s+(mon|tue|wed|thu|fri|sat|sun)\s+(\d{1,2}):(\d{2})$/);
   if (weeklyMatch) {
-    const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+    const dayMap: Record<string, number> = {
+      sun: 0,
+      mon: 1,
+      tue: 2,
+      wed: 3,
+      thu: 4,
+      fri: 5,
+      sat: 6,
+    };
     const day = dayMap[weeklyMatch[1]!]!;
     return nextTimeOfDay(now, parseInt(weeklyMatch[2]!, 10), parseInt(weeklyMatch[3]!, 10), [day]);
   }
@@ -228,7 +241,9 @@ export async function createJob(opts: {
   // Validate schedule
   const nextRun = calcNextRun(opts.schedule);
   if (!nextRun) {
-    throw new Error(`Ungueltiges Schedule-Format: "${opts.schedule}". Erlaubt: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00", "once +5m", "once 14:30"`);
+    throw new Error(
+      `Ungueltiges Schedule-Format: "${opts.schedule}". Erlaubt: "every 5m", "every 2h", "daily 07:00", "weekdays 08:00", "weekends 10:00", "weekly mon 08:00", "once +5m", "once 14:30"`,
+    );
   }
 
   const job: ScheduledJob = {
@@ -273,11 +288,14 @@ export async function toggleJob(id: string, enabled: boolean): Promise<Scheduled
   return job;
 }
 
-export async function updateJob(id: string, updates: {
-  name?: string;
-  schedule?: string;
-  message?: string;
-}): Promise<ScheduledJob | null> {
+export async function updateJob(
+  id: string,
+  updates: {
+    name?: string;
+    schedule?: string;
+    message?: string;
+  },
+): Promise<ScheduledJob | null> {
   const job = jobs.find(j => j.id === id);
   if (!job) return null;
   if (updates.name) job.name = updates.name;
@@ -309,7 +327,10 @@ export function getSchedulerSummary(): string {
   if (active.length === 0) return '';
   const lines = active.map(j => {
     const type = j.oneshot ? 'einmalig' : 'wiederkehrend';
-    const nextInfo = j.nextRunAt ? ' | naechster Lauf: ' + new Date(j.nextRunAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) : '';
+    const nextInfo = j.nextRunAt
+      ? ' | naechster Lauf: ' +
+        new Date(j.nextRunAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })
+      : '';
     return `- [${j.id}] "${j.name}" (${j.schedule}, ${type}) → "${j.message}"${nextInfo}`;
   });
   return `\n## Aktive Scheduled Jobs\n${lines.join('\n')}`;

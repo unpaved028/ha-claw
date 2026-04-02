@@ -18,8 +18,16 @@ let cachedSummary = '';
 
 /** Device classes of binary_sensor to include in cache (safety/spatial relevance). */
 const IMPORTANT_SENSOR_CLASSES = new Set([
-  'window', 'door', 'motion', 'smoke', 'moisture',
-  'garage_door', 'lock', 'opening', 'presence', 'occupancy',
+  'window',
+  'door',
+  'motion',
+  'smoke',
+  'moisture',
+  'garage_door',
+  'lock',
+  'opening',
+  'presence',
+  'occupancy',
 ]);
 
 /**
@@ -57,7 +65,13 @@ export async function buildEntityCache(): Promise<string> {
     }
 
     // Build state lookup (include device_class for sensor filtering)
-    interface EntityInfo { id: string; name: string; state: string; domain: string; deviceClass: string; }
+    interface EntityInfo {
+      id: string;
+      name: string;
+      state: string;
+      domain: string;
+      deviceClass: string;
+    }
     const stateMap = new Map<string, EntityInfo>();
     for (const s of states) {
       const dot = s.entity_id.indexOf('.');
@@ -80,10 +94,26 @@ export async function buildEntityCache(): Promise<string> {
 
     // Actionable domains shown with full detail
     const ACTIONABLE_DOMAINS = new Set([
-      'light', 'switch', 'scene', 'media_player', 'cover', 'fan',
-      'climate', 'vacuum', 'humidifier', 'water_heater', 'script',
-      'input_boolean', 'input_number', 'input_select', 'input_text',
-      'number', 'select', 'button', 'lock', 'alarm_control_panel',
+      'light',
+      'switch',
+      'scene',
+      'media_player',
+      'cover',
+      'fan',
+      'climate',
+      'vacuum',
+      'humidifier',
+      'water_heater',
+      'script',
+      'input_boolean',
+      'input_number',
+      'input_select',
+      'input_text',
+      'number',
+      'select',
+      'button',
+      'lock',
+      'alarm_control_panel',
       'automation',
     ]);
 
@@ -130,8 +160,9 @@ export async function buildEntityCache(): Promise<string> {
         const relevantDomains = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).sort();
 
         // Filter important binary_sensors for this area
-        const importantSensors = (domainMap.get('binary_sensor') ?? [])
-          .filter(e => IMPORTANT_SENSOR_CLASSES.has(e.deviceClass));
+        const importantSensors = (domainMap.get('binary_sensor') ?? []).filter(e =>
+          IMPORTANT_SENSOR_CLASSES.has(e.deviceClass),
+        );
 
         if (relevantDomains.length === 0 && importantSensors.length === 0) continue;
 
@@ -171,8 +202,16 @@ export async function buildEntityCache(): Promise<string> {
         // Important sensors section – include entity_id + type hints for agent context
         if (importantSensors.length > 0) {
           const TYPE_ICONS: Record<string, string> = {
-            window: '🪟', door: '🚪', motion: '🏃', smoke: '🔥', moisture: '💧',
-            garage_door: '🏠', lock: '🔒', opening: '📭', presence: '👤', occupancy: '👥',
+            window: '🪟',
+            door: '🚪',
+            motion: '🏃',
+            smoke: '🔥',
+            moisture: '💧',
+            garage_door: '🏠',
+            lock: '🔒',
+            opening: '📭',
+            presence: '👤',
+            occupancy: '👥',
           };
           for (const e of importantSensors) {
             const label = e.name || e.id;
@@ -189,7 +228,9 @@ export async function buildEntityCache(): Promise<string> {
     // Append remaining sensor summary (count only for non-important sensors)
     const sensorCount = states.filter(s => s.entity_id.startsWith('sensor.')).length;
     const binarySensorCount = states.filter(s => s.entity_id.startsWith('binary_sensor.')).length;
-    lines.push(`_Weitere Sensoren: ${sensorCount} sensor, ${binarySensorCount} binary_sensor – nutze ha_search_entities oder ha_get_state um Sensorwerte abzufragen._`);
+    lines.push(
+      `_Weitere Sensoren: ${sensorCount} sensor, ${binarySensorCount} binary_sensor – nutze ha_search_entities oder ha_get_state um Sensorwerte abzufragen._`,
+    );
 
     cachedSummary = lines.join('\n');
     log.info('Entity cache built', {

@@ -26,17 +26,17 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 
 ## Supported Models
 
-| Model | Strength | Recommended Level |
-|-------|----------|-------------------|
-| `anthropic/claude-opus-4.6` | Top-tier reasoning | Level 3 (complex) |
-| `anthropic/claude-sonnet-4.6` | Balanced, very capable | Level 2-3 |
-| `anthropic/claude-haiku-4.5` | Fast & affordable | Level 1 (simple) |
-| `google/gemini-3.1-pro-preview` | Powerful, top-tier | Level 2-3 |
-| `google/gemini-3-flash-preview` | Fast, good value | Level 1-2 |
-| `google/gemini-3.1-flash-lite-preview` | Ultra-fast, very affordable | Level 1 |
-| `openai/gpt-5.4` | Powerful | Level 2-3 |
-| `openai/gpt-5.4-mini` | Affordable | Level 1 |
-| `deepseek/deepseek-chat` | Open-source alternative | Level 1 |
+| Model                                  | Strength                    | Recommended Level |
+| -------------------------------------- | --------------------------- | ----------------- |
+| `anthropic/claude-opus-4.6`            | Top-tier reasoning          | Level 3 (complex) |
+| `anthropic/claude-sonnet-4.6`          | Balanced, very capable      | Level 2-3         |
+| `anthropic/claude-haiku-4.5`           | Fast & affordable           | Level 1 (simple)  |
+| `google/gemini-3.1-pro-preview`        | Powerful, top-tier          | Level 2-3         |
+| `google/gemini-3-flash-preview`        | Fast, good value            | Level 1-2         |
+| `google/gemini-3.1-flash-lite-preview` | Ultra-fast, very affordable | Level 1           |
+| `openai/gpt-5.4`                       | Powerful                    | Level 2-3         |
+| `openai/gpt-5.4-mini`                  | Affordable                  | Level 1           |
+| `deepseek/deepseek-chat`               | Open-source alternative     | Level 1           |
 
 Meta-models `openrouter/free` and `openrouter/auto` are also available.
 
@@ -50,13 +50,13 @@ Meta-models `openrouter/free` and `openrouter/auto` are also available.
 
 ## Configuration
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `openrouter_api_key` | Yes | Your OpenRouter API key ([openrouter.ai](https://openrouter.ai)) |
-| `openrouter_default_model` | No | Default LLM model (default: `anthropic/claude-haiku-4.5`) |
-| `telegram_bot_token` | No | Telegram Bot Token (from @BotFather) |
-| `telegram_allowed_user_ids` | No* | Comma-separated Telegram User IDs (*required if bot is active) |
-| `log_level` | No | `debug`, `info`, `warn`, `error` (default: `info`) |
+| Option                      | Required | Description                                                      |
+| --------------------------- | -------- | ---------------------------------------------------------------- |
+| `openrouter_api_key`        | Yes      | Your OpenRouter API key ([openrouter.ai](https://openrouter.ai)) |
+| `openrouter_default_model`  | No       | Default LLM model (default: `anthropic/claude-haiku-4.5`)        |
+| `telegram_bot_token`        | No       | Telegram Bot Token (from @BotFather)                             |
+| `telegram_allowed_user_ids` | No\*     | Comma-separated Telegram User IDs (\*required if bot is active)  |
+| `log_level`                 | No       | `debug`, `info`, `warn`, `error` (default: `info`)               |
 
 ## Security
 

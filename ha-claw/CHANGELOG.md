@@ -1,8 +1,17 @@
 # Changelog
 
+## 0.6.3
+
+### Fixed
+
+- **Area/Floor Detection**: Gefixt für Home Assistant 2026.x. Das alte Jinja2 `namespace.data.update`-Pattern wurde durch ein modernes Array-Concat-Pattern ersetzt, um Template API 400 Fehler zu beheben. Die Logic wurde von einem 3-Tier auf ein robusteres 2-Tier Fallback-System (Template -> Entity-ID Parsing) vereinfacht.
+
+---
+
 ## 0.6.2
 
 ### Changed
+
 - **Backlog Processor – Event-Driven Architecture**: Replaced the 30-second `setInterval` polling with an event-driven model. Task processing now triggers only when a task transitions to `approved` or `solution_approved` status. Zero LLM calls and zero token cost when idle.
 - **Startup Scan**: One-time scan on startup (10s delay) catches tasks that were approved before the add-on started.
 - **Debounced Coalescing**: Rapid-fire status changes (e.g., user approves multiple tasks quickly) are coalesced into a single processing run via 2s debounce.
@@ -13,9 +22,11 @@
 ## 0.6.1
 
 ### Fixed
+
 - **Window/Door Sensor Identification**: Entity cache now shows each important sensor (window, door, motion, smoke, moisture) as an individual line with entity_id and type-icon (🪟🚪🏃🔥💧), instead of a compact unnamed list. The bot can now correctly identify, distinguish, and respond to sensor queries per room.
 
 ### Changed
+
 - **Butler Prompt – Sensor Awareness (§3d)**: Added dedicated section explaining how binary sensors for windows, doors, and motion work. The bot now understands type-icons in the entity cache and knows these sensors are read-only.
 - **Entity Cache Format**: Important sensors changed from `_Sensoren:_ Name (zu), Name (offen)` to individual lines like `- 🪟 Fenster Nord → \`binary_sensor.xyz\` (zu)`.
 
@@ -24,6 +35,7 @@
 ## 0.6.0
 
 ### Added
+
 - **Sensor Awareness in Entity Cache**: Important `binary_sensor` device classes (window, door, motion, smoke, moisture, garage_door, presence) are now included in the entity cache per room. The bot can directly see which windows/doors are open in each area.
 - **Typing Indicator**: Web UI now shows an animated "denkt nach..." indicator while the bot is processing, so users know the bot is working.
 - **Web Safety Gate**: Dangerous tool calls (locks, alarms, automations, deletions) now show a confirmation modal in the Web UI before execution — matching the existing Telegram safety gate. Auto-denies after 60 seconds.
@@ -31,6 +43,7 @@
 - **Periodic Entity Cache Refresh**: Entity cache now auto-refreshes every 30 minutes instead of only at startup. Also added a manual `/api/cache/refresh` endpoint.
 
 ### Changed
+
 - **Entity Cache Format**: Sensor section per area now shows compact sensor list (e.g., "Sensoren: Fenster Bad (zu), Tür Flur (offen)") instead of hiding all sensors.
 - **Search Results**: `ha_search_entities` now includes `device_class` in results for better context.
 
@@ -39,12 +52,14 @@
 ## 0.5.2
 
 ### Fixed
+
 - **Area/Floor Detection Reliability**: Replaced fragile Jinja2 template approach with direct HA Registry API calls (`/config/area_registry/list`, `/config/entity_registry/list`, `/config/device_registry/list`, `/config/floor_registry/list`). This fixes the issue where the bot could not see rooms, areas, or floors.
 - **3-Tier Fallback**: Area and floor detection now tries three methods in order: 1) HA Registry API (most reliable), 2) Jinja2 Template (legacy fallback), 3) Entity-ID pattern parsing (infers rooms from naming conventions like `lgt_og_bad_1` → OG Bad).
 - **Device-Inherited Areas**: Entities now correctly inherit their area from their device when no direct area is assigned, matching HA's native behavior.
 - **Template API Timeout**: `renderTemplate()` now has a 10-second timeout to prevent hanging on unresponsive HA instances.
 
 ### Changed
+
 - **Improved Logging**: Area and floor detection now logs which method succeeded and how many results were found, making debugging much easier.
 
 ---
@@ -52,6 +67,7 @@
 ## 0.5.1
 
 ### Added
+
 - **Floor → Area → Entity Hierarchy**: Entity cache now organizes devices by floor (Stockwerk) → area (Bereich) → entities, giving the bot full spatial awareness of the home structure.
 - **`ha_list_areas` Tool**: Lists all areas/rooms with their floor assignments and entity counts. Supports optional floor filter.
 - **`ha_resolve_group` Tool**: Resolves `group.*` entities to their individual members with current states, so the bot can understand and work with HA groups.
@@ -59,11 +75,13 @@
 - **Entity Cache Compression**: Same-domain entities with identical state (≥3) are compressed into a single line (e.g., "3× light (alle off)") to save LLM tokens.
 
 ### Fixed
+
 - **Version Display on Mobile**: Version number now appears immediately on page load instead of only after navigating to the Settings tab. Previously showed "v..." until the user opened Settings.
 - **Bot Room/Floor Awareness**: The bot now understands the spatial hierarchy (floors, areas) and can answer questions like "What devices are in room X?" or "Show me all rooms on the upper floor" directly from its entity cache.
 - **Group and Automation Understanding**: The bot can now resolve group memberships and read automation configurations instead of only seeing entity states.
 
 ### Changed
+
 - **Butler Prompt**: Added rules for floor hierarchy understanding, group resolution, and automation inspection. Documented three new tools.
 - **Default Model**: `anthropic/claude-haiku-4.5` set as default model in config.yaml.
 
@@ -72,6 +90,7 @@
 ## 0.5.0
 
 ### Added
+
 - **Conversational Onboarding**: Replaced the rigid 7-step form with a natural LLM-powered conversation. The bot now intelligently extracts names from natural language (e.g., "Jarvis wäre cool" → Name = Jarvis), collects personality preferences conversationally, and introduces its features after setup.
 - **Feature Introduction**: After onboarding, the bot presents its capabilities (device control, scheduling, analysis, memory, learning) and emphasizes that it improves with use.
 - **Weekly Analysis Suggestion**: During onboarding, the bot offers to set up a weekly automated home analysis via `schedule_create`.
@@ -82,6 +101,7 @@
 - **Tool Filtering**: Agentic loop now supports a `toolFilter` parameter to restrict available tools per agent (used during onboarding to limit to setup-relevant tools only).
 
 ### Changed
+
 - **Onboarding Architecture**: Onboarding now routes through the agentic loop with a dedicated system prompt (`agents/onboarding.md`) instead of a deterministic state machine. No more literal input-as-name bugs.
 - **Profile Extended**: Added `telegramChatId` (for proactive notifications) and `lastInteractionDate` (for daily greeting) fields.
 - **Scheduler Extended**: `ScheduledJob` now has a `oneshot` flag. One-shot jobs auto-disable after execution. New schedule parsers for `once +Xm`, `once HH:MM`, and `weekly <day> HH:MM`.
@@ -92,6 +112,7 @@
 ## 0.4.0
 
 ### Added
+
 - **HA Best Practices Skill**: New `ha_best_practices` tool provides the bot with reference knowledge for automations, helpers, templates, device control, and safe refactoring. Reference files are bundled in `agents/skills/ha-best-practices/`.
 - **Backlog Automation**: Approved backlog tasks are now automatically processed by the AI:
   - `approved` → AI generates a concrete solution → `solution_proposed`
@@ -107,6 +128,7 @@
 - **Dynamic Version Display**: Version number in chat footer and health API is now read from `package.json` at startup instead of being hardcoded
 
 ### Fixed
+
 - **Model Dropdown Duplication**: Settings page no longer duplicates model entries on each visit (dropdown is now cleared before populating)
 - **Telegram Model Override**: Telegram bot now uses the user's model selection from profile (previously always used the config default)
 - **Log/Actions Scrolling**: System Logs and Actions tabs are now scrollable when content overflows
@@ -117,6 +139,7 @@
 - **Hardcoded Version**: Removed hardcoded version strings from server.ts and dashboard.ts
 
 ### Changed
+
 - **Model List Updated**: Removed outdated models (Claude 3.5 Sonnet, Gemini 2.0 Flash, GPT-4o). Only latest versions of each model family are shown.
 - **config.yaml Schema**: Add-on model selection now matches the web UI model list
 - **Butler Prompt**: Added rules for honest verification feedback and best practices consultation
@@ -126,6 +149,7 @@
 ## 0.3.0
 
 ### Added
+
 - **Interactive Tool Vault**: Tools can now be toggled on/off from the Settings UI. Disabled state is persisted to disk and survives restarts.
 - **Scheduler / Cron Jobs**: Recurring jobs with schedule formats: `every 5m`, `daily 07:00`, `weekdays 08:00`, `weekends 09:00`. Full CRUD via tools and Settings UI. Jobs execute through the agentic loop.
 - **Action Feedback Loop**: `ha_call_service` now verifies state changes — captures pre-state, executes, waits 1s, checks post-state, and returns verification result (confirmed/failed/timeout).
@@ -152,6 +176,7 @@
 - **Butler Prompt Overhaul**: Naming convention guide (LGT, OG, DG, WZ, etc.), area-based entity lookup, self-improvement instructions, all new tools documented.
 
 ### Fixed
+
 - **Model Selection**: The model dropdown in Settings now works — previously it was empty because the frontend fetched a non-existent `/api/models` endpoint.
 - **Model Override Persistence**: Selecting a model now saves the override to the server profile (not just browser localStorage).
 - **Misleading Security Label**: Replaced "Alle Daten bleiben lokal" with accurate description.
@@ -159,12 +184,14 @@
 - **JS Parse Error**: Fixed `\x27` escaping in template literals that broke all buttons/navigation.
 
 ### Changed
+
 - **Updated Model List**: Available models now include Gemini 2.5 Flash, Claude Sonnet 4, GPT-4.1-mini, and the user-configured default model is always shown first.
 - **Security Card**: Renamed "Lokale Ausführung" to "Ausführung" with updated icon to reflect the cloud/local hybrid architecture.
 
 ## 0.2.7 (Release)
 
 ### Fixed
+
 - **Web UI Stability**: Fixed a critical JavaScript parse error (lookbehind regex) that caused the dashboard to freeze and become non-responsive.
 - **Escaping Fixes**: Corrected backslash-escaping in `dashboard.ts` template literals for both Markdown parsing and `onclick` event handlers.
 - **CSS Formatting**: Fixed a typo in `.modal-body` padding that affected layout.
@@ -172,26 +199,31 @@
 ## 0.2.6
 
 ### Added
+
 - **Action Log Persistence**: System actions and tool executions are now permanently stored in `actions.jsonl` and survive restarts.
 - **Rollback Support**: Added "Undo" capability for Home Assistant service calls. The system automatically calculates and records the inverse operation for easy rollback from the UI.
 
 ### Changed
+
 - **Dashboard Restructure**: Materially improved UI navigation by nesting the **Aktionen** log as a sub-tab within the **Logs** page, providing a cleaner and more focused main navbar.
 
 ## 0.2.5
 
 ### Added
+
 - **Persistence**: Chat history is now saved and loaded automatically in the Web UI and Telegram.
 - **Persistent AI Context**: The agent now remembers the last 20 messages, allowing for mult-turn conversations.
 
 ## 0.2.4
 
 ### Fixed
+
 - **Web UI**: Chat labels (Bot & User) are now dynamic and follow the names set in your profile.
 
 ## 0.2.3
 
 ### Added
+
 - Create profile system (bot name, user name, personality) with JSON storage
 - Build onboarding flow for first-time setup in chat
 - Add profile/personality section to Settings page
@@ -202,26 +234,31 @@
 - Integrate memory retrieval into agentic loop (auto-inject relevant cards)
 
 ### Changed
+
 - Miscellaneous improvements and fixes from latest development update.
 
 ## 0.2.2
 
 ### Improved
+
 - **Butler Agent Prompt**: Stricter tool-use workflow – agent must search entities before acting, no guessing IDs
 - Clearer rules for ambiguous commands (asks for clarification, e.g. which room)
 - Dangerous actions now auto-approved when unambiguous (e.g. "Licht an")
 
 ### Added
+
 - 🎙️ **Speech-to-Text** microphone button in Web UI (Browser Web Speech API, German)
 
 ## 0.2.1
 
 ### Added
+
 - Model dropdown with 13 pre-configured OpenRouter models (free + paid)
 - `openrouter/free` as default model (zero-cost free model router)
 - `openrouter/auto`, `moonshotai/kimi-k2.5`, `xiaomi/mimo-v2-pro`, `anthropic/claude-opus-4.6` models
 
 ### Fixed
+
 - Telegram user IDs now entered as comma-separated text (no more list validation errors)
 - Docker build: TypeScript compiler now correctly installed in build stage
 - Docker cache invalidation on Dockerfile changes
@@ -229,6 +266,7 @@
 ## 0.2.0
 
 ### Added
+
 - **Agentic Loop** with 10-iteration hard limit and structured tool calling
 - **OpenRouter integration** with multi-LLM support, retry logic, and exponential backoff
 - **Home Assistant tools**: get entity state, search entities, call services, get config
@@ -237,12 +275,14 @@
 - **Web UI chat endpoint** (`/api/chat`) with embedded Ingress dashboard
 
 ### Changed
+
 - Migrated from standalone Pi architecture to native HA Add-on
 - Data storage moved to `/data/` (HA backup-compatible JSON store)
 
 ## 0.1.0
 
 ### Added
+
 - Initial Add-on skeleton with Dockerfile and `config.yaml`
 - Configuration loader with HA Supervisor + dev fallback
 - Telegram bot with whitelist guard

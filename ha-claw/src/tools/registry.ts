@@ -121,8 +121,8 @@ export function registerTool(
  */
 export function getToolDefinitions(): ToolDefinition[] {
   return Array.from(tools.values())
-    .filter((t) => t.enabled)
-    .map((t) => t.definition);
+    .filter(t => t.enabled)
+    .map(t => t.definition);
 }
 
 /**
@@ -135,10 +135,7 @@ export function isDangerous(name: string): boolean {
 /**
  * Execute a tool by name with the given arguments.
  */
-export async function executeTool(
-  name: string,
-  args: Record<string, unknown>,
-): Promise<unknown> {
+export async function executeTool(name: string, args: Record<string, unknown>): Promise<unknown> {
   const tool = tools.get(name);
   if (!tool) {
     throw new Error(`Unknown tool: ${name}`);

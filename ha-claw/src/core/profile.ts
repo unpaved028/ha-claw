@@ -150,9 +150,10 @@ export function personalityPrompt(): string {
   if (p.verbosity <= 2) traits.push('Antworte so knapp wie moeglich. Kurze Saetze.');
   else if (p.verbosity >= 4) traits.push('Erklaere ausfuehrlich und gib Details und Kontext.');
 
-  const intro = `Dein Name ist **${currentProfile.botName}**. `
-    + `Der Nutzer heisst **${currentProfile.userName}**. `
-    + `Sprich den Nutzer mit seinem Namen an wenn es passt.`;
+  const intro =
+    `Dein Name ist **${currentProfile.botName}**. ` +
+    `Der Nutzer heisst **${currentProfile.userName}**. ` +
+    `Sprich den Nutzer mit seinem Namen an wenn es passt.`;
 
   return intro + (traits.length > 0 ? '\n\n' + traits.join('\n') : '');
 }

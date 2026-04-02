@@ -8,8 +8,19 @@ import { dirname, resolve } from 'node:path';
 import Fastify from 'fastify';
 import { appConfig } from '../core/config.js';
 import { createLogger, getLogBuffer, clearLogBuffer } from '../core/logger.js';
-import { getProfile, saveProfile, needsOnboarding, personalityPrompt, type Profile } from '../core/profile.js';
-import { isOnboarding, startOnboarding, endOnboarding, loadOnboardingPrompt } from '../core/onboarding.js';
+import {
+  getProfile,
+  saveProfile,
+  needsOnboarding,
+  personalityPrompt,
+  type Profile,
+} from '../core/profile.js';
+import {
+  isOnboarding,
+  startOnboarding,
+  endOnboarding,
+  loadOnboardingPrompt,
+} from '../core/onboarding.js';
 import { getToolInfos, setToolEnabled } from '../tools/registry.js';
 import { listJobs, toggleJob, deleteJob } from '../storage/scheduler.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
@@ -40,7 +51,7 @@ function createWebConfirmFn(): ConfirmationFn {
   return async (toolName: string, args: Record<string, unknown>): Promise<boolean> => {
     const id = String(++confirmCounter);
     log.info('Web safety gate: awaiting confirmation', { id, toolName });
-    return new Promise<boolean>((resolve) => {
+    return new Promise<boolean>(resolve => {
       pendingConfirmation = { id, toolName, args, resolve };
       // Auto-deny after 60s
       setTimeout(() => {
@@ -58,7 +69,9 @@ const PKG_VERSION = (() => {
     const dir = dirname(fileURLToPath(import.meta.url));
     const pkg = JSON.parse(readFileSync(resolve(dir, '../../package.json'), 'utf-8'));
     return pkg.version || '0.0.0';
-  } catch { return '0.0.0'; }
+  } catch {
+    return '0.0.0';
+  }
 })();
 const VALID = new Set(['notes', 'conversations', 'memory']);
 
@@ -68,7 +81,10 @@ function loadButlerPrompt(): string {
     const mdPath = resolve(dir, '../../agents/butler.md');
     let prompt = readFileSync(mdPath, 'utf-8');
     const cache = getEntityCache();
-    prompt = prompt.replace('{{ENTITY_CACHE}}', cache || '(Kein HA-Zugriff – Entity-Cache nicht verfügbar.)');
+    prompt = prompt.replace(
+      '{{ENTITY_CACHE}}',
+      cache || '(Kein HA-Zugriff – Entity-Cache nicht verfügbar.)',
+    );
     return prompt;
   } catch {
     log.warn('Could not load butler.md – using fallback prompt');
@@ -112,7 +128,10 @@ export async function startWebServer(): Promise<void> {
 
   // Health
   app.get('/health', async () => ({
-    status: 'ok', version: PKG_VERSION, uptime: process.uptime(), startedAt: STARTUP_TIME,
+    status: 'ok',
+    version: PKG_VERSION,
+    uptime: process.uptime(),
+    startedAt: STARTUP_TIME,
     mode: appConfig.isAddon ? 'addon' : 'standalone',
     memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
   }));
@@ -136,7 +155,10 @@ export async function startWebServer(): Promise<void> {
     if (needsOnboarding()) {
       if (!isOnboarding(WEB_SESSION)) startOnboarding(WEB_SESSION);
       const agent = buildOnboardingAgent();
-      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
+      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+        'conversations',
+        WEB_SESSION,
+      );
       const history = record?.messages || [];
       const result = await runAgenticLoop(message, agent, undefined, history, ONBOARDING_TOOLS);
 
@@ -164,7 +186,10 @@ export async function startWebServer(): Promise<void> {
     }
 
     // 1. Load history
-    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
+    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+      'conversations',
+      WEB_SESSION,
+    );
     const history = record?.messages || [];
 
     // 2. Run loop (passing history) with web safety gate
@@ -175,7 +200,7 @@ export async function startWebServer(): Promise<void> {
     const newMessages: ChatMessage[] = [
       ...history,
       { role: 'user', content: message },
-      { role: 'assistant', content: result.response }
+      { role: 'assistant', content: result.response },
     ];
 
     // Keep it efficient: last 20 messages (~10 turns)
@@ -186,7 +211,10 @@ export async function startWebServer(): Promise<void> {
   });
 
   app.get('/api/chat/history', async () => {
-    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', WEB_SESSION);
+    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+      'conversations',
+      WEB_SESSION,
+    );
     return record?.messages || [];
   });
 
@@ -201,17 +229,20 @@ export async function startWebServer(): Promise<void> {
     };
   });
 
-  app.post<{ Params: { id: string }; Body: { approved: boolean } }>('/api/confirm/:id', async (req) => {
-    const { id } = req.params;
-    const { approved } = req.body;
-    if (!pendingConfirmation || pendingConfirmation.id !== id) {
-      return { error: 'No matching pending confirmation' };
-    }
-    log.info('Web confirmation received', { id, approved });
-    pendingConfirmation.resolve(approved);
-    pendingConfirmation = null;
-    return { ok: true };
-  });
+  app.post<{ Params: { id: string }; Body: { approved: boolean } }>(
+    '/api/confirm/:id',
+    async req => {
+      const { id } = req.params;
+      const { approved } = req.body;
+      if (!pendingConfirmation || pendingConfirmation.id !== id) {
+        return { error: 'No matching pending confirmation' };
+      }
+      log.info('Web confirmation received', { id, approved });
+      pendingConfirmation.resolve(approved);
+      pendingConfirmation = null;
+      return { ok: true };
+    },
+  );
 
   // ── Entity Cache Refresh ─────────────────────────────
   app.post('/api/cache/refresh', async () => {
@@ -239,46 +270,42 @@ export async function startWebServer(): Promise<void> {
       version: PKG_VERSION,
       haAvailable: !!(appConfig.supervisorToken && appConfig.haApiUrl),
       telegramConfigured: !!appConfig.telegramBotToken,
-      availableModels: Array.from(new Set([
-        appConfig.openRouterDefaultModel,
-        // Anthropic
-        'anthropic/claude-opus-4.6',
-        'anthropic/claude-sonnet-4.6',
-        'anthropic/claude-haiku-4.5',
-        // Google
-        'google/gemini-3.1-pro-preview',
-        'google/gemini-3-flash-preview',
-        'google/gemini-3.1-flash-lite-preview',
-        // OpenAI
-        'openai/gpt-5.4',
-        'openai/gpt-5.4-mini',
-        // Sonstige
-        'deepseek/deepseek-chat',
-      ]))
+      availableModels: Array.from(
+        new Set([
+          appConfig.openRouterDefaultModel,
+          // Anthropic
+          'anthropic/claude-opus-4.6',
+          'anthropic/claude-sonnet-4.6',
+          'anthropic/claude-haiku-4.5',
+          // Google
+          'google/gemini-3.1-pro-preview',
+          'google/gemini-3-flash-preview',
+          'google/gemini-3.1-flash-lite-preview',
+          // OpenAI
+          'openai/gpt-5.4',
+          'openai/gpt-5.4-mini',
+          // Sonstige
+          'deepseek/deepseek-chat',
+        ]),
+      ),
     };
   });
 
-  app.put<{ Body: Partial<Profile> }>(
-    '/api/profile',
-    async (req) => {
-      const updated = await saveProfile(req.body ?? {});
-      return updated;
-    },
-  );
+  app.put<{ Body: Partial<Profile> }>('/api/profile', async req => {
+    const updated = await saveProfile(req.body ?? {});
+    return updated;
+  });
 
   // ── Tool toggle API ──────────────────────────────────
-  app.put<{ Body: { name: string; enabled: boolean } }>(
-    '/api/tools/toggle',
-    async (req) => {
-      const { name, enabled } = req.body ?? {};
-      if (!name || typeof enabled !== 'boolean') {
-        return { error: 'name (string) and enabled (boolean) required' };
-      }
-      const ok = await setToolEnabled(name, enabled);
-      if (!ok) return { error: `Tool "${name}" not found` };
-      return { name, enabled, tools: getToolInfos() };
-    },
-  );
+  app.put<{ Body: { name: string; enabled: boolean } }>('/api/tools/toggle', async req => {
+    const { name, enabled } = req.body ?? {};
+    if (!name || typeof enabled !== 'boolean') {
+      return { error: 'name (string) and enabled (boolean) required' };
+    }
+    const ok = await setToolEnabled(name, enabled);
+    if (!ok) return { error: `Tool "${name}" not found` };
+    return { name, enabled, tools: getToolInfos() };
+  });
 
   // ── Scheduler API ────────────────────────────────────
   app.get('/api/scheduler', async () => {
@@ -286,22 +313,16 @@ export async function startWebServer(): Promise<void> {
     return { count: all.length, jobs: all };
   });
 
-  app.put<{ Body: { id: string; enabled: boolean } }>(
-    '/api/scheduler/toggle',
-    async (req) => {
-      const { id, enabled } = req.body ?? {};
-      const job = await toggleJob(id, enabled);
-      return job ?? { error: 'Job not found' };
-    },
-  );
+  app.put<{ Body: { id: string; enabled: boolean } }>('/api/scheduler/toggle', async req => {
+    const { id, enabled } = req.body ?? {};
+    const job = await toggleJob(id, enabled);
+    return job ?? { error: 'Job not found' };
+  });
 
-  app.delete<{ Params: { id: string } }>(
-    '/api/scheduler/:id',
-    async (req) => {
-      const ok = await deleteJob(req.params.id);
-      return ok ? { deleted: true } : { error: 'Job not found' };
-    },
-  );
+  app.delete<{ Params: { id: string } }>('/api/scheduler/:id', async req => {
+    const ok = await deleteJob(req.params.id);
+    return ok ? { deleted: true } : { error: 'Job not found' };
+  });
 
   // ── Logs API ───────────────────────────────────────────
   app.get('/api/logs', async () => {
@@ -324,8 +345,11 @@ export async function startWebServer(): Promise<void> {
 
   app.post<{ Body: { id: string } }>('/api/actions/rollback', async (req, reply) => {
     const id = req.body?.id;
-    if (!id) { reply.status(400); return { error: 'Missing action ID' }; }
-    
+    if (!id) {
+      reply.status(400);
+      return { error: 'Missing action ID' };
+    }
+
     const action = await actionLog.getActionById(id);
     if (!action || !action.rollback) {
       reply.status(404);
@@ -334,15 +358,19 @@ export async function startWebServer(): Promise<void> {
 
     const { domain, service, entity_id, data } = action.rollback;
     log.info('Executing rollback', { id, domain, service, entity_id });
-    
+
     try {
       // Use HA client directly for rollback to avoid infinite loops or recursion
       const { callService } = await import('../core/ha-client.js');
       const res = await callService(domain, service, { entity_id, ...data });
-      
+
       // Log the rollback itself as a new action
-      await actionLog.logAction('system', `Rollback: ${domain}.${service} auf ${entity_id}`, 'rollback');
-      
+      await actionLog.logAction(
+        'system',
+        `Rollback: ${domain}.${service} auf ${entity_id}`,
+        'rollback',
+      );
+
       return res;
     } catch (err) {
       log.error('Rollback failed', { error: String(err) });
@@ -366,7 +394,7 @@ export async function startWebServer(): Promise<void> {
     return { count: tasks.length, tasks };
   });
 
-  app.post<{ Body: Parameters<typeof backlog.createTask>[0] }>('/api/backlog', async (req) => {
+  app.post<{ Body: Parameters<typeof backlog.createTask>[0] }>('/api/backlog', async req => {
     return backlog.createTask(req.body);
   });
 
@@ -374,32 +402,53 @@ export async function startWebServer(): Promise<void> {
     '/api/backlog/:id',
     async (req, reply) => {
       const task = await backlog.updateTask(req.params.id, req.body ?? {});
-      if (!task) { reply.status(404); return { error: 'not found' }; }
+      if (!task) {
+        reply.status(404);
+        return { error: 'not found' };
+      }
       return task;
     },
   );
 
   app.delete<{ Params: { id: string } }>('/api/backlog/:id', async (req, reply) => {
     const ok = await backlog.deleteTask(req.params.id);
-    if (!ok) { reply.status(404); return { error: 'not found' }; }
+    if (!ok) {
+      reply.status(404);
+      return { error: 'not found' };
+    }
     return { deleted: true };
   });
 
   // ── Store CRUD ──────────────────────────────────────────
   app.get<{ Params: { c: string } }>('/api/:c', async (req, reply) => {
-    if (!VALID.has(req.params.c)) { reply.status(400); return { error: 'invalid' }; }
+    if (!VALID.has(req.params.c)) {
+      reply.status(400);
+      return { error: 'invalid' };
+    }
     return store.list(req.params.c as CollectionName);
   });
 
-  app.post<{ Params: { c: string }; Body: Record<string, unknown> }>('/api/:c', async (req, reply) => {
-    if (!VALID.has(req.params.c)) { reply.status(400); return { error: 'invalid' }; }
-    return store.create(req.params.c as CollectionName, req.body ?? {});
-  });
+  app.post<{ Params: { c: string }; Body: Record<string, unknown> }>(
+    '/api/:c',
+    async (req, reply) => {
+      if (!VALID.has(req.params.c)) {
+        reply.status(400);
+        return { error: 'invalid' };
+      }
+      return store.create(req.params.c as CollectionName, req.body ?? {});
+    },
+  );
 
   app.delete<{ Params: { c: string; id: string } }>('/api/:c/:id', async (req, reply) => {
-    if (!VALID.has(req.params.c)) { reply.status(400); return { error: 'invalid' }; }
+    if (!VALID.has(req.params.c)) {
+      reply.status(400);
+      return { error: 'invalid' };
+    }
     const ok = await store.remove(req.params.c as CollectionName, req.params.id);
-    if (!ok) { reply.status(404); return { error: 'not found' }; }
+    if (!ok) {
+      reply.status(404);
+      return { error: 'not found' };
+    }
     return { deleted: true };
   });
 

@@ -20,7 +20,16 @@ const BACKLOG_DIR = join(appConfig.dataPath, 'store', 'backlog');
 // ── Types ─────────────────────────────────────────────────
 
 export type Priority = 'low' | 'medium' | 'high';
-export type TaskStatus = 'proposed' | 'approved' | 'solution_proposed' | 'solution_approved' | 'executing' | 'in_progress' | 'done' | 'rejected' | 'deferred';
+export type TaskStatus =
+  | 'proposed'
+  | 'approved'
+  | 'solution_proposed'
+  | 'solution_approved'
+  | 'executing'
+  | 'in_progress'
+  | 'done'
+  | 'rejected'
+  | 'deferred';
 
 export interface BacklogTask {
   id: string;
@@ -125,7 +134,22 @@ export async function getTask(id: string): Promise<BacklogTask | null> {
 
 export async function updateTask(
   id: string,
-  updates: Partial<Pick<BacklogTask, 'title' | 'asIs' | 'toBe' | 'impact' | 'priority' | 'status' | 'category' | 'tags' | 'solution' | 'solutionApprovedAt' | 'executionResult'>>,
+  updates: Partial<
+    Pick<
+      BacklogTask,
+      | 'title'
+      | 'asIs'
+      | 'toBe'
+      | 'impact'
+      | 'priority'
+      | 'status'
+      | 'category'
+      | 'tags'
+      | 'solution'
+      | 'solutionApprovedAt'
+      | 'executionResult'
+    >
+  >,
 ): Promise<BacklogTask | null> {
   const existing = await getTask(id);
   if (!existing) return null;
@@ -173,8 +197,8 @@ export async function listTasks(filter?: {
       tasks.push(JSON.parse(raw) as BacklogTask);
     }
 
-    if (filter?.status) tasks = tasks.filter((t) => t.status === filter.status);
-    if (filter?.priority) tasks = tasks.filter((t) => t.priority === filter.priority);
+    if (filter?.status) tasks = tasks.filter(t => t.status === filter.status);
+    if (filter?.priority) tasks = tasks.filter(t => t.priority === filter.priority);
 
     // Sort: high priority first, then by date
     const prioOrder = { high: 0, medium: 1, low: 2 };

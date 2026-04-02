@@ -13,7 +13,12 @@ import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 import { getEntityCache } from '../core/entity-cache.js';
 import { getProfile, personalityPrompt, needsOnboarding, saveProfile } from '../core/profile.js';
-import { isOnboarding, startOnboarding, endOnboarding, loadOnboardingPrompt } from '../core/onboarding.js';
+import {
+  isOnboarding,
+  startOnboarding,
+  endOnboarding,
+  loadOnboardingPrompt,
+} from '../core/onboarding.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
@@ -29,7 +34,10 @@ function loadButlerPrompt(): string {
     const mdPath = resolve(dir, '../../agents/butler.md');
     let prompt = readFileSync(mdPath, 'utf-8');
     const cache = getEntityCache();
-    prompt = prompt.replace('{{ENTITY_CACHE}}', cache || '(Kein HA-Zugriff – Entity-Cache nicht verfügbar.)');
+    prompt = prompt.replace(
+      '{{ENTITY_CACHE}}',
+      cache || '(Kein HA-Zugriff – Entity-Cache nicht verfügbar.)',
+    );
     return prompt;
   } catch {
     return [
@@ -78,7 +86,7 @@ export function createBot(): Bot {
   setupConfirmationHandler(bot);
 
   // ── Commands ────────────────────────────────────────────
-  bot.command('start', async (ctx) => {
+  bot.command('start', async ctx => {
     await ctx.reply(
       '🤖 *HA-Claw online.*\n\nSchreib mir einfach, was du brauchst.\n\n' +
         '`/status` – Systemstatus\n`/ping` – Lebenszeichen',
@@ -86,12 +94,12 @@ export function createBot(): Bot {
     );
   });
 
-  bot.command('ping', async (ctx) => {
+  bot.command('ping', async ctx => {
     const s = process.uptime();
     await ctx.reply(`🏓 Pong! Uptime: ${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`);
   });
 
-  bot.command('status', async (ctx) => {
+  bot.command('status', async ctx => {
     const mem = process.memoryUsage();
     await ctx.reply(
       `📊 *HA-Claw Status*\n\n` +
@@ -104,7 +112,7 @@ export function createBot(): Bot {
   });
 
   // ── Agentic Loop Entry Point ────────────────────────────
-  bot.on('message:text', async (ctx) => {
+  bot.on('message:text', async ctx => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
     const sessionId = `tg-${chatId}`;
@@ -126,7 +134,10 @@ export function createBot(): Bot {
       try {
         const agent = buildOnboardingAgent();
         const confirmFn = createTelegramConfirmFn(bot, chatId);
-        const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', sessionId);
+        const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+          'conversations',
+          sessionId,
+        );
         const history = record?.messages || [];
         const result = await runAgenticLoop(text, agent, confirmFn, history, ONBOARDING_TOOLS);
 
@@ -164,7 +175,10 @@ export function createBot(): Bot {
       }
 
       // 1. Load context/history
-      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>('conversations', sessionId);
+      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+        'conversations',
+        sessionId,
+      );
       const history = record?.messages || [];
 
       // 2. Run loop (passing history)
@@ -174,7 +188,7 @@ export function createBot(): Bot {
       const newMessages: ChatMessage[] = [
         ...history,
         { role: 'user', content: text },
-        { role: 'assistant', content: result.response }
+        { role: 'assistant', content: result.response },
       ];
       // Limit to 20 messages for performance
       const limited = newMessages.slice(-20);
@@ -193,7 +207,7 @@ export function createBot(): Bot {
     }
   });
 
-  bot.catch((err) => {
+  bot.catch(err => {
     log.error('Bot error', { error: String(err.error) });
   });
 
@@ -201,7 +215,10 @@ export function createBot(): Bot {
 }
 
 /** Send a response via Telegram, handling markdown fallback and 4096 char limit. */
-async function sendTelegramResponse(ctx: { reply: (text: string, opts?: Record<string, unknown>) => Promise<unknown> }, response: string): Promise<void> {
+async function sendTelegramResponse(
+  ctx: { reply: (text: string, opts?: Record<string, unknown>) => Promise<unknown> },
+  response: string,
+): Promise<void> {
   if (response.length <= 4096) {
     await ctx.reply(response, { parse_mode: 'Markdown' }).catch(() => ctx.reply(response));
   } else {

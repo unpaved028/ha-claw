@@ -10,15 +10,26 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write ."
   },
   "dependencies": {
-    "grammy": "^1.35.0",
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "grammy": "^1.35.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.3",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.12.0",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.4.0",
+    "prettier": "^3.8.1",
     "tsx": "^4.19.3",
-    "@types/node": "^22.12.0"
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.58.0"
   }
 }

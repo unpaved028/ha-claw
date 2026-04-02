@@ -22,9 +22,13 @@ import { createLogger } from './logger.js';
 import { getToolDefinitions, executeTool, isDangerous } from '../tools/registry.js';
 import { searchCards, buildMemoryContext } from '../storage/memory-cards.js';
 import {
-  findRelevantCorrections, buildCorrectionContext,
-  getActivePromptPatches, buildPatternContext, buildErrorContext,
-  trackUsage, trackError,
+  findRelevantCorrections,
+  buildCorrectionContext,
+  getActivePromptPatches,
+  buildPatternContext,
+  buildErrorContext,
+  trackUsage,
+  trackError,
 } from '../storage/learning.js';
 import type { ChatMessage, AgentConfig, LoopResult, ToolCall } from './types.js';
 
@@ -69,7 +73,9 @@ export async function runAgenticLoop(
       systemPrompt += '\n\n' + memContext;
       log.debug('Memory injected', { cards: memResults.length });
     }
-  } catch { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 
   // 2. Relevant corrections (learned from past mistakes)
   try {
@@ -79,25 +85,33 @@ export async function runAgenticLoop(
       systemPrompt += corrContext;
       log.debug('Corrections injected', { count: corr.length });
     }
-  } catch { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 
   // 3. Prompt patches (dynamic rules)
   try {
     const patches = getActivePromptPatches();
     if (patches) systemPrompt += patches;
-  } catch { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 
   // 4. Usage patterns
   try {
     const patterns = buildPatternContext();
     if (patterns) systemPrompt += patterns;
-  } catch { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 
   // 5. Error context (recurring failures)
   try {
     const errors = buildErrorContext();
     if (errors) systemPrompt += errors;
-  } catch { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -164,10 +178,7 @@ export async function runAgenticLoop(
  * Execute a tool call with safety gate for dangerous tools.
  * Tracks usage and errors for the learning system.
  */
-async function executeWithSafetyGate(
-  call: ToolCall,
-  confirmFn: ConfirmationFn,
-): Promise<string> {
+async function executeWithSafetyGate(call: ToolCall, confirmFn: ConfirmationFn): Promise<string> {
   const name = call.function.name;
   let args: Record<string, unknown>;
 

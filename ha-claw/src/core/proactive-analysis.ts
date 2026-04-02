@@ -65,17 +65,20 @@ export async function runAnalysis(): Promise<string> {
 
     // Sort by priority (high=3, medium=2, low=1), take top 3
     const PRIORITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
-    findings.sort((a, b) => (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0));
+    findings.sort(
+      (a, b) => (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0),
+    );
     const top3 = findings.slice(0, 3);
 
     // Write only top 3 to backlog, respecting existing items (including rejected/deferred)
     const newCount = await writeFindings(top3, existingTasks);
 
-    const summary = newCount > 0
-      ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten gefunden, Top ${top3.length} priorisiert, ${newCount} neue Vorschläge ins Backlog.`
-      : findings.length > 0
-        ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten, alle bereits bekannt.`
-        : 'Analyse abgeschlossen: Keine Auffälligkeiten. Alles sieht gut aus.';
+    const summary =
+      newCount > 0
+        ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten gefunden, Top ${top3.length} priorisiert, ${newCount} neue Vorschläge ins Backlog.`
+        : findings.length > 0
+          ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten, alle bereits bekannt.`
+          : 'Analyse abgeschlossen: Keine Auffälligkeiten. Alles sieht gut aus.';
 
     log.info(summary);
     return summary;
@@ -96,13 +99,14 @@ function analyzeEnergy(states: HAState[], now: Date): Finding[] {
 
   // Lights on during daytime (10:00-16:00)
   if (hour >= 10 && hour <= 16) {
-    const lightsOn = states.filter(s =>
-      s.entity_id.startsWith('light.') && s.state === 'on'
-    );
+    const lightsOn = states.filter(s => s.entity_id.startsWith('light.') && s.state === 'on');
     if (lightsOn.length >= 3) {
       findings.push({
         title: `${lightsOn.length} Lichter tagsüber an`,
-        asIs: `${lightsOn.length} Lichter eingeschaltet tagsüber um ${hour}:00. Entitäten: ${lightsOn.slice(0, 5).map(s => s.entity_id).join(', ')}`,
+        asIs: `${lightsOn.length} Lichter eingeschaltet tagsüber um ${hour}:00. Entitäten: ${lightsOn
+          .slice(0, 5)
+          .map(s => s.entity_id)
+          .join(', ')}`,
         toBe: 'Tageslicht-Automatisierung: Lichter bei ausreichend Helligkeit automatisch dimmen/ausschalten (z.B. via Helligkeitssensor oder Sonnenstand).',
         impact: 'Energieeinsparung, weniger manuelle Steuerung',
         category: 'energy',
@@ -115,9 +119,10 @@ function analyzeEnergy(states: HAState[], now: Date): Finding[] {
   // Heating in summer (Jun–Sep)
   const month = now.getMonth();
   if (month >= 5 && month <= 8) {
-    const heating = states.filter(s =>
-      s.entity_id.startsWith('climate.') &&
-      (s.state === 'heat' || String(s.attributes['hvac_action']) === 'heating')
+    const heating = states.filter(
+      s =>
+        s.entity_id.startsWith('climate.') &&
+        (s.state === 'heat' || String(s.attributes['hvac_action']) === 'heating'),
     );
     if (heating.length > 0) {
       findings.push({
@@ -176,18 +181,27 @@ function analyzeSolar(states: HAState[]): Finding[] {
   const findings: Finding[] = [];
 
   // Detect solar/PV sensors
-  const solarPower = states.find(s =>
-    s.entity_id.includes('solar') || s.entity_id.includes('pv') ||
-    s.entity_id.includes('photovoltaik') || s.entity_id.includes('inverter')
+  const solarPower = states.find(
+    s =>
+      s.entity_id.includes('solar') ||
+      s.entity_id.includes('pv') ||
+      s.entity_id.includes('photovoltaik') ||
+      s.entity_id.includes('inverter'),
   );
-  const gridExport = states.find(s =>
-    s.entity_id.includes('grid_export') || s.entity_id.includes('einspeisung') ||
-    s.entity_id.includes('export_power') || s.entity_id.includes('feed_in')
+  const gridExport = states.find(
+    s =>
+      s.entity_id.includes('grid_export') ||
+      s.entity_id.includes('einspeisung') ||
+      s.entity_id.includes('export_power') ||
+      s.entity_id.includes('feed_in'),
   );
-  const batteryLevel = states.find(s =>
-    (s.entity_id.includes('battery') || s.entity_id.includes('speicher') || s.entity_id.includes('akku')) &&
-    s.entity_id.startsWith('sensor.') &&
-    !isNaN(Number(s.state))
+  const batteryLevel = states.find(
+    s =>
+      (s.entity_id.includes('battery') ||
+        s.entity_id.includes('speicher') ||
+        s.entity_id.includes('akku')) &&
+      s.entity_id.startsWith('sensor.') &&
+      !isNaN(Number(s.state)),
   );
 
   // Solar present but exporting to grid
@@ -253,17 +267,20 @@ function analyzeCovers(states: HAState[], now: Date): Finding[] {
   if (covers.length === 0) return findings;
 
   // Wind sensor detection
-  const windSensor = states.find(s =>
-    s.entity_id.startsWith('sensor.') && (
-      String(s.attributes['device_class']) === 'wind_speed' ||
-      s.entity_id.includes('wind') || s.entity_id.includes('gust')
-    )
+  const windSensor = states.find(
+    s =>
+      s.entity_id.startsWith('sensor.') &&
+      (String(s.attributes['device_class']) === 'wind_speed' ||
+        s.entity_id.includes('wind') ||
+        s.entity_id.includes('gust')),
   );
 
   // Storm protection: covers down while wind is high
   if (windSensor) {
     const windSpeed = Number(windSensor.state);
-    const closedCovers = covers.filter(s => s.state === 'closed' || Number(s.attributes['current_position']) < 20);
+    const closedCovers = covers.filter(
+      s => s.state === 'closed' || Number(s.attributes['current_position']) < 20,
+    );
     if (!isNaN(windSpeed) && windSpeed > 60 && closedCovers.length > 0) {
       findings.push({
         title: 'Sturmschutz für Raffstores fehlt',
@@ -277,9 +294,13 @@ function analyzeCovers(states: HAState[], now: Date): Finding[] {
     }
     // No storm automation exists: suggest one
     const automations = states.filter(s => s.entity_id.startsWith('automation.'));
-    const hasStormAutomation = automations.some(s =>
-      s.entity_id.includes('wind') || s.entity_id.includes('sturm') || s.entity_id.includes('storm') ||
-      friendlyName(s).toLowerCase().includes('wind') || friendlyName(s).toLowerCase().includes('sturm')
+    const hasStormAutomation = automations.some(
+      s =>
+        s.entity_id.includes('wind') ||
+        s.entity_id.includes('sturm') ||
+        s.entity_id.includes('storm') ||
+        friendlyName(s).toLowerCase().includes('wind') ||
+        friendlyName(s).toLowerCase().includes('sturm'),
     );
     if (!hasStormAutomation) {
       findings.push({
@@ -299,8 +320,10 @@ function analyzeCovers(states: HAState[], now: Date): Finding[] {
   const hasDawnDuskAutomation = automations.some(s => {
     const id = s.entity_id.toLowerCase();
     const name = friendlyName(s).toLowerCase();
-    return (id + name).match(/dämmerung|sonnenauf|sonnenunter|dawn|dusk|sunrise|sunset/) !== null &&
-           (id + name).match(/cover|raffstore|jalousie|rollo|beschattung/) !== null;
+    return (
+      (id + name).match(/dämmerung|sonnenauf|sonnenunter|dawn|dusk|sunrise|sunset/) !== null &&
+      (id + name).match(/cover|raffstore|jalousie|rollo|beschattung/) !== null
+    );
   });
   if (!hasDawnDuskAutomation && covers.length >= 2) {
     findings.push({
@@ -336,7 +359,9 @@ function analyzeCovers(states: HAState[], now: Date): Finding[] {
 
   // Covers still closed during daytime (possible forgotten state)
   if (hour >= 10 && hour <= 17) {
-    const allClosed = covers.filter(s => s.state === 'closed' || Number(s.attributes['current_position']) === 0);
+    const allClosed = covers.filter(
+      s => s.state === 'closed' || Number(s.attributes['current_position']) === 0,
+    );
     if (allClosed.length === covers.length && covers.length >= 3) {
       findings.push({
         title: 'Alle Raffstores tagsüber geschlossen',
@@ -361,10 +386,13 @@ function analyzeClimate(states: HAState[]): Finding[] {
   const findings: Finding[] = [];
 
   // Humidity / mold risk (>65% in any room)
-  const humiditySensors = states.filter(s =>
-    s.entity_id.startsWith('sensor.') &&
-    (String(s.attributes['device_class']) === 'humidity' || s.entity_id.includes('humidity') || s.entity_id.includes('feuchte')) &&
-    !isNaN(Number(s.state))
+  const humiditySensors = states.filter(
+    s =>
+      s.entity_id.startsWith('sensor.') &&
+      (String(s.attributes['device_class']) === 'humidity' ||
+        s.entity_id.includes('humidity') ||
+        s.entity_id.includes('feuchte')) &&
+      !isNaN(Number(s.state)),
   );
   const highHumidity = humiditySensors.filter(s => Number(s.state) > 65);
   if (highHumidity.length > 0) {
@@ -380,10 +408,15 @@ function analyzeClimate(states: HAState[]): Finding[] {
   }
 
   // Large temperature differences between rooms (>5°C)
-  const tempSensors = states.filter(s =>
-    s.entity_id.startsWith('sensor.') &&
-    (String(s.attributes['device_class']) === 'temperature' || s.entity_id.includes('temperature') || s.entity_id.includes('temperatur')) &&
-    !isNaN(Number(s.state)) && Number(s.state) > 5 && Number(s.state) < 40
+  const tempSensors = states.filter(
+    s =>
+      s.entity_id.startsWith('sensor.') &&
+      (String(s.attributes['device_class']) === 'temperature' ||
+        s.entity_id.includes('temperature') ||
+        s.entity_id.includes('temperatur')) &&
+      !isNaN(Number(s.state)) &&
+      Number(s.state) > 5 &&
+      Number(s.state) < 40,
   );
   if (tempSensors.length >= 3) {
     const temps = tempSensors.map(s => Number(s.state));
@@ -416,11 +449,12 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
   const hour = now.getHours();
 
   // Detect presence/occupancy
-  const presenceSensors = states.filter(s =>
-    String(s.attributes['device_class']) === 'occupancy' ||
-    String(s.attributes['device_class']) === 'presence' ||
-    s.entity_id.includes('person.') ||
-    s.entity_id.includes('presence')
+  const presenceSensors = states.filter(
+    s =>
+      String(s.attributes['device_class']) === 'occupancy' ||
+      String(s.attributes['device_class']) === 'presence' ||
+      s.entity_id.includes('person.') ||
+      s.entity_id.includes('presence'),
   );
   const someoneHome = presenceSensors.some(s => s.state === 'on' || s.state === 'home');
   const hasPresenceDetection = presenceSensors.length > 0;
@@ -444,7 +478,10 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
     if (openWindows.length > 0) {
       findings.push({
         title: `${openWindows.length} Fenster offen bei Abwesenheit`,
-        asIs: `Niemand zu Hause, aber ${openWindows.length} Fenster offen: ${openWindows.slice(0, 3).map(s => friendlyName(s)).join(', ')}`,
+        asIs: `Niemand zu Hause, aber ${openWindows.length} Fenster offen: ${openWindows
+          .slice(0, 3)
+          .map(s => friendlyName(s))
+          .join(', ')}`,
         toBe: 'Automatisierung: Bei Abwesenheit Fenster-Status prüfen und Benachrichtigung senden. Optional: Alarm aktivieren.',
         impact: 'Einbruchschutz, Wetterschutz (Regen)',
         category: 'security',
@@ -457,7 +494,10 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
     if (openDoors.length > 0) {
       findings.push({
         title: `${openDoors.length} Türen offen bei Abwesenheit`,
-        asIs: `Niemand zu Hause, ${openDoors.length} Türen offen: ${openDoors.slice(0, 3).map(s => friendlyName(s)).join(', ')}`,
+        asIs: `Niemand zu Hause, ${openDoors.length} Türen offen: ${openDoors
+          .slice(0, 3)
+          .map(s => friendlyName(s))
+          .join(', ')}`,
         toBe: 'Automatisierung: Türstatus bei Abwesenheit überwachen und sofort benachrichtigen.',
         impact: 'Einbruchschutz',
         category: 'security',
@@ -468,8 +508,8 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
   }
 
   // Unlocked locks
-  const unlockedLocks = states.filter(s =>
-    s.entity_id.startsWith('lock.') && s.state === 'unlocked'
+  const unlockedLocks = states.filter(
+    s => s.entity_id.startsWith('lock.') && s.state === 'unlocked',
   );
   if (unlockedLocks.length > 0 && (hour >= 22 || hour <= 6)) {
     findings.push({
@@ -498,9 +538,11 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
   }
 
   // Smoke detectors – check if any exist
-  const smokeDetectors = states.filter(s =>
-    String(s.attributes['device_class']) === 'smoke' ||
-    s.entity_id.includes('smoke') || s.entity_id.includes('rauchmelder')
+  const smokeDetectors = states.filter(
+    s =>
+      String(s.attributes['device_class']) === 'smoke' ||
+      s.entity_id.includes('smoke') ||
+      s.entity_id.includes('rauchmelder'),
   );
   if (smokeDetectors.length === 0) {
     findings.push({
@@ -515,13 +557,18 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
   }
 
   // Water leak sensors
-  const waterLeakSensors = states.filter(s =>
-    String(s.attributes['device_class']) === 'moisture' ||
-    s.entity_id.includes('water_leak') || s.entity_id.includes('wasserleck') || s.entity_id.includes('leak')
+  const waterLeakSensors = states.filter(
+    s =>
+      String(s.attributes['device_class']) === 'moisture' ||
+      s.entity_id.includes('water_leak') ||
+      s.entity_id.includes('wasserleck') ||
+      s.entity_id.includes('leak'),
   );
   if (waterLeakSensors.length === 0) {
     // Only suggest if there are enough other sensors (user has smart home infra)
-    const totalSensors = states.filter(s => s.entity_id.startsWith('sensor.') || s.entity_id.startsWith('binary_sensor.')).length;
+    const totalSensors = states.filter(
+      s => s.entity_id.startsWith('sensor.') || s.entity_id.startsWith('binary_sensor.'),
+    ).length;
     if (totalSensors > 20) {
       findings.push({
         title: 'Keine Wasserleck-Sensoren integriert',
@@ -548,7 +595,10 @@ function analyzeMaintenance(states: HAState[], now: Date): Finding[] {
   // Unavailable entities
   const unavailable = states.filter(s => s.state === 'unavailable');
   if (unavailable.length >= 3) {
-    const examples = unavailable.slice(0, 8).map(s => s.entity_id).join(', ');
+    const examples = unavailable
+      .slice(0, 8)
+      .map(s => s.entity_id)
+      .join(', ');
     findings.push({
       title: `${unavailable.length} Geräte nicht erreichbar`,
       asIs: `${unavailable.length} Entities "unavailable": ${examples}`,
@@ -562,14 +612,21 @@ function analyzeMaintenance(states: HAState[], now: Date): Finding[] {
 
   // Stale sensors (no change > 48h, excluding unavailable)
   const staleSensors = states.filter(s => {
-    if (!s.entity_id.startsWith('sensor.') && !s.entity_id.startsWith('binary_sensor.')) return false;
+    if (!s.entity_id.startsWith('sensor.') && !s.entity_id.startsWith('binary_sensor.'))
+      return false;
     if (s.state === 'unavailable' || s.state === 'unknown') return false;
     const lastChanged = new Date(s.last_changed);
     const hoursAgo = (now.getTime() - lastChanged.getTime()) / 3_600_000;
     return hoursAgo > 48;
   });
   if (staleSensors.length >= 5) {
-    const examples = staleSensors.slice(0, 5).map(s => `${s.entity_id} (${Math.round((now.getTime() - new Date(s.last_changed).getTime()) / 3_600_000)}h)`).join(', ');
+    const examples = staleSensors
+      .slice(0, 5)
+      .map(
+        s =>
+          `${s.entity_id} (${Math.round((now.getTime() - new Date(s.last_changed).getTime()) / 3_600_000)}h)`,
+      )
+      .join(', ');
     findings.push({
       title: `${staleSensors.length} Sensoren seit 48h+ unverändert`,
       asIs: `Sensoren ohne Statuswechsel: ${examples}`,
@@ -647,15 +704,15 @@ function analyzeNaming(states: HAState[]): Finding[] {
   // We can detect this by checking if areas are empty (requires area data)
   const domainsToCheck = ['light', 'switch', 'climate', 'cover', 'media_player'];
   const actionableEntities = states.filter(s =>
-    domainsToCheck.some(d => s.entity_id.startsWith(d + '.'))
+    domainsToCheck.some(d => s.entity_id.startsWith(d + '.')),
   );
   // Heuristic: if no areas are assigned, the entity cache will group everything under "Ohne Bereich"
   // We check for missing area_id in attributes (HA doesn't expose this in states API directly,
   // but we can flag if many entities seem unassigned)
 
   // Labels check: does HA have labels feature?
-  const hasLabels = states.some(s =>
-    Array.isArray(s.attributes['labels']) && (s.attributes['labels'] as unknown[]).length > 0
+  const hasLabels = states.some(
+    s => Array.isArray(s.attributes['labels']) && (s.attributes['labels'] as unknown[]).length > 0,
   );
   if (!hasLabels && actionableEntities.length > 20) {
     findings.push({
@@ -686,7 +743,10 @@ function analyzeAutomations(states: HAState[], now: Date): Finding[] {
   if (disabled.length >= 3) {
     findings.push({
       title: `${disabled.length} Automationen deaktiviert`,
-      asIs: `${disabled.length} Automationen sind ausgeschaltet: ${disabled.slice(0, 5).map(s => friendlyName(s)).join(', ')}`,
+      asIs: `${disabled.length} Automationen sind ausgeschaltet: ${disabled
+        .slice(0, 5)
+        .map(s => friendlyName(s))
+        .join(', ')}`,
       toBe: 'Prüfen: Noch benötigt? → Aktivieren oder löschen. Deaktivierte Automationen sind tote Konfiguration.',
       impact: 'Sauberkeit, Wartbarkeit',
       category: 'automation',
@@ -703,7 +763,10 @@ function analyzeAutomations(states: HAState[], now: Date): Finding[] {
   if (neverFired.length >= 2) {
     findings.push({
       title: `${neverFired.length} Automationen nie ausgelöst`,
-      asIs: `Automationen ohne bisherige Auslösung: ${neverFired.slice(0, 5).map(s => friendlyName(s)).join(', ')}`,
+      asIs: `Automationen ohne bisherige Auslösung: ${neverFired
+        .slice(0, 5)
+        .map(s => friendlyName(s))
+        .join(', ')}`,
       toBe: 'Trigger prüfen: Falsch konfiguriert? Bedingung nie erfüllt? Überflüssig? → Reparieren oder entfernen.',
       impact: 'Aufräumen, potenzielle Fehler finden',
       category: 'automation',
@@ -713,13 +776,14 @@ function analyzeAutomations(states: HAState[], now: Date): Finding[] {
   }
 
   // Missing common automations (suggest if not present)
-  const hasMotionLights = automations.some(s =>
-    s.entity_id.includes('motion') || s.entity_id.includes('bewegung') ||
-    friendlyName(s).toLowerCase().includes('motion') || friendlyName(s).toLowerCase().includes('bewegung')
+  const hasMotionLights = automations.some(
+    s =>
+      s.entity_id.includes('motion') ||
+      s.entity_id.includes('bewegung') ||
+      friendlyName(s).toLowerCase().includes('motion') ||
+      friendlyName(s).toLowerCase().includes('bewegung'),
   );
-  const hasMotionSensors = states.some(s =>
-    String(s.attributes['device_class']) === 'motion'
-  );
+  const hasMotionSensors = states.some(s => String(s.attributes['device_class']) === 'motion');
   if (hasMotionSensors && !hasMotionLights) {
     findings.push({
       title: 'Bewegungsmelder ohne Licht-Automatisierung',
@@ -735,13 +799,14 @@ function analyzeAutomations(states: HAState[], now: Date): Finding[] {
   // Night mode: lights on between 1:00-5:00
   const hour = now.getHours();
   if (hour >= 1 && hour <= 5) {
-    const nightLights = states.filter(s =>
-      s.entity_id.startsWith('light.') && s.state === 'on'
-    );
+    const nightLights = states.filter(s => s.entity_id.startsWith('light.') && s.state === 'on');
     if (nightLights.length >= 2) {
       findings.push({
         title: `${nightLights.length} Lichter mitten in der Nacht an`,
-        asIs: `Um ${hour}:00 Uhr sind ${nightLights.length} Lichter eingeschaltet: ${nightLights.slice(0, 4).map(s => friendlyName(s)).join(', ')}`,
+        asIs: `Um ${hour}:00 Uhr sind ${nightLights.length} Lichter eingeschaltet: ${nightLights
+          .slice(0, 4)
+          .map(s => friendlyName(s))
+          .join(', ')}`,
         toBe: 'Nachtmodus einrichten: Alle Lichter ab 1:00 automatisch aus (außer Nachtlicht). Benachrichtigung wenn Licht manuell eingeschaltet wird.',
         impact: 'Energieeinsparung, besserer Schlaf, Erkennung vergessener Lichter',
         category: 'energy',
@@ -756,8 +821,14 @@ function analyzeAutomations(states: HAState[], now: Date): Finding[] {
     if (!s.entity_id.startsWith('sensor.')) return false;
     const power = Number(s.state);
     const unit = String(s.attributes['unit_of_measurement'] ?? '');
-    return unit === 'W' && power > 2 && power < 15 &&
-           (s.entity_id.includes('plug') || s.entity_id.includes('steckdose') || s.entity_id.includes('power'));
+    return (
+      unit === 'W' &&
+      power > 2 &&
+      power < 15 &&
+      (s.entity_id.includes('plug') ||
+        s.entity_id.includes('steckdose') ||
+        s.entity_id.includes('power'))
+    );
   });
   if (smartPlugs.length >= 2) {
     const totalStandby = smartPlugs.reduce((sum, s) => sum + Number(s.state), 0);
@@ -791,10 +862,12 @@ function analyzeAutomations(states: HAState[], now: Date): Finding[] {
   }
 
   // Vacation mode: nobody home for extended period, no vacation automation
-  const presenceSensors = states.filter(s =>
-    s.entity_id.startsWith('person.') || String(s.attributes['device_class']) === 'presence'
+  const presenceSensors = states.filter(
+    s => s.entity_id.startsWith('person.') || String(s.attributes['device_class']) === 'presence',
   );
-  const allAway = presenceSensors.length > 0 && presenceSensors.every(s => s.state === 'not_home' || s.state === 'off');
+  const allAway =
+    presenceSensors.length > 0 &&
+    presenceSensors.every(s => s.state === 'not_home' || s.state === 'off');
   if (allAway) {
     const hasVacationMode = automations.some(s => {
       const id = s.entity_id.toLowerCase();
@@ -826,16 +899,20 @@ function friendlyName(s: HAState): string {
 }
 
 function isWindowSensor(s: HAState): boolean {
-  return s.entity_id.startsWith('binary_sensor.') && (
-    String(s.attributes['device_class']) === 'window' ||
-    s.entity_id.includes('window') || s.entity_id.includes('fenster')
+  return (
+    s.entity_id.startsWith('binary_sensor.') &&
+    (String(s.attributes['device_class']) === 'window' ||
+      s.entity_id.includes('window') ||
+      s.entity_id.includes('fenster'))
   );
 }
 
 function isDoorSensor(s: HAState): boolean {
-  return s.entity_id.startsWith('binary_sensor.') && (
-    String(s.attributes['device_class']) === 'door' ||
-    s.entity_id.includes('door') || s.entity_id.includes('tuer')
+  return (
+    s.entity_id.startsWith('binary_sensor.') &&
+    (String(s.attributes['device_class']) === 'door' ||
+      s.entity_id.includes('door') ||
+      s.entity_id.includes('tuer'))
   );
 }
 

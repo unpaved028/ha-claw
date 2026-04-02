@@ -34,7 +34,7 @@ export function initBacklogProcessor(buildAgent: () => AgentConfig): void {
   // One-time startup scan (delayed 10s to let everything initialize)
   setTimeout(() => {
     processQueue().catch(err =>
-      log.error('Backlog processor startup scan failed', { error: String(err) })
+      log.error('Backlog processor startup scan failed', { error: String(err) }),
     );
   }, 10_000);
 
@@ -56,9 +56,7 @@ export function notifyTaskChanged(): void {
   // Debounce: wait 2s before processing to coalesce rapid-fire status changes
   // (e.g., user approves multiple tasks quickly in the UI)
   setTimeout(() => {
-    processQueue().catch(err =>
-      log.error('Backlog processor tick failed', { error: String(err) })
-    );
+    processQueue().catch(err => log.error('Backlog processor tick failed', { error: String(err) }));
   }, 2_000);
 }
 
@@ -91,7 +89,7 @@ async function processQueue(): Promise<void> {
       pendingNotify = false;
       log.debug('Re-scanning backlog after pending notification');
       processQueue().catch(err =>
-        log.error('Backlog processor re-scan failed', { error: String(err) })
+        log.error('Backlog processor re-scan failed', { error: String(err) }),
       );
     }
   }

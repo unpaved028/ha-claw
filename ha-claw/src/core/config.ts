@@ -58,7 +58,13 @@ interface AddonOptions {
 function parseUserIds(raw: string | number[] | number): number[] {
   if (Array.isArray(raw)) return raw.map(Number).filter(Boolean);
   if (typeof raw === 'number') return [raw];
-  if (typeof raw === 'string') return raw.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n));
+  if (typeof raw === 'string')
+    return raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter(n => !isNaN(n));
   return [];
 }
 

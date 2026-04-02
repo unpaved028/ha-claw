@@ -14,13 +14,13 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 
 ## Konfiguration
 
-| Option | Pflicht | Beschreibung |
-|--------|---------|-------------|
-| `openrouter_api_key` | ✅ | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai)) |
-| `openrouter_default_model` | ❌ | LLM Model (Standard: `anthropic/claude-haiku-4.5`) |
-| `telegram_bot_token` | ❌ | Telegram Bot Token (von @BotFather) |
-| `telegram_allowed_user_ids` | ❌* | Telegram User-IDs die Zugriff haben (*Pflicht wenn Bot aktiv) |
-| `log_level` | ❌ | `debug`, `info`, `warn`, `error` (Standard: `info`) |
+| Option                      | Pflicht | Beschreibung                                                     |
+| --------------------------- | ------- | ---------------------------------------------------------------- |
+| `openrouter_api_key`        | ✅      | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai)) |
+| `openrouter_default_model`  | ❌      | LLM Model (Standard: `anthropic/claude-haiku-4.5`)               |
+| `telegram_bot_token`        | ❌      | Telegram Bot Token (von @BotFather)                              |
+| `telegram_allowed_user_ids` | ❌\*    | Telegram User-IDs die Zugriff haben (\*Pflicht wenn Bot aktiv)   |
+| `log_level`                 | ❌      | `debug`, `info`, `warn`, `error` (Standard: `info`)              |
 
 ## Sicherheit & Datenfluss
 
@@ -33,6 +33,7 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 ## Ersteinrichtung (Onboarding)
 
 Beim ersten Start führt der Bot ein natürliches Gespräch, um dich kennenzulernen:
+
 - Wie soll der Bot heißen?
 - Wie heißt du?
 - Welchen Kommunikationsstil bevorzugst du? (Direktheit, Formalität, Humor, Ausführlichkeit)
@@ -42,6 +43,7 @@ Nach der Einrichtung stellt sich der Bot vor und bietet an, eine wöchentliche a
 ## Timer & Erinnerungen
 
 Du kannst einmalige Timer und Erinnerungen erstellen:
+
 - "Erinnere mich in 30 Minuten an den Müll"
 - "Schalte in 10 Minuten das Licht im Keller aus"
 - "Um 14:30 Bescheid sagen, dass der Kuchen fertig ist"
@@ -51,6 +53,7 @@ Die Erinnerungen werden automatisch per Telegram zugestellt.
 ## Wiederkehrende Jobs
 
 Für regelmäßige Aufgaben:
+
 - `every 5m` – alle 5 Minuten
 - `daily 07:00` – täglich um 07:00
 - `weekdays 08:00` – Mo–Fr um 08:00
@@ -60,6 +63,7 @@ Für regelmäßige Aufgaben:
 ## Daten & Backup
 
 Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Backups gesichert:
+
 - **notes** – Notizen und Wissen
 - **conversations** – Chat-Verlauf
 - **memory** – Agent-Langzeitgedächtnis
@@ -70,6 +74,7 @@ Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Ba
 ## Sicherheit bei Geraetesteuerung
 
 Gefaehrliche Aktionen (Schloesser, Alarmanlagen, Automationen, Loeschungen) erfordern eine Bestaetigung:
+
 - **Telegram**: Inline-Buttons (Ja/Nein) direkt im Chat
 - **Web UI**: Bestaetigungs-Modal mit Details zur geplanten Aktion. Automatische Ablehnung nach 60 Sekunden.
 
@@ -82,6 +87,7 @@ HA-Claw versteht die räumliche Struktur deines Zuhauses:
 - **Automationen**: Der Bot kann Automations-Konfigurationen lesen (Trigger, Bedingungen, Aktionen) und in einfacher Sprache erklären
 
 Beispiele:
+
 - "Welche Geräte sind im Wohnzimmer?"
 - "Zeig mir alle Räume im Obergeschoss"
 - "Was macht die Automation Bewegungslicht Flur?"

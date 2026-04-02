@@ -122,9 +122,11 @@ export async function updateCard(
     version: existing.version + 1,
     previousContent: existing.content,
     // Re-extract tags if content changed
-    tags: updates.tags ?? (updates.content
-      ? extractKeywords((updates.title ?? existing.title) + ' ' + updates.content)
-      : existing.tags),
+    tags:
+      updates.tags ??
+      (updates.content
+        ? extractKeywords((updates.title ?? existing.title) + ' ' + updates.content)
+        : existing.tags),
   };
 
   await atomicWrite(cardPath(id), updated);
@@ -178,21 +180,18 @@ export async function listCards(): Promise<MemoryCard[]> {
  *
  * Returns top-N cards sorted by relevance score.
  */
-export async function searchCards(
-  query: string,
-  maxResults = 5,
-): Promise<CardSearchResult[]> {
+export async function searchCards(query: string, maxResults = 5): Promise<CardSearchResult[]> {
   const cards = await listCards();
   if (cards.length === 0) return [];
 
   const queryTokens = tokenize(query);
   const now = Date.now();
 
-  const scored: CardSearchResult[] = cards.map((card) => {
+  const scored: CardSearchResult[] = cards.map(card => {
     let score = 0;
 
     // 1. Tag match (high weight)
-    const tagSet = new Set(card.tags.map((t) => t.toLowerCase()));
+    const tagSet = new Set(card.tags.map(t => t.toLowerCase()));
     for (const qt of queryTokens) {
       if (tagSet.has(qt)) score += 3.0;
     }
@@ -227,7 +226,7 @@ export async function searchCards(
 
   // Filter cards with score > 0 and sort by score
   const relevant = scored
-    .filter((r) => r.score > 0.5)
+    .filter(r => r.score > 0.5)
     .sort((a, b) => b.score - a.score)
     .slice(0, maxResults);
 
@@ -248,7 +247,7 @@ export async function searchCards(
 export function buildMemoryContext(results: CardSearchResult[]): string {
   if (results.length === 0) return '';
 
-  const lines = results.map((r) => {
+  const lines = results.map(r => {
     const age = Math.floor(
       (Date.now() - new Date(r.card.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
     );
@@ -266,23 +265,74 @@ function tokenize(text: string): string[] {
     .toLowerCase()
     .replace(/[^a-zäöüß0-9\s-]/g, '')
     .split(/\s+/)
-    .filter((t) => t.length > 2);
+    .filter(t => t.length > 2);
 }
 
 function extractKeywords(text: string): string[] {
   // Stop words (German)
   const stop = new Set([
-    'der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einer', 'eines',
-    'und', 'oder', 'aber', 'wenn', 'weil', 'dass', 'ist', 'sind', 'war', 'hat',
-    'haben', 'wird', 'werden', 'kann', 'mit', 'von', 'für', 'auf', 'aus', 'bei',
-    'nach', 'über', 'unter', 'nicht', 'auch', 'noch', 'nur', 'schon', 'sehr',
-    'wie', 'was', 'wer', 'wir', 'ich', 'sie', 'man', 'sich', 'zum', 'zur',
-    'the', 'and', 'for', 'with', 'from', 'this', 'that', 'are', 'was', 'has',
+    'der',
+    'die',
+    'das',
+    'den',
+    'dem',
+    'des',
+    'ein',
+    'eine',
+    'einer',
+    'eines',
+    'und',
+    'oder',
+    'aber',
+    'wenn',
+    'weil',
+    'dass',
+    'ist',
+    'sind',
+    'war',
+    'hat',
+    'haben',
+    'wird',
+    'werden',
+    'kann',
+    'mit',
+    'von',
+    'für',
+    'auf',
+    'aus',
+    'bei',
+    'nach',
+    'über',
+    'unter',
+    'nicht',
+    'auch',
+    'noch',
+    'nur',
+    'schon',
+    'sehr',
+    'wie',
+    'was',
+    'wer',
+    'wir',
+    'ich',
+    'sie',
+    'man',
+    'sich',
+    'zum',
+    'zur',
+    'the',
+    'and',
+    'for',
+    'with',
+    'from',
+    'this',
+    'that',
+    'are',
+    'was',
+    'has',
   ]);
 
-  return [...new Set(
-    tokenize(text).filter((t) => !stop.has(t) && t.length > 2),
-  )].slice(0, 15);
+  return [...new Set(tokenize(text).filter(t => !stop.has(t) && t.length > 2))].slice(0, 15);
 }
 
 async function atomicWrite(path: string, data: unknown): Promise<void> {

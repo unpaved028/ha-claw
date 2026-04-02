@@ -14,20 +14,20 @@ Answer three questions before touching anything:
 
 1. **What changes?** Entity ID, automation structure, sensor type, or trigger semantics.
 2. **What sibling entities share the same device?** Query the device to list every entity it owns (battery sensor, update entity, diagnostic button). Plan changes for all siblings together.
-   - *Tool hint:* `ha_get_device(entity_id="...")` if available, or inspect Settings > Devices.
+   - _Tool hint:_ `ha_get_device(entity_id="...")` if available, or inspect Settings > Devices.
 3. **Rename one entity or all device entities?** Devices bundle 2-6 entities. Renaming the primary but leaving siblings with the old naming scheme creates inconsistency.
 
 ### Step 2: Search ALL consumers
 
 Search every component type that references entity IDs. Do not limit searches to the component you are editing.
 
-| Component | How to search |
-|-----------|---------------|
-| Automations | `ha_deep_search(query="entity_id")` or grep `automations.yaml` |
-| Dashboards | `ha_dashboard_find_card(entity_id="...")` or grep `.storage/lovelace*`, `ui-lovelace.yaml` |
-| Scripts | grep `scripts.yaml` |
-| Scenes | grep `scenes.yaml` |
-| Other | Check AppDaemon apps, Node-RED flows, Pyscript scripts, or any custom integration that references entity IDs |
+| Component   | How to search                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------ |
+| Automations | `ha_deep_search(query="entity_id")` or grep `automations.yaml`                                               |
+| Dashboards  | `ha_dashboard_find_card(entity_id="...")` or grep `.storage/lovelace*`, `ui-lovelace.yaml`                   |
+| Scripts     | grep `scripts.yaml`                                                                                          |
+| Scenes      | grep `scenes.yaml`                                                                                           |
+| Other       | Check AppDaemon apps, Node-RED flows, Pyscript scripts, or any custom integration that references entity IDs |
 
 Record every location found. This list becomes your update checklist for Step 4.
 
@@ -42,7 +42,7 @@ Work through each location from your Step 2 checklist. Update every reference to
 ### Step 5: Verify
 
 1. **Search for the OLD identifier** across all component types. Expect zero results.
-   - *Tool hint:* `ha_search_entities(query="old_name")` or grep all config files.
+   - _Tool hint:_ `ha_search_entities(query="old_name")` or grep all config files.
 2. **Search for the NEW identifier** to confirm all expected locations reference it.
 3. **Reload or check dashboards** if entity IDs changed.
 4. **If stale references remain that you cannot update**, rename the entity back to its original ID to restore functionality, then report the blocking locations to the user.
@@ -58,11 +58,11 @@ HA devices bundle multiple entities. A smart plug might expose `switch.*`, `sens
 
 Example — renaming a smart plug's entities from manufacturer defaults to room-based names:
 
-| Domain | Old entity ID | New entity ID |
-|---|---|---|
-| switch | `switch.shellyplug_s_a1b2c3d4e5f6` | `switch.office_heater` |
+| Domain | Old entity ID                             | New entity ID                 |
+| ------ | ----------------------------------------- | ----------------------------- |
+| switch | `switch.shellyplug_s_a1b2c3d4e5f6`        | `switch.office_heater`        |
 | sensor | `sensor.shellyplug_s_a1b2c3d4e5f6_energy` | `sensor.office_heater_energy` |
-| update | `update.shellyplug_s_a1b2c3d4e5f6` | `update.office_heater` |
+| update | `update.shellyplug_s_a1b2c3d4e5f6`        | `update.office_heater`        |
 
 **Dashboard reference locations (Step 2):**
 Dashboard cards reference entities in multiple places. Search all of these:
@@ -91,7 +91,7 @@ Verify the new helper produces the same values as the old template sensor. Check
 When converting `device_id` triggers to `entity_id` triggers, or replacing `wait_template` with `wait_for_trigger`:
 
 **Behavioral equivalence (Step 1):**
-`wait_for_trigger` waits for a state *change*; `wait_template` polls for *current state*. These differ when the target state is already true at wait start: `wait_for_trigger` blocks indefinitely, `wait_template` returns immediately.
+`wait_for_trigger` waits for a state _change_; `wait_template` polls for _current state_. These differ when the target state is already true at wait start: `wait_for_trigger` blocks indefinitely, `wait_template` returns immediately.
 
 **Automation callers (Step 2):**
 Search for scripts or other automations that call the automation you are restructuring via `automation.trigger` or `automation.turn_on`. Renaming or splitting an automation changes its entity_id and breaks these callers.

@@ -38,7 +38,7 @@ export async function logAction(
   category: ActionEntry['category'],
   description: string,
   tool?: string,
-  rollback?: ActionEntry['rollback']
+  rollback?: ActionEntry['rollback'],
 ): Promise<void> {
   const entry: ActionEntry = {
     id: Math.random().toString(36).substring(2, 11),
@@ -63,7 +63,7 @@ export async function listActions(limit = 50): Promise<ActionEntry[]> {
     const raw = await readFile(ACTIONS_PATH, 'utf-8');
     const lines = raw.trim().split('\n').filter(Boolean);
     return lines
-      .map((l) => JSON.parse(l) as ActionEntry)
+      .map(l => JSON.parse(l) as ActionEntry)
       .reverse()
       .slice(0, limit);
   } catch {
