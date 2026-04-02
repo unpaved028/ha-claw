@@ -57,6 +57,23 @@ export async function initBacklog(): Promise<void> {
   log.info('Backlog initialized', { dir: BACKLOG_DIR });
 }
 
+// ── Status Change Listener ───────────────────────────────
+
+/** Callback invoked when a task reaches a processable status. */
+type BacklogListener = () => void;
+let onTaskStatusChanged: BacklogListener | null = null;
+
+/**
+ * Register a listener that fires when a task transitions to
+ * 'approved' or 'solution_approved' (used by backlog-processor).
+ */
+export function onProcessableStatusChange(listener: BacklogListener): void {
+  onTaskStatusChanged = listener;
+}
+
+/** Statuses that trigger automatic processing. */
+const PROCESSABLE_STATUSES = new Set(['approved', 'solution_approved']);
+
 // ── CRUD ──────────────────────────────────────────────────
 
 function taskPath(id: string): string {
@@ -124,6 +141,12 @@ export async function updateTask(
 
   await atomicWrite(taskPath(id), updated);
   log.info('Backlog task updated', { id, status: updated.status });
+
+  // Notify processor if task reached a processable status
+  if (updates.status && PROCESSABLE_STATUSES.has(updates.status) && onTaskStatusChanged) {
+    onTaskStatusChanged();
+  }
+
   return updated;
 }
 

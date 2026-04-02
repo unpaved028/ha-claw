@@ -5,11 +5,12 @@
  * - approved → generate solution → solution_proposed
  * - solution_approved → execute solution → done
  *
- * Polls every 30 seconds.
+ * Event-driven: triggers on task status changes via notifyTaskChanged().
+ * No polling – zero token cost when idle.
  */
 
 import { createLogger } from '../core/logger.js';
-import { getTask, updateTask, listTasks } from './backlog.js';
+import { getTask, updateTask, listTasks, onProcessableStatusChange } from './backlog.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import type { AgentConfig } from '../core/types.js';
 
@@ -17,20 +18,56 @@ const log = createLogger('backlog-proc');
 
 let agentBuilder: (() => AgentConfig) | null = null;
 let processing = false; // prevent overlapping runs
+let pendingNotify = false; // coalesce rapid-fire notifications
 
+/**
+ * Initialize the backlog processor.
+ * On startup, runs one initial scan to catch tasks that were approved/solution_approved
+ * before the add-on started. After that, processing is purely event-driven.
+ */
 export function initBacklogProcessor(buildAgent: () => AgentConfig): void {
   agentBuilder = buildAgent;
-  setInterval(() => {
-    if (processing) return;
+
+  // Register event listener: trigger processing when tasks reach processable status
+  onProcessableStatusChange(notifyTaskChanged);
+
+  // One-time startup scan (delayed 10s to let everything initialize)
+  setTimeout(() => {
+    processQueue().catch(err =>
+      log.error('Backlog processor startup scan failed', { error: String(err) })
+    );
+  }, 10_000);
+
+  log.info('Backlog processor initialized (event-driven)');
+}
+
+/**
+ * Notify the processor that a task status changed.
+ * Call this whenever a backlog task is updated to 'approved' or 'solution_approved'.
+ * Coalesces rapid-fire notifications into a single processing run.
+ */
+export function notifyTaskChanged(): void {
+  if (processing) {
+    // Already running – remember to re-scan when done
+    pendingNotify = true;
+    return;
+  }
+
+  // Debounce: wait 2s before processing to coalesce rapid-fire status changes
+  // (e.g., user approves multiple tasks quickly in the UI)
+  setTimeout(() => {
     processQueue().catch(err =>
       log.error('Backlog processor tick failed', { error: String(err) })
     );
-  }, 30_000);
-  log.info('Backlog processor initialized (polling every 30s)');
+  }, 2_000);
 }
 
 async function processQueue(): Promise<void> {
   if (!agentBuilder) return;
+  if (processing) {
+    pendingNotify = true;
+    return;
+  }
   processing = true;
 
   try {
@@ -48,6 +85,15 @@ async function processQueue(): Promise<void> {
     }
   } finally {
     processing = false;
+
+    // If someone notified while we were processing, run again
+    if (pendingNotify) {
+      pendingNotify = false;
+      log.debug('Re-scanning backlog after pending notification');
+      processQueue().catch(err =>
+        log.error('Backlog processor re-scan failed', { error: String(err) })
+      );
+    }
   }
 }
 

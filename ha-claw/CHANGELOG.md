@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.2
+
+### Changed
+- **Backlog Processor – Event-Driven Architecture**: Replaced the 30-second `setInterval` polling with an event-driven model. Task processing now triggers only when a task transitions to `approved` or `solution_approved` status. Zero LLM calls and zero token cost when idle.
+- **Startup Scan**: One-time scan on startup (10s delay) catches tasks that were approved before the add-on started.
+- **Debounced Coalescing**: Rapid-fire status changes (e.g., user approves multiple tasks quickly) are coalesced into a single processing run via 2s debounce.
+- **Backlog Event Hook**: `backlog.ts` now exposes `onProcessableStatusChange()` callback, decoupling the processor from the storage layer without circular imports.
+
+---
+
 ## 0.6.1
 
 ### Fixed

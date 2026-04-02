@@ -3,7 +3,7 @@
 ## Was ist HA-Claw?
 Lokaler KI-Assistent als Home Assistant Add-on. Agentic Loop mit Tool Calling, Web UI (Ingress), Telegram Bot. Nutzt OpenRouter für LLM-Zugang.
 
-## Aktuelle Version: 0.6.0
+## Aktuelle Version: 0.6.2
 
 ## Architektur (Kerndateien)
 
@@ -33,7 +33,8 @@ ha-claw/
 │   │   ├── learning.ts           # Corrections, Patterns, Errors, Prompt Patches
 │   │   ├── action-log.ts         # JSONL Action Log mit Rollback
 │   │   ├── scheduler.ts          # Cron Jobs + One-Shot Timer
-│   │   └── backlog.ts            # Verbesserungsvorschläge mit Approval-Workflow
+│   │   ├── backlog.ts            # Verbesserungsvorschläge mit Approval-Workflow
+│   │   └── backlog-processor.ts  # Event-driven Task-Ausführung (kein Polling)
 │   ├── web/
 │   │   ├── server.ts             # Fastify Server (Chat API, Settings, Safety Gate, Cache Refresh)
 │   │   └── dashboard.ts          # Komplettes Web UI als HTML-String (2700+ Zeilen)
@@ -82,6 +83,8 @@ ha-claw/
 | 0.5.1 | 2026-04-01 | Floor-Hierarchie, 3 neue Tools (ha_list_areas, ha_resolve_group, ha_get_automation_config), Entity-Komprimierung, Version-Fix Mobile |
 | 0.5.2 | 2026-04-01 | 3-Tier Fallback für Area/Floor (Registry→Template→ID-Parsing), Template-Timeout |
 | 0.6.0 | 2026-04-01 | Sensoren im Cache, Typing-Indikator, Web Safety Gate, Area-Filter Suche, Auto-Refresh Cache |
+| 0.6.1 | 2026-04-02 | Fenster/Tür-Sensor Identifikation Fix, Butler-Prompt Sensor-Awareness |
+| 0.6.2 | 2026-04-02 | Backlog Processor: Event-driven statt 30s-Polling, zero Token cost when idle |
 
 ## Nächste Schritte (Roadmap)
 
@@ -107,4 +110,4 @@ ha-claw/
 - Dashboard ist ein 2700-Zeilen HTML-String in TypeScript (schwer wartbar)
 - Kein Linting (eslint) oder Formatting (prettier) konfiguriert
 - Memory Card Suche ist O(n) Linear-Scan (wird bei 1000+ Cards langsam)
-- Backlog Processor pollt alle 30s und kann unnötig Token verbrauchen
+- ~~Backlog Processor pollt alle 30s~~ → gelöst in v0.6.2 (event-driven)
