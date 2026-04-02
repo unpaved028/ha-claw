@@ -9,6 +9,7 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 - **Telegram Bot** — Full chat interface with inline-keyboard safety gate for dangerous actions
 - **Web Safety Gate** — Confirmation modal for dangerous actions (locks, alarms, automations) in the Web UI
 - **Home Assistant Integration** — Entity discovery, service calls with verification, Floor → Area → Entity spatial hierarchy, group resolution, automation inspection
+- **Sensor Awareness** — Window, door, motion, smoke, and moisture sensors displayed per room with type-icons (🪟🚪🏃🔥💧) and entity IDs for precise identification
 - **HA Best Practices** — Built-in knowledge base for automations, templates, helpers, device control, and safe refactoring
 - **Backlog Automation** — AI proposes, generates, and executes improvement tasks through an approval workflow
 - **Tool Complexity Levels** — Map different LLM models to tool complexity (1-3) for cost optimization

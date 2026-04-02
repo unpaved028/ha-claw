@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1
+
+### Fixed
+- **Window/Door Sensor Identification**: Entity cache now shows each important sensor (window, door, motion, smoke, moisture) as an individual line with entity_id and type-icon (🪟🚪🏃🔥💧), instead of a compact unnamed list. The bot can now correctly identify, distinguish, and respond to sensor queries per room.
+
+### Changed
+- **Butler Prompt – Sensor Awareness (§3d)**: Added dedicated section explaining how binary sensors for windows, doors, and motion work. The bot now understands type-icons in the entity cache and knows these sensors are read-only.
+- **Entity Cache Format**: Important sensors changed from `_Sensoren:_ Name (zu), Name (offen)` to individual lines like `- 🪟 Fenster Nord → \`binary_sensor.xyz\` (zu)`.
+
+---
+
 ## 0.6.0
 
 ### Added

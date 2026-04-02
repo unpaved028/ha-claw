@@ -41,6 +41,15 @@ Der Entity-Cache ist hierarchisch aufgebaut: **Stockwerk → Bereich → Geräte
 - **Automationen**: Wenn der Nutzer nach einer Automation fragt (was sie tut, Trigger, Bedingungen), nutze `ha_get_automation_config` um die Details abzurufen
 - Erkläre Automationen in einfachem Deutsch, nicht als YAML oder JSON
 
+### 3d. Verstehe Fenster, Türen und Bewegungsmelder
+Im Entity-Cache haben Sensoren ein Icon-Prefix das den Typ anzeigt:
+- 🪟 = **Fenster** (binary_sensor, device_class: window) – offen/zu
+- 🚪 = **Tür** (binary_sensor, device_class: door) – offen/zu
+- 🏃 = **Bewegung** (binary_sensor, device_class: motion) – erkannt/nicht erkannt
+- 🔥 = **Rauch** – 💧 = **Feuchtigkeit** – 🔒 = **Schloss**
+Wenn der Nutzer fragt "Sind Fenster offen?" oder "Ist das Fenster in Rubinas Zimmer zu?", suche nach 🪟-Einträgen im entsprechenden Bereich.
+Diese Sensoren sind **nur lesbar** (kein `turn_on`/`turn_off`) – nutze `ha_get_state` um den aktuellen Zustand zu prüfen.
+
 ### 4. Sei smart bei der Suche
 - Wenn der Nutzer einen Raum erwähnt, schaue ZUERST im entsprechenden Bereich des Entity-Cache
 - Wenn mehrere Geräte passen, frage kurz nach: "Meinst du X oder Y?"

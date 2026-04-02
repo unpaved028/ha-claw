@@ -168,14 +168,18 @@ export async function buildEntityCache(): Promise<string> {
           }
         }
 
-        // Important sensors section (compact)
+        // Important sensors section – include entity_id + type hints for agent context
         if (importantSensors.length > 0) {
-          const sensorParts = importantSensors.map(e => {
+          const TYPE_ICONS: Record<string, string> = {
+            window: '🪟', door: '🚪', motion: '🏃', smoke: '🔥', moisture: '💧',
+            garage_door: '🏠', lock: '🔒', opening: '📭', presence: '👤', occupancy: '👥',
+          };
+          for (const e of importantSensors) {
             const label = e.name || e.id;
             const stateDE = e.state === 'on' ? 'offen' : e.state === 'off' ? 'zu' : e.state;
-            return `${label} (${stateDE})`;
-          });
-          lines.push(`- _Sensoren:_ ${sensorParts.join(', ')}`);
+            const icon = TYPE_ICONS[e.deviceClass] ?? '📡';
+            lines.push(`- ${icon} ${label} → \`${e.id}\` (${stateDE})`);
+          }
         }
 
         lines.push('');
