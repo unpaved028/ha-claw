@@ -122,6 +122,11 @@ export function registerHATools(): void {
         description:
           'Optional: filter by area/room name (e.g. "Wohnzimmer", "OG Bad"). Matches area names from the entity cache.',
       },
+      device_class: {
+        type: 'string',
+        description:
+          'Optional: filter by device_class (e.g. "window", "door", "motion", "temperature", "battery"). Use this for more reliable sensor discovery.',
+      },
       limit: {
         type: 'number',
         description: 'Max results to return (default 20)',
@@ -131,6 +136,7 @@ export function registerHATools(): void {
       const query = ((args['query'] as string) ?? '').toLowerCase();
       const domain = (args['domain'] as string) ?? '';
       const areaFilter = ((args['area'] as string) ?? '').toLowerCase();
+      const deviceClassFilter = ((args['device_class'] as string) ?? '').toLowerCase();
       const limit = (args['limit'] as number) ?? 20;
 
       // If area filter is set, resolve area → entity_ids first
@@ -151,6 +157,10 @@ export function registerHATools(): void {
         .filter(s => {
           if (domain && !s.entity_id.startsWith(domain + '.')) return false;
           if (areaEntityIds && !areaEntityIds.has(s.entity_id)) return false;
+          if (deviceClassFilter) {
+            const dc = String(s.attributes['device_class'] ?? '').toLowerCase();
+            if (dc !== deviceClassFilter) return false;
+          }
           if (!query) return true;
           const name = String(s.attributes['friendly_name'] ?? '').toLowerCase();
           return s.entity_id.includes(query) || name.includes(query);

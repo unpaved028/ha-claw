@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4
+
+### Fixed
+
+- **Fenstersensor-Erkennung**: `ha_search_entities` Tool erweitert um einen optionalen `device_class` Filter. Dies ermöglicht dem Bot, gezielt nach `window`, `door`, `motion` etc. zu suchen, was die Erkennung von Sensoren unabhängig von ihrem Namen massiv verbessert.
+
+---
+
 ## 0.6.3
 
 ### Fixed
