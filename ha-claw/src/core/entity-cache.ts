@@ -14,7 +14,7 @@ import { createLogger } from './logger.js';
 
 const log = createLogger('entity-cache');
 
-let cachedSummary = '';
+
 
 /** Device classes of binary_sensor to include in cache (safety/spatial relevance). */
 const IMPORTANT_SENSOR_CLASSES = new Set([
@@ -28,6 +28,45 @@ const IMPORTANT_SENSOR_CLASSES = new Set([
   'opening',
   'presence',
   'occupancy',
+]);
+
+interface EntityInfo {
+  id: string;
+  name: string;
+  state: string;
+  domain: string;
+  deviceClass: string;
+}
+
+/** Structured storage for dynamic pruning */
+let lastGroupedData: Map<string, Map<string, EntityInfo[]>> | null = null;
+let lastFloorAreas: Map<string, string[]> | null = null;
+let lastAreaToFloor: Map<string, string> | null = null;
+let cachedFullSummary = '';
+
+/** Actionable domains shown with full detail */
+const ACTIONABLE_DOMAINS = new Set([
+  'light',
+  'switch',
+  'scene',
+  'media_player',
+  'cover',
+  'fan',
+  'climate',
+  'vacuum',
+  'humidifier',
+  'water_heater',
+  'script',
+  'input_boolean',
+  'input_number',
+  'input_select',
+  'input_text',
+  'number',
+  'select',
+  'button',
+  'lock',
+  'alarm_control_panel',
+  'automation',
 ]);
 
 /**
@@ -63,15 +102,9 @@ export async function buildEntityCache(): Promise<string> {
         areaToFloor.set(aName, floorName);
       }
     }
+    lastAreaToFloor = areaToFloor;
 
-    // Build state lookup (include device_class for sensor filtering)
-    interface EntityInfo {
-      id: string;
-      name: string;
-      state: string;
-      domain: string;
-      deviceClass: string;
-    }
+    // Build state lookup
     const stateMap = new Map<string, EntityInfo>();
     for (const s of states) {
       const dot = s.entity_id.indexOf('.');
@@ -83,7 +116,6 @@ export async function buildEntityCache(): Promise<string> {
 
     // Group: area → domain → entities
     const grouped = new Map<string, Map<string, EntityInfo[]>>();
-
     for (const [eid, info] of stateMap) {
       const area = entityToArea.get(eid) || 'Ohne Bereich';
       if (!grouped.has(area)) grouped.set(area, new Map());
@@ -91,31 +123,7 @@ export async function buildEntityCache(): Promise<string> {
       if (!domainMap.has(info.domain)) domainMap.set(info.domain, []);
       domainMap.get(info.domain)!.push(info);
     }
-
-    // Actionable domains shown with full detail
-    const ACTIONABLE_DOMAINS = new Set([
-      'light',
-      'switch',
-      'scene',
-      'media_player',
-      'cover',
-      'fan',
-      'climate',
-      'vacuum',
-      'humidifier',
-      'water_heater',
-      'script',
-      'input_boolean',
-      'input_number',
-      'input_select',
-      'input_text',
-      'number',
-      'select',
-      'button',
-      'lock',
-      'alarm_control_panel',
-      'automation',
-    ]);
+    lastGroupedData = grouped;
 
     // Group areas by floor
     const floorAreas = new Map<string, string[]>();
@@ -125,133 +133,144 @@ export async function buildEntityCache(): Promise<string> {
       if (!floorAreas.has(floor)) floorAreas.set(floor, []);
       floorAreas.get(floor)!.push(area);
     }
+    lastFloorAreas = floorAreas;
 
-    // Sort floors alphabetically, "Kein Stockwerk" last
-    const floorNames = [...floorAreas.keys()].sort((a, b) => {
-      if (a === 'Kein Stockwerk') return 1;
-      if (b === 'Kein Stockwerk') return -1;
-      return a.localeCompare(b, 'de');
-    });
+    // Build full summary once
+    cachedFullSummary = renderCache();
 
-    // Build compact text
-    const lines: string[] = [];
-
-    for (const floor of floorNames) {
-      const areas = floorAreas.get(floor)!.sort((a, b) => {
-        if (a === 'Ohne Bereich') return 1;
-        if (b === 'Ohne Bereich') return -1;
-        return a.localeCompare(b, 'de');
-      });
-
-      // Check if any area in this floor has relevant entities (actionable OR important sensors)
-      const hasRelevant = areas.some(area => {
-        const domainMap = grouped.get(area)!;
-        if ([...domainMap.keys()].some(d => ACTIONABLE_DOMAINS.has(d))) return true;
-        // Check for important binary_sensors
-        const binarySensors = domainMap.get('binary_sensor') ?? [];
-        return binarySensors.some(e => IMPORTANT_SENSOR_CLASSES.has(e.deviceClass));
-      });
-      if (!hasRelevant) continue;
-
-      lines.push(`# ${floor}`);
-
-      for (const area of areas) {
-        const domainMap = grouped.get(area)!;
-        const relevantDomains = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).sort();
-
-        // Filter important binary_sensors for this area
-        const importantSensors = (domainMap.get('binary_sensor') ?? []).filter(e =>
-          IMPORTANT_SENSOR_CLASSES.has(e.deviceClass),
-        );
-
-        if (relevantDomains.length === 0 && importantSensors.length === 0) continue;
-
-        lines.push(`## ${area}`);
-
-        // Actionable domains
-        for (const domain of relevantDomains) {
-          const entities = domainMap.get(domain)!;
-
-          // Compress: if ≥3 entities of same domain share the same state, group them
-          if (entities.length >= 3) {
-            const byState = new Map<string, EntityInfo[]>();
-            for (const e of entities) {
-              if (!byState.has(e.state)) byState.set(e.state, []);
-              byState.get(e.state)!.push(e);
-            }
-
-            for (const [state, group] of byState) {
-              if (group.length >= 3) {
-                const ids = group.map(e => `\`${e.id}\``).join(', ');
-                lines.push(`- ${group.length}× ${domain} (alle ${state}): ${ids}`);
-              } else {
-                for (const e of group) {
-                  const label = e.name || e.id;
-                  lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
-                }
-              }
-            }
-          } else {
-            for (const e of entities) {
-              const label = e.name || e.id;
-              lines.push(`- ${label} → \`${e.id}\` (${e.state})`);
-            }
-          }
-        }
-
-        // Important sensors section – include entity_id + type hints for agent context
-        if (importantSensors.length > 0) {
-          const TYPE_ICONS: Record<string, string> = {
-            window: '🪟',
-            door: '🚪',
-            motion: '🏃',
-            smoke: '🔥',
-            moisture: '💧',
-            garage_door: '🏠',
-            lock: '🔒',
-            opening: '📭',
-            presence: '👤',
-            occupancy: '👥',
-          };
-          for (const e of importantSensors) {
-            const label = e.name || e.id;
-            const stateDE = e.state === 'on' ? 'offen' : e.state === 'off' ? 'zu' : e.state;
-            const icon = TYPE_ICONS[e.deviceClass] ?? '📡';
-            lines.push(`- ${icon} ${label} → \`${e.id}\` (${stateDE})`);
-          }
-        }
-
-        lines.push('');
-      }
-    }
-
-    // Append remaining sensor summary (count only for non-important sensors)
-    const sensorCount = states.filter(s => s.entity_id.startsWith('sensor.')).length;
-    const binarySensorCount = states.filter(s => s.entity_id.startsWith('binary_sensor.')).length;
-    lines.push(
-      `_Weitere Sensoren: ${sensorCount} sensor, ${binarySensorCount} binary_sensor – nutze ha_search_entities oder ha_get_state um Sensorwerte abzufragen._`,
-    );
-
-    cachedSummary = lines.join('\n');
     log.info('Entity cache built', {
-      floors: floorNames.length,
       areas: allAreas.length,
-      chars: cachedSummary.length,
+      chars: cachedFullSummary.length,
     });
 
-    return cachedSummary;
+    return cachedFullSummary;
   } catch (err) {
-    log.warn('Entity cache build failed – agent will work without cache', {
-      error: String(err),
-    });
-    cachedSummary = '(Entity-Cache nicht verfügbar – nutze ha_search_entities zum Suchen.)';
-    return cachedSummary;
+    log.warn('Entity cache build failed', { error: String(err) });
+    cachedFullSummary = '(Entity-Cache nicht verfügbar – nutze ha_search_entities zum Suchen.)';
+    return cachedFullSummary;
   }
 }
 
 /**
- * Get the cached entity summary (empty string if not yet built).
+ * Get a dynamic pruned version of the entity cache based on the user's query.
+ * If specific areas are mentioned, only those are shown in detail.
+ */
+export function getDynamicPrunedCache(query: string): string {
+  if (!lastGroupedData || !lastFloorAreas || !lastAreaToFloor) return cachedFullSummary;
+
+  const queryLower = query.toLowerCase();
+  const allAreas = [...lastGroupedData.keys()];
+
+  // Find mentioned areas
+  const mentionedAreas = allAreas.filter(area => {
+    if (area === 'Ohne Bereich') return false;
+    // Check for exact word match to avoid false positives (e.g. "Bad" in "Badezimmer")
+    const regex = new RegExp(`\\b${area.toLowerCase()}\\b`, 'i');
+    return regex.test(queryLower);
+  });
+
+  // If no areas mentioned, or it's a broad query, return full summary (or a smart subset)
+  if (mentionedAreas.length === 0) {
+    // If the cache is very large (> 10k chars), maybe prune it even without mentions?
+    // For now, return full.
+    return cachedFullSummary;
+  }
+
+  // Always include "Global" or "Safety" areas if they exist (custom logic could go here)
+  return renderCache(mentionedAreas);
+}
+
+/**
+ * Helper to render the structured data into the final string with optional pruning.
+ */
+function renderCache(focusAreas?: string[]): string {
+  if (!lastFloorAreas || !lastGroupedData || !lastAreaToFloor) return '';
+
+  const floorNames = [...lastFloorAreas.keys()].sort((a, b) => {
+    if (a === 'Kein Stockwerk') return 1;
+    if (b === 'Kein Stockwerk') return -1;
+    return a.localeCompare(b, 'de');
+  });
+
+  const lines: string[] = [];
+
+  for (const floor of floorNames) {
+    const areasInFloor = lastFloorAreas.get(floor)!.sort((a, b) => {
+      if (a === 'Ohne Bereich') return 1;
+      if (b === 'Ohne Bereich') return -1;
+      return a.localeCompare(b, 'de');
+    });
+
+    // Pruning logic: only keep floor header if at least one area is in focus OR no focus specified
+    const floorHasFocus = focusAreas ? areasInFloor.some(a => focusAreas.includes(a)) : true;
+    if (!floorHasFocus && focusAreas) {
+      // Show just floor name and area names as summary
+      lines.push(`# ${floor}: ${areasInFloor.join(', ')}`);
+      continue;
+    }
+
+    lines.push(`# ${floor}`);
+
+    for (const area of areasInFloor) {
+      const domainMap = lastGroupedData.get(area)!;
+      const isFocused = focusAreas ? focusAreas.includes(area) : true;
+
+      if (!isFocused) {
+        // Summary only for unfocused area
+        const actionableCount = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).length;
+        if (actionableCount > 0) {
+          lines.push(`## ${area} (${actionableCount} Gerätetypen verfügbar – für Details explizit nach "${area}" fragen)`);
+        }
+        continue;
+      }
+
+      // FULL DETAIL for focused area
+      const relevantDomains = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).sort();
+      const importantSensors = (domainMap.get('binary_sensor') ?? []).filter(e =>
+        IMPORTANT_SENSOR_CLASSES.has(e.deviceClass),
+      );
+
+      if (relevantDomains.length === 0 && importantSensors.length === 0) continue;
+
+      lines.push(`## ${area}`);
+
+      for (const domain of relevantDomains) {
+        const entities = domainMap.get(domain)!;
+        if (entities.length >= 3) {
+          const byState = new Map<string, EntityInfo[]>();
+          for (const e of entities) {
+            if (!byState.has(e.state)) byState.set(e.state, []);
+            byState.get(e.state)!.push(e);
+          }
+          for (const [state, group] of byState) {
+            if (group.length >= 3) {
+              lines.push(`- ${group.length}× ${domain} (alle ${state}): ${group.map(e => `\`${e.id}\``).join(', ')}`);
+            } else {
+              for (const e of group) lines.push(`- ${e.name || e.id} → \`${e.id}\` (${e.state})`);
+            }
+          }
+        } else {
+          for (const e of entities) lines.push(`- ${e.name || e.id} → \`${e.id}\` (${e.state})`);
+        }
+      }
+
+      if (importantSensors.length > 0) {
+        const TYPE_ICONS: Record<string, string> = { window: '🪟', door: '🚪', motion: '🏃', smoke: '🔥', moisture: '💧', garage_door: '🏠', lock: '🔒', presence: '👤' };
+        for (const e of importantSensors) {
+          const stateDE = e.state === 'on' ? 'offen' : e.state === 'off' ? 'zu' : e.state;
+          lines.push(`- ${TYPE_ICONS[e.deviceClass] || '📡'} ${e.name || e.id} → \`${e.id}\` (${stateDE})`);
+        }
+      }
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Get the cached entity summary.
  */
 export function getEntityCache(): string {
-  return cachedSummary;
+  return cachedFullSummary;
 }

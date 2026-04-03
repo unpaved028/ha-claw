@@ -49,6 +49,7 @@ export interface Profile {
   onboardingComplete: boolean;
   telegramChatId: number | null;
   lastInteractionDate: string | null;
+  maxContextTokens: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,6 +78,7 @@ const DEFAULT_PROFILE: Profile = {
   onboardingComplete: false,
   telegramChatId: null,
   lastInteractionDate: null,
+  maxContextTokens: 4000,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

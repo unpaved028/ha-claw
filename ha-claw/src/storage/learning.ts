@@ -40,6 +40,8 @@ export interface Correction {
 let corrections: Correction[] = [];
 const CORRECTIONS_FILE = join(STORE_DIR, 'corrections.json');
 
+const MAX_CORRECTIONS = 100;
+
 export async function addCorrection(data: {
   userIntent: string;
   wrongAction: string;
@@ -55,7 +57,14 @@ export async function addCorrection(data: {
     createdAt: new Date().toISOString(),
     hitCount: 0,
   };
+  
   corrections.push(c);
+  
+  // Cap at 100, remove oldest
+  if (corrections.length > MAX_CORRECTIONS) {
+    corrections = corrections.slice(-MAX_CORRECTIONS);
+  }
+  
   await persistCorrections();
   log.info('Correction saved', { id: c.id });
   return c;

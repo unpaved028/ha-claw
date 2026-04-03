@@ -11,7 +11,6 @@ import { dirname, resolve } from 'node:path';
 import { Bot } from 'grammy';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
-import { getEntityCache } from '../core/entity-cache.js';
 import { getProfile, personalityPrompt, needsOnboarding, saveProfile } from '../core/profile.js';
 import {
   isOnboarding,
@@ -33,11 +32,6 @@ function loadButlerPrompt(): string {
     const dir = dirname(fileURLToPath(import.meta.url));
     const mdPath = resolve(dir, '../../agents/butler.md');
     let prompt = readFileSync(mdPath, 'utf-8');
-    const cache = getEntityCache();
-    prompt = prompt.replace(
-      '{{ENTITY_CACHE}}',
-      cache || '(Kein HA-Zugriff – Entity-Cache nicht verfügbar.)',
-    );
     return prompt;
   } catch {
     return [

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+
+- **Smart Context Management**: Introduced a configurable `maxContextTokens` setting (default 4000) for the agentic loop. The assistant now uses `js-tiktoken` for precise token counting and a smart pruning algorithm to keep the conversation history within limits while maintaining essential context.
+- **Learned Corrections Capping**: To maintain high performance, the learned "patterns" and corrections are now capped at the 100 most recent/relevant entries.
+- **7-Day Action Log Retention**: Implemented a rolling data retention policy for the audit trail. Actions older than 7 days are automatically pruned, keeping the internal storage efficient and the dashboard responsive.
+
+### Improved
+
+- **Long-term Performance**: Significantly reduced potential latency and token overhead during extended chat sessions by preventing context window bloat.
+- **Resource Management**: Better handling of internal JSON and JSONL stores through automatic cleanup cycles.
+
+---
+
 ## 0.6.6
 
 ### Fixed

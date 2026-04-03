@@ -33,7 +33,6 @@ export async function initActionLog(): Promise<void> {
   await mkdir(dir, { recursive: true });
 }
 
-/** Log a new action. Appends to JSONL for efficiency. */
 export async function logAction(
   category: ActionEntry['category'],
   description: string,
@@ -52,8 +51,40 @@ export async function logAction(
   try {
     await appendFile(ACTIONS_PATH, JSON.stringify(entry) + '\n', 'utf-8');
     log.debug('Action logged', { id: entry.id, category, description });
+    
+    // Occasionally prune (1 in 20 chance)
+    if (Math.random() < 0.05) {
+      pruneOldActions().catch(() => {});
+    }
   } catch (err) {
     log.error('Failed to log action', { error: String(err) });
+  }
+}
+
+/** Prune actions older than 7 days. */
+async function pruneOldActions(): Promise<void> {
+  try {
+    const raw = await readFile(ACTIONS_PATH, 'utf-8');
+    const lines = raw.trim().split('\n').filter(Boolean);
+    const now = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    
+    const filtered = lines.filter(l => {
+      try {
+        const entry = JSON.parse(l) as ActionEntry;
+        const ts = new Date(entry.timestamp).getTime();
+        return now - ts < sevenDaysMs;
+      } catch {
+        return false;
+      }
+    });
+    
+    if (filtered.length < lines.length) {
+      await writeFile(ACTIONS_PATH, filtered.join('\n') + '\n', 'utf-8');
+      log.info('Action log pruned', { removed: lines.length - filtered.length });
+    }
+  } catch (err) {
+    // File might not exist yet, that's fine
   }
 }
 

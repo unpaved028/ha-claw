@@ -3,7 +3,7 @@
 ## Was ist HA-Claw?
 Lokaler KI-Assistent als Home Assistant Add-on. Agentic Loop mit Tool Calling, Web UI (Ingress), Telegram Bot. Nutzt OpenRouter für LLM-Zugang.
 
-## Aktuelle Version: 0.6.6
+## Aktuelle Version: 0.7.0
 
 ## Architektur (Kerndateien)
 
@@ -89,14 +89,15 @@ ha-claw/
 | 0.6.4 | 2026-04-03 | Search tool extended with device_class filter for better sensor detection |
 | 0.6.5 | 2026-04-03 | Automation/Script editing support, native HA ID logic for automation loading |
 | 0.6.6 | 2026-04-03 | Fixed Web UI transparent confirmation modal background |
+| 0.7.0 | 2026-04-03 | **v0.7.0 – Token-Effizienz & Performance**: System-Prompt-Größe begrenzen (maxContextTokens), Context-Aware Pruning, Daten-Retention (Corrections max 100, Action-Log 7d) |
 
 ## Nächste Schritte (Roadmap)
 
-### v0.7.0 – Token-Effizienz & Performance
-- [ ] **System-Prompt-Größe begrenzen**: `MAX_CONTEXT_TOKENS` (4K), Top-3 pro Kategorie (Memory, Corrections, Patterns, Errors)
-- [ ] **Chat-History Paginierung**: Letzte 30 Nachrichten laden, "Mehr laden"-Button
-- [ ] **HA State Caching**: Kurzzeit-Cache (5s TTL) zwischen Tool-Calls im selben Loop
-- [ ] **Daten-Retention**: Corrections max 50, Action-Log Rotation 10K, Patterns TTL 90d
+### v0.7.0 – Token-Effizienz & Performance (Completed)
+- [x] **System-Prompt-Größe begrenzen**: `maxContextTokens` (4K default), smart pruning logic
+- [ ] **Chat-History Paginierung**: Letzte 30 Nachrichten laden, "Mehr laden"-Button (Roadmap)
+- [ ] **HA State Caching**: Kurzzeit-Cache (5s TTL) zwischen Tool-Calls im selben Loop (Roadmap)
+- [x] **Daten-Retention**: Corrections max 100, Action-Log 7-Tage-Fenster
 
 ### v0.8.0 – Zuverlässigkeit & Features
 - [ ] **Circuit Breaker für OpenRouter**: Nach 3 Fehlern → 60s Pause, Half-Open Probe

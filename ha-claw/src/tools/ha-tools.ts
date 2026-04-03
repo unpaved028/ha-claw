@@ -19,6 +19,7 @@ import { registerTool } from './registry.js';
 import * as ha from '../core/ha-client.js';
 import { createLogger } from '../core/logger.js';
 import { logAction } from '../storage/action-log.js';
+import { getCachedResult, setCachedResult } from './tool-cache.js';
 
 const log = createLogger('ha-tools');
 
@@ -91,14 +92,22 @@ export function registerHATools(): void {
       },
     },
     async args => {
-      const state = await ha.getState(args['entity_id'] as string);
-      return {
+      const entityId = args['entity_id'] as string;
+      const cacheKey = `state:${entityId}`;
+      const cached = getCachedResult(cacheKey);
+      if (cached) return cached;
+
+      const state = await ha.getState(entityId);
+      const res = {
         entity_id: state.entity_id,
         state: state.state,
         friendly_name: state.attributes['friendly_name'] ?? null,
         attributes: state.attributes,
         last_changed: state.last_changed,
       };
+
+      setCachedResult(cacheKey, res, 5000);
+      return res;
     },
     { required: ['entity_id'] },
   );
@@ -224,6 +233,10 @@ export function registerHATools(): void {
         entity_id: entityId,
         ...extraData,
       });
+
+      // Clear cache for this entity since state likely changed
+      setCachedResult(`state:${entityId}`, undefined, 0);
+
       const rollback = getRollback(domain, service, entityId, extraData);
       await logAction(
         'switch',
@@ -309,6 +322,10 @@ export function registerHATools(): void {
       if (entityId) payload['entity_id'] = entityId;
 
       const res = await ha.callService(domain, service, payload);
+
+      // Clear cache if entityId is known
+      if (entityId) setCachedResult(`state:${entityId}`, undefined, 0);
+
       const rollback = entityId ? getRollback(domain, service, entityId, extraData) : undefined;
       await logAction(
         'switch',

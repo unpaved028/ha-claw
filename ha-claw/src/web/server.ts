@@ -24,7 +24,7 @@ import {
 import { getToolInfos, setToolEnabled } from '../tools/registry.js';
 import { listJobs, toggleJob, deleteJob } from '../storage/scheduler.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
-import { getEntityCache, buildEntityCache } from '../core/entity-cache.js';
+import { buildEntityCache } from '../core/entity-cache.js';
 import { runAgenticLoop, type ConfirmationFn } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
 import { dashboardHtml } from './dashboard.js';
@@ -80,11 +80,6 @@ function loadButlerPrompt(): string {
     const dir = dirname(fileURLToPath(import.meta.url));
     const mdPath = resolve(dir, '../../agents/butler.md');
     let prompt = readFileSync(mdPath, 'utf-8');
-    const cache = getEntityCache();
-    prompt = prompt.replace(
-      '{{ENTITY_CACHE}}',
-      cache || '(Kein HA-Zugriff – Entity-Cache nicht verfügbar.)',
-    );
     return prompt;
   } catch {
     log.warn('Could not load butler.md – using fallback prompt');

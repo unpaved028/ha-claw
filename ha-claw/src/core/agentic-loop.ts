@@ -30,6 +30,10 @@ import {
   trackUsage,
   trackError,
 } from '../storage/learning.js';
+import { getDynamicPrunedCache } from './entity-cache.js';
+import { clearToolCache } from '../tools/tool-cache.js';
+import { countTokens, pruneMessages } from './context-manager.js';
+import { getProfile } from './profile.js';
 import type { ChatMessage, AgentConfig, LoopResult, ToolCall } from './types.js';
 
 const log = createLogger('loop');
@@ -56,6 +60,7 @@ export async function runAgenticLoop(
   history: ChatMessage[] = [],
   toolFilter?: string[],
 ): Promise<LoopResult> {
+  clearToolCache();
   let toolDefs = getToolDefinitions();
   if (toolFilter) {
     toolDefs = toolDefs.filter(t => toolFilter.includes(t.function.name));
@@ -63,15 +68,18 @@ export async function runAgenticLoop(
   const toolCallLog: { name: string; result: string }[] = [];
 
   // Build enriched system prompt with all learning context
-  let systemPrompt = agent.systemPrompt;
+  const entityCache = getDynamicPrunedCache(userMessage);
+  let systemPrompt = agent.systemPrompt.includes('{{ENTITY_CACHE}}')
+    ? agent.systemPrompt.replace('{{ENTITY_CACHE}}', entityCache)
+    : agent.systemPrompt + '\n\n## Entity Cache\n' + entityCache;
 
   // 1. Memory cards (relevant to this query)
   try {
-    const memResults = await searchCards(userMessage, 3);
+    const memResults = (await searchCards(userMessage, 5)).filter(c => c.score >= 0.1);
     const memContext = buildMemoryContext(memResults);
     if (memContext) {
       systemPrompt += '\n\n' + memContext;
-      log.debug('Memory injected', { cards: memResults.length });
+      log.debug('Memory injected', { cards: memResults.length, scores: memResults.map(c => c.score.toFixed(2)) });
     }
   } catch {
     /* non-critical */
@@ -113,16 +121,25 @@ export async function runAgenticLoop(
     /* non-critical */
   }
 
-  const messages: ChatMessage[] = [
+  const initialMessages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
     ...history,
     { role: 'user', content: userMessage },
   ];
 
-  log.info('Loop started', { agent: agent.name, tools: toolDefs.length, history: history.length });
+  // History Pruning (Context Window Management)
+  const profile = getProfile();
+  const messages = pruneMessages(initialMessages, profile.maxContextTokens || 4000);
+
+  log.info('Loop started', { 
+    agent: agent.name, 
+    tools: toolDefs.length, 
+    initialHistory: history.length,
+    tokens: countTokens(messages)
+  });
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    // 1. Call LLM
+    // 1. Call LLM (using the pruned/managed message list)
     const response = await callLLM(messages, {
       model: agent.model,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
@@ -147,22 +164,33 @@ export async function runAgenticLoop(
       };
     }
 
-    // 3. Process tool calls
+    // 3. Process tool calls in parallel batches (concurrency limit = 3)
     messages.push({
       role: 'assistant',
       content: assistantMsg.content,
       tool_calls: assistantMsg.tool_calls,
     });
 
-    for (const call of assistantMsg.tool_calls) {
-      const result = await executeWithSafetyGate(call, confirmFn);
-      toolCallLog.push({ name: call.function.name, result: truncate(result, 500) });
+    const CONCURRENCY_LIMIT = 3;
+    const toolCalls = assistantMsg.tool_calls;
 
-      messages.push({
-        role: 'tool',
-        tool_call_id: call.id,
-        content: result,
-      });
+    for (let j = 0; j < toolCalls.length; j += CONCURRENCY_LIMIT) {
+      const batch = toolCalls.slice(j, j + CONCURRENCY_LIMIT);
+      const results = await Promise.all(
+        batch.map(async call => {
+          const result = await executeWithSafetyGate(call, confirmFn);
+          return { call, result };
+        }),
+      );
+
+      for (const { call, result } of results) {
+        toolCallLog.push({ name: call.function.name, result: truncate(result, 500) });
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: result,
+        });
+      }
     }
   }
 
