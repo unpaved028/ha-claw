@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2
+
+### Improved
+
+- **Stability**: Reapplied core UX fixes and stabilized string escaping logic in the Web UI dashboard to ensure reliable button interactions.
+
+---
+
 ## 0.8.1
 
 ### Fixed
