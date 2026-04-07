@@ -1971,7 +1971,7 @@ function renderRichContent(text){
 
 
   // Parse [MAP id=xxx]lat|lng|zoom[/MAP]
-  html=html.replace(/\\[MAP(?:\s+id=(\w+))?\\]([\s\S]*?)\\[\/MAP\\]/gi,(m,id,inner)=>{
+  html=html.replace(/\\[MAP(?:\\s+id=(\\w+))?\\]([\\s\\S]*?)\\[\\/MAP\\]/gi,(m,id,inner)=>{
     const parts=inner.split('|').map(p=>p.trim());
     const lat = parts[0] || '52.52';
     const lng = parts[1] || '13.405';
@@ -2056,7 +2056,7 @@ function handleAction(btn,label){
 inp.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey){
     e.preventDefault();
-    if (!inp.value.trim() && lastUserMsg && document.querySelector('.msg.bot:last-child .retry-btn')) {
+    if (!inp.value.trim() && lastUserMessage && document.querySelector('.msg.bot:last-child .retry-btn')) {
       sendMsg(true);
     } else {
       sendMsg();

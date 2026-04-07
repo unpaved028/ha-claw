@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.3
+
+### Fixed
+
+- **Web UI Version Display**: Improved version display reliability on mobile devices (immediate load).
+- **Dashboard Maps**: Corrected regex escaping for `[MAP]` parsing within template strings.
+- **Input Handling**: Fixed variable reference `lastUserMessage`.
+
+---
+
 ## 0.8.2
 
 ### Improved
