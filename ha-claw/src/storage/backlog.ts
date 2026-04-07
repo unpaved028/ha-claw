@@ -23,6 +23,7 @@ export type Priority = 'low' | 'medium' | 'high';
 export type TaskStatus =
   | 'proposed'
   | 'approved'
+  | 'fast_track_approved'
   | 'solution_proposed'
   | 'solution_approved'
   | 'executing'
@@ -74,14 +75,23 @@ let onTaskStatusChanged: BacklogListener | null = null;
 
 /**
  * Register a listener that fires when a task transitions to
- * 'approved' or 'solution_approved' (used by backlog-processor).
+ * 'approved', 'solution_approved' or 'fast_track_approved' (used by backlog-processor).
  */
 export function onProcessableStatusChange(listener: BacklogListener): void {
   onTaskStatusChanged = listener;
 }
 
 /** Statuses that trigger automatic processing. */
-const PROCESSABLE_STATUSES = new Set(['approved', 'solution_approved']);
+const PROCESSABLE_STATUSES = new Set(['approved', 'solution_approved', 'fast_track_approved']);
+
+// ── New Task Hooks ────────────────────────────────────────
+
+type NewTaskListener = (task: BacklogTask) => void;
+let onNewHighPriorityTaskListener: NewTaskListener | null = null;
+
+export function onNewHighPriorityTask(listener: NewTaskListener): void {
+  onNewHighPriorityTaskListener = listener;
+}
 
 // ── CRUD ──────────────────────────────────────────────────
 
@@ -120,6 +130,12 @@ export async function createTask(data: {
 
   await atomicWrite(taskPath(id), task);
   log.info('Backlog task created', { id, title: task.title, priority: task.priority });
+
+  // Fire webhook if high priority
+  if (task.priority === 'high' && onNewHighPriorityTaskListener) {
+    onNewHighPriorityTaskListener(task);
+  }
+
   return task;
 }
 

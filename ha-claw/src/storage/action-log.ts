@@ -22,7 +22,7 @@ export interface ActionEntry {
   rollback?: {
     domain: string;
     service: string;
-    entity_id: string;
+    entity_id: string | string[];
     data?: Record<string, unknown>;
   };
 }
@@ -89,14 +89,19 @@ async function pruneOldActions(): Promise<void> {
 }
 
 /** List recent actions. */
-export async function listActions(limit = 50): Promise<ActionEntry[]> {
+export interface ActionListOptions {
+  limit?: number;
+  category?: ActionEntry['category'];
+}
+
+export async function listActions(options: ActionListOptions = {}): Promise<ActionEntry[]> {
+  const { limit = 50, category } = options;
   try {
     const raw = await readFile(ACTIONS_PATH, 'utf-8');
     const lines = raw.trim().split('\n').filter(Boolean);
-    return lines
-      .map(l => JSON.parse(l) as ActionEntry)
-      .reverse()
-      .slice(0, limit);
+    const entries = lines.map(l => JSON.parse(l) as ActionEntry).reverse();
+    const filtered = category ? entries.filter(e => e.category === category) : entries;
+    return filtered.slice(0, limit);
   } catch {
     return [];
   }
@@ -104,7 +109,7 @@ export async function listActions(limit = 50): Promise<ActionEntry[]> {
 
 /** Get a single action by ID (useful for rollback). */
 export async function getActionById(id: string): Promise<ActionEntry | null> {
-  const actions = await listActions(200);
+  const actions = await listActions({ limit: 200 });
   return actions.find(a => a.id === id) || null;
 }
 

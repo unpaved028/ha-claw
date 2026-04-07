@@ -16,6 +16,8 @@ export function dashboardHtml(basePath: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HA-Claw</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
 /* ── Reset ───────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box}
@@ -279,11 +281,15 @@ body{
   margin-right:3rem;
   border:1px solid var(--msg-bot-border);
 }
-.msg.typing{opacity:0.7;font-style:italic}
-.typing-dots span{animation:blink 1.4s infinite both}
+.msg.typing{padding:0.75rem 1rem}
+.typing-wrap{display:flex;align-items:center;gap:0.75rem;height:1.5rem}
+.typing-dots{display:flex;align-items:center;gap:4px;height:100%}
+.typing-dots span{width:5px;height:5px;background:var(--accent);border-radius:50%;animation:typing-blink 1.4s infinite ease-in-out both;display:inline-block}
 .typing-dots span:nth-child(2){animation-delay:0.2s}
 .typing-dots span:nth-child(3){animation-delay:0.4s}
-@keyframes blink{0%,80%,100%{opacity:0}40%{opacity:1}}
+@keyframes typing-blink{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1.1)}}
+.typing-text{font-size:0.8rem;color:var(--text-muted);font-style:italic;letter-spacing:0.02em;line-height:1}
+
 .confirm-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999}
 .confirm-modal{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
 .confirm-title{font-weight:700;font-size:1.1em;margin-bottom:0.75rem;color:var(--accent)}
@@ -353,6 +359,23 @@ body{
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
+}
+
+/* ── Map ─────────────────────────────────────────────────── */
+.msg-map {
+  z-index: 1;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+[data-theme="dark"] .leaflet-tile {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+[data-theme="claw"] .leaflet-tile {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(180deg) saturate(0.5) brightness(0.8);
+}
+.leaflet-container {
+  background: var(--bg-input) !important;
+  font-family: inherit !important;
 }
 
 /* ── Action Buttons (confirm/deny in chat) ───────────────── */
@@ -1946,6 +1969,17 @@ function renderRichContent(text){
     return out;
   });
 
+
+  // Parse [MAP id=xxx]lat|lng|zoom[/MAP]
+  html=html.replace(/\\[MAP(?:\s+id=(\w+))?\\]([\s\S]*?)\\[\/MAP\\]/gi,(m,id,inner)=>{
+    const parts=inner.split('|').map(p=>p.trim());
+    const lat = parts[0] || '52.52';
+    const lng = parts[1] || '13.405';
+    const zoom = parts[2] || '13';
+    const mid = id || ('map-'+Math.random().toString(36).slice(2,8));
+    return '<div class="msg-map" id="'+mid+'" data-lat="'+lat+'" data-lng="'+lng+'" data-zoom="'+zoom+'" style="height:250px;width:100%;border-radius:10px;margin-top:0.5rem;border:1px solid var(--border)"></div>';
+  });
+
   return html;
 }
 
@@ -1977,6 +2011,25 @@ function addMsg(text,cls,suppressScroll){
     let html=parseMd(text);
     html=renderRichContent(html);
     bubble.innerHTML=html;
+    
+    // Initialize any maps found in the message
+    setTimeout(() => {
+      bubble.querySelectorAll('.msg-map').forEach(el => {
+        const id = el.id;
+        const lat = parseFloat(el.dataset.lat);
+        const lng = parseFloat(el.dataset.lng);
+        const zoom = parseInt(el.dataset.zoom);
+        if (window.L) {
+          const map = L.map(id).setView([lat, lng], zoom);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+          }).addTo(map);
+          L.marker([lat, lng]).addTo(map);
+          // Fix rendering issue in hidden containers
+          setTimeout(() => map.invalidateSize(), 200);
+        }
+      });
+    }, 100);
   }else{
     bubble.textContent=text;
   }
@@ -2001,7 +2054,14 @@ function handleAction(btn,label){
 }
 
 inp.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    if (!inp.value.trim() && lastUserMsg && document.querySelector('.msg.bot:last-child .retry-btn')) {
+      sendMsg(true);
+    } else {
+      sendMsg();
+    }
+  }
 });
 
 // ── Speech-to-Text ────────────────────────────────────────
@@ -2057,7 +2117,7 @@ function showTyping(){
   group.appendChild(label);
   const bubble=document.createElement('div');
   bubble.className='msg bot typing';
-  bubble.innerHTML='<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> denkt nach...';
+  bubble.innerHTML='<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">denkt nach...</span></div>';
   group.appendChild(bubble);
   msgs.appendChild(group);
   msgs.scrollTop=msgs.scrollHeight;
@@ -2108,29 +2168,92 @@ async function respondConfirm(id,approved){
 }
 
 // ── Send ──────────────────────────────────────────────────
-async function sendMsg(){
-  const t=inp.value.trim();if(!t)return;
-  inp.value='';addMsg(t,'user');sendBtn.disabled=true;inp.disabled=true;
-  showTyping();
+let lastUserMessage = '';
+function sendMsg(isRetry){
+  let t = '';
+  if (isRetry === true) {
+    t = lastUserMessage;
+    if (!t) return;
+  } else {
+    t = inp.value.trim();
+    if (!t) return;
+    lastUserMessage = t;
+    inp.value='';
+    addMsg(t,'user');
+  }
+  sendBtn.disabled=true;inp.disabled=true;
+  
+  const group = addMsg('<i>Start...</i>', 'bot');
+  const bubble = group.querySelector('.msg.bot');
+  
   startConfirmPolling();
-  try{
-    const r=await fetch(base+'/api/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:t})
-    });
-    stopConfirmPolling();
-    hideTyping();
-    const d=await r.json();
-    const g=addMsg(d.response||JSON.stringify(d),'bot');
-    if(d.iterations){
-      const m=document.createElement('div');
-      m.className='meta';
-      m.textContent=d.iterations+' Iteration(en), '+d.toolCalls.length+' Tool-Aufruf(e)';
-      g.appendChild(m);
+  
+  const es = new EventSource(base+'/api/chat/stream?message='+encodeURIComponent(t));
+  
+  es.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    
+    if(data.type === 'thinking') {
+      bubble.innerHTML = '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🤔 ' + escHtml2(data.message) + ' (Iteration ' + data.iteration + ')...</span></div>';
+      msgs.scrollTop=msgs.scrollHeight;
+    } 
+    else if(data.type === 'tool_call') {
+      bubble.innerHTML = '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🔧 Führe Tool aus: ' + escHtml2(data.toolName) + '...</span></div>';
+      msgs.scrollTop=msgs.scrollHeight;
     }
-  }catch(e){stopConfirmPolling();hideTyping();addMsg('Fehler: '+e.message,'bot');}
-  sendBtn.disabled=false;inp.disabled=false;inp.focus();
+    else if(data.type === 'done') {
+      let html = parseMd(data.response || '');
+      html = renderRichContent(html);
+      bubble.innerHTML = html;
+      
+      if(data.toolCalls && data.toolCalls.length > 0) {
+         const m = document.createElement('div');
+         m.className = 'meta';
+         m.textContent = data.toolCalls.length + ' Tool-Aufruf(e)';
+         bubble.appendChild(m);
+      }
+      es.close();
+      cleanup();
+      
+      // Init maps
+      setTimeout(() => {
+        bubble.querySelectorAll('.msg-map').forEach(el => {
+          const id = el.id;
+          const lat = parseFloat(el.dataset.lat);
+          const lng = parseFloat(el.dataset.lng);
+          const zoom = parseInt(el.dataset.zoom);
+          if (window.L) {
+            const map = L.map(id).setView([lat, lng], zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+            L.marker([lat, lng]).addTo(map);
+            setTimeout(() => map.invalidateSize(), 200);
+          }
+        });
+      }, 100);
+    }
+    else if(data.type === 'error') {
+      bubble.innerHTML = '❌ Fehler: ' + escHtml2(data.message) + '<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 Nochmal versuchen</button>';
+      es.close();
+      cleanup();
+    }
+  };
+  
+  es.onerror = function() {
+    if(es.readyState === EventSource.CLOSED) return;
+    bubble.innerHTML = '❌ Verbindungsfehler zum Server.<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 Nochmal versuchen</button>';
+    es.close();
+    cleanup();
+  };
+
+  function cleanup() {
+    stopConfirmPolling();
+    sendBtn.disabled=false;
+    inp.disabled=false;
+    inp.focus();
+    msgs.scrollTop = msgs.scrollHeight;
+  }
 }
 
 // ── Settings ──────────────────────────────────────────────
@@ -2389,7 +2512,7 @@ async function saveProfileNames(){
     window.botName=botName.toUpperCase();
     window.userName=userName.toUpperCase();
     btn.textContent='Gespeichert!';btn.classList.add('saved');
-    setTimeout(()=>{btn.textContent='Speichern';btn.classList.remove('saved');},1500);
+    setTimeout(()=>{btn.innerHTML='<span class="icon">&#128190;</span> Speichern';btn.classList.remove('saved');},1500);
     const agentName=document.querySelector('.settings-agent-name');
     if(agentName)agentName.textContent=botName+' Butler';
   }catch(e){console.error('Save names failed',e);}

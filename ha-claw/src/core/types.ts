@@ -93,3 +93,22 @@ export interface LoopResult {
   iterations: number;
   toolCalls: { name: string; result: string }[];
 }
+
+// ── Progress Events (SSE / Real-time Streaming Feedback) ────
+
+export interface ProgressEvent {
+  /** 'thinking' = LLM is reasoning; 'tool_call' = tool being invoked; 'tool_result' = tool returned; 'text_chunk' = LLM streaming text */
+  type: 'thinking' | 'tool_call' | 'tool_result' | 'text_chunk';
+  /** Human-readable status message (for 'thinking' events) */
+  message?: string;
+  /** Tool name (for 'tool_call' / 'tool_result' events) */
+  toolName?: string;
+  /** Streamed text chunk (for 'text_chunk' events) */
+  chunk?: string;
+  /** Current iteration number */
+  iteration?: number;
+  /** Index signature for JSON serialization */
+  [key: string]: unknown;
+}
+
+export type ProgressCallback = (event: ProgressEvent) => void;

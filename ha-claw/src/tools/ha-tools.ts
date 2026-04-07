@@ -18,7 +18,7 @@
 import { registerTool } from './registry.js';
 import * as ha from '../core/ha-client.js';
 import { createLogger } from '../core/logger.js';
-import { logAction } from '../storage/action-log.js';
+import { logAction, getActionById } from '../storage/action-log.js';
 import { getCachedResult, setCachedResult } from './tool-cache.js';
 
 const log = createLogger('ha-tools');
@@ -67,7 +67,7 @@ const ROLLBACK_MAP: Record<string, string> = {
 function getRollback(
   domain: string,
   service: string,
-  entityId: string,
+  entityId: string | string[],
   data: Record<string, unknown>,
 ) {
   const reverse = ROLLBACK_MAP[service];
@@ -84,30 +84,42 @@ export function registerHATools(): void {
   // ── ha_get_state ─────────────────────────────────────────
   registerTool(
     'ha_get_state',
-    'Get the current state and attributes of a Home Assistant entity (e.g. light.living_room, sensor.temperature).',
+    'Get current state and attributes of one or more Home Assistant entities. Supports batching for efficiency.',
     {
       entity_id: {
-        type: 'string',
-        description: 'The entity ID (e.g. "light.wohnzimmer", "sensor.temperature_outdoor")',
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } }
+        ],
+        description: 'Single entity ID or array of entity IDs',
       },
     },
     async args => {
-      const entityId = args['entity_id'] as string;
-      const cacheKey = `state:${entityId}`;
-      const cached = getCachedResult(cacheKey);
-      if (cached) return cached;
+      const input = args['entity_id'] as string | string[];
+      const entityIds = Array.isArray(input) ? input : [input];
+      
+      const results = await Promise.all(entityIds.map(async eid => {
+        const cacheKey = `state:${eid}`;
+        const cached = getCachedResult(cacheKey);
+        if (cached) return cached;
 
-      const state = await ha.getState(entityId);
-      const res = {
-        entity_id: state.entity_id,
-        state: state.state,
-        friendly_name: state.attributes['friendly_name'] ?? null,
-        attributes: state.attributes,
-        last_changed: state.last_changed,
-      };
+        try {
+          const state = await ha.getState(eid);
+          const res = {
+            entity_id: state.entity_id,
+            state: state.state,
+            friendly_name: state.attributes['friendly_name'] ?? null,
+            attributes: state.attributes,
+            last_changed: state.last_changed,
+          };
+          setCachedResult(cacheKey, res, 5000);
+          return res;
+        } catch (err) {
+          return { entity_id: eid, error: 'Entity not found or HA error' };
+        }
+      }));
 
-      setCachedResult(cacheKey, res, 5000);
-      return res;
+      return Array.isArray(input) ? { results } : results[0];
     },
     { required: ['entity_id'] },
   );
@@ -123,38 +135,65 @@ export function registerHATools(): void {
       },
       domain: {
         type: 'string',
-        description:
-          'Optional: filter by domain (e.g. "light", "sensor", "switch", "climate", "binary_sensor")',
+        description: 'Optional: filter by domain (e.g. "light", "sensor")',
       },
       area: {
-        type: 'string',
-        description:
-          'Optional: filter by area/room name (e.g. "Wohnzimmer", "OG Bad"). Matches area names from the entity cache.',
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } }
+        ],
+        description: 'Optional: area name or array of area names (e.g. "Living Room", ["Kitchen", "Garden"])',
+      },
+      floor: {
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } }
+        ],
+        description: 'Optional: floor name or array of floor names (e.g. "Ground", ["First", "Basement"])',
       },
       device_class: {
         type: 'string',
-        description:
-          'Optional: filter by device_class (e.g. "window", "door", "motion", "temperature", "battery"). Use this for more reliable sensor discovery.',
+        description: 'Optional: filter by device_class (e.g. "motion", "temperature")',
       },
       limit: {
         type: 'number',
-        description: 'Max results to return (default 20)',
+        description: 'Max results to return (default 50)',
       },
     },
     async args => {
       const query = ((args['query'] as string) ?? '').toLowerCase();
       const domain = (args['domain'] as string) ?? '';
-      const areaFilter = ((args['area'] as string) ?? '').toLowerCase();
+      const areaInput = args['area'] as string | string[] | undefined;
+      const floorInput = args['floor'] as string | string[] | undefined;
       const deviceClassFilter = ((args['device_class'] as string) ?? '').toLowerCase();
-      const limit = (args['limit'] as number) ?? 20;
+      const limit = (args['limit'] as number) ?? 50;
 
-      // If area filter is set, resolve area → entity_ids first
+      const areaFilters = areaInput ? (Array.isArray(areaInput) ? areaInput.map(a => a.toLowerCase()) : [areaInput.toLowerCase()]) : null;
+      const floorFilters = floorInput ? (Array.isArray(floorInput) ? floorInput.map(f => f.toLowerCase()) : [floorInput.toLowerCase()]) : null;
+
+      // Resolve floor → areas if floorFilter is set
+      let floorAreaNames: Set<string> | null = null;
+      if (floorFilters) {
+        const floorMap = await ha.getFloorAreaMap();
+        floorAreaNames = new Set<string>();
+        for (const [floorName, areas] of Object.entries(floorMap)) {
+          if (floorFilters.some(ff => floorName.toLowerCase().includes(ff))) {
+            for (const a of areas) floorAreaNames.add(a.toLowerCase());
+          }
+        }
+      }
+
+      // Resolve area → entity_ids
       let areaEntityIds: Set<string> | null = null;
-      if (areaFilter) {
+      if (areaFilters || floorAreaNames) {
         const areaMap = await ha.getAreaEntityMap();
         areaEntityIds = new Set<string>();
         for (const [areaName, entityIds] of Object.entries(areaMap)) {
-          if (areaName.toLowerCase().includes(areaFilter)) {
+          const lowerName = areaName.toLowerCase();
+          const matchFloor = floorAreaNames ? floorAreaNames.has(lowerName) : true;
+          const matchArea = areaFilters ? areaFilters.some(af => lowerName.includes(af)) : true;
+          
+          if (matchFloor && matchArea) {
             for (const eid of entityIds) areaEntityIds.add(eid);
           }
         }
@@ -184,8 +223,9 @@ export function registerHATools(): void {
 
       return { count: filtered.length, entities: filtered };
     },
-    { required: ['query'] },
+    { required: [] },
   );
+
 
   // ── ha_call_service (safe everyday domains) ─────────────
   registerTool(
@@ -201,8 +241,11 @@ export function registerHATools(): void {
         description: 'Service name (e.g. "turn_on", "turn_off", "toggle", "set_temperature")',
       },
       entity_id: {
-        type: 'string',
-        description: 'Target entity ID',
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } }
+        ],
+        description: 'Target entity ID or list of entity IDs (batching)',
       },
       data: {
         type: 'object',
@@ -212,7 +255,9 @@ export function registerHATools(): void {
     async args => {
       const domain = args['domain'] as string;
       const service = args['service'] as string;
-      const entityId = args['entity_id'] as string;
+      const entityIds = Array.isArray(args['entity_id'])
+        ? (args['entity_id'] as string[])
+        : [args['entity_id'] as string];
       const extraData = (args['data'] as Record<string, unknown>) ?? {};
 
       if (!SAFE_DOMAINS.has(domain)) {
@@ -221,72 +266,192 @@ export function registerHATools(): void {
         };
       }
 
-      // Capture state before action
-      let stateBefore: string | null = null;
-      try {
-        stateBefore = (await ha.getState(entityId)).state;
-      } catch {
-        /* ignore */
+      // Capture states before action
+      const statesBefore: Record<string, string | null> = {};
+      for (const eid of entityIds) {
+        try {
+          statesBefore[eid] = (await ha.getState(eid)).state;
+        } catch {
+          statesBefore[eid] = null;
+        }
       }
 
       const res = await ha.callService(domain, service, {
-        entity_id: entityId,
+        entity_id: entityIds.length === 1 ? entityIds[0] : entityIds,
         ...extraData,
       });
 
-      // Clear cache for this entity since state likely changed
-      setCachedResult(`state:${entityId}`, undefined, 0);
+      // Clear cache for these entities
+      for (const eid of entityIds) {
+        setCachedResult(`state:${eid}`, undefined, 0);
+      }
 
-      const rollback = getRollback(domain, service, entityId, extraData);
+      const rollback = getRollback(domain, service, entityIds.length === 1 ? entityIds[0]! : entityIds, extraData);
       await logAction(
         'switch',
-        `${domain}.${service} auf ${entityId}`,
+        `${domain}.${service} auf ${entityIds.join(', ')}`,
         'ha_call_service',
         rollback,
       );
 
-      // Feedback loop: verify state changed
-      let verification:
-        | {
-            verified: boolean;
-            stateBefore: string | null;
-            stateAfter: string | null;
-            warning?: string;
-          }
-        | undefined;
+      // Feedback loop: verify states changed
+      const verifications: Record<string, any> = {};
+      let anyFailed = false;
+
       try {
         const waitMs = domain === 'climate' ? 3000 : 1500;
         await new Promise(r => setTimeout(r, waitMs));
-        const afterEntity = await ha.getState(entityId);
-        const stateAfter = afterEntity.state;
 
-        let verified: boolean;
-        if (domain === 'climate' && service === 'set_temperature') {
-          // For set_temperature, check the temperature attribute, not the state
-          const targetTemp = extraData['temperature'] as number | undefined;
-          const currentTemp = afterEntity.attributes['temperature'] as number | undefined;
-          verified = targetTemp !== undefined && currentTemp === targetTemp;
-        } else {
-          const expectedState = EXPECTED_STATE[service];
-          verified = expectedState ? stateAfter === expectedState : stateAfter !== stateBefore; // fallback: state should have changed
-        }
+        for (const eid of entityIds) {
+          try {
+            const afterEntity = await ha.getState(eid);
+            const stateAfter = afterEntity.state;
+            const stateBefore = statesBefore[eid] ?? null;
 
-        verification = { verified, stateBefore, stateAfter };
-        if (!verified) {
-          log.warn('Action verification failed', { entityId, service, stateBefore, stateAfter });
-          verification.warning = `WARNUNG: Aktion "${service}" auf "${entityId}" konnte nicht verifiziert werden. Zustand vorher: ${stateBefore}, nachher: ${stateAfter}. Die Aktion wurde moeglicherweise NICHT ausgefuehrt. Bitte dem Nutzer ehrlich mitteilen!`;
+            let verified: boolean;
+            if (domain === 'climate' && service === 'set_temperature') {
+              const targetTemp = extraData['temperature'] as number | undefined;
+              const currentTemp = afterEntity.attributes['temperature'] as number | undefined;
+              verified = targetTemp !== undefined && currentTemp === targetTemp;
+            } else {
+              const expectedState = EXPECTED_STATE[service];
+              verified = expectedState ? stateAfter === expectedState : stateAfter !== stateBefore;
+            }
+
+            verifications[eid] = { verified, stateBefore, stateAfter };
+            if (!verified) anyFailed = true;
+          } catch {
+            verifications[eid] = { verified: false, error: 'Could not fetch state after action' };
+            anyFailed = true;
+          }
         }
       } catch {
-        /* verification is non-critical */
+        /* non-critical */
       }
 
-      const result: Record<string, unknown> = { ...res, verification };
-      if (verification && !verification.verified && verification.warning) {
-        result.IMPORTANT_WARNING = verification.warning;
+      const result: Record<string, unknown> = { ...res, verifications };
+      if (anyFailed) {
+        const failedIds = Object.entries(verifications)
+          .filter(([_, v]) => !v.verified)
+          .map(([id]) => id);
+        result.IMPORTANT_WARNING = `WARNUNG: Einige Aktionen konnten nicht verifiziert werden: ${failedIds.join(', ')}. Bitte dem Nutzer ehrlich mitteilen!`;
       }
       return result;
     },
     { dangerous: false, required: ['domain', 'service', 'entity_id'], complexity: 1 },
+  );
+
+  // ── ha_light_set_scene ────────────────────────────────────
+  registerTool(
+    'ha_light_set_scene',
+    'Activate a light scene. This is a shorthand for scene.turn_on.',
+    {
+      scene_id: {
+        type: 'string',
+        description: 'The scene entity ID (e.g. "scene.abendlicht")',
+      },
+    },
+    async args => {
+      const sceneId = args['scene_id'] as string;
+      const res = await ha.callService('scene', 'turn_on', { entity_id: sceneId });
+      await logAction('switch', `Szene aktiviert: ${sceneId}`, 'ha_light_set_scene');
+      return res;
+    },
+    { required: ['scene_id'] },
+  );
+
+  // ── ha_light_set_color ────────────────────────────────────
+  registerTool(
+    'ha_light_set_color',
+    'Set color or color temperature of one or more lights. Also turns them on if they are off.',
+    {
+      entity_id: {
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } }
+        ],
+        description: 'Target light entity ID(s)',
+      },
+      rgb_color: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'RGB color as array [r, g, b] (0-255)',
+      },
+      color_temp: {
+        type: 'number',
+        description: 'Color temperature in mireds (e.g. 153 to 500)',
+      },
+      brightness_pct: {
+        type: 'number',
+        description: 'Brightness percentage (0-100)',
+      },
+    },
+    async args => {
+      const entityId = args['entity_id'] as string | string[];
+      const data: Record<string, any> = { entity_id: entityId };
+      if (args['rgb_color']) data['rgb_color'] = args['rgb_color'];
+      if (args['color_temp']) data['color_temp'] = args['color_temp'];
+      if (args['brightness_pct']) data['brightness_pct'] = args['brightness_pct'];
+
+      const res = await ha.callService('light', 'turn_on', data);
+
+      // Clear cache
+      const ids = Array.isArray(entityId) ? entityId : [entityId];
+      for (const eid of ids) setCachedResult(`state:${eid}`, undefined, 0);
+
+      await logAction(
+        'switch',
+        `Lichtfarbe/Temp angepasst fuer ${Array.isArray(entityId) ? entityId.join(', ') : entityId}`,
+        'ha_light_set_color',
+      );
+      return res;
+    },
+    { required: ['entity_id'] },
+  );
+
+  // ── ha_get_entities_by_label ──────────────────────────────
+  registerTool(
+    'ha_get_entities_by_label',
+    'Find all entities that have a specific label assigned.',
+    {
+      label: { type: 'string', description: 'Label ID or name (case-insensitive)' },
+    },
+    async args => {
+      const label = (args['label'] as string).toLowerCase();
+      const entitiesWithLabels = await ha.getEntitiesWithLabels();
+      const filtered = entitiesWithLabels.filter(e => {
+        return e.labels.some((l: string) => l.toLowerCase() === label);
+      });
+      return { label, count: filtered.length, entities: filtered.map(f => f.entity_id) };
+    },
+    { required: ['label'] },
+  );
+
+  // ── action_log_rollback ──────────────────────────────────
+  registerTool(
+    'action_log_rollback',
+    'Revert a previous action if it has rollback information. Use the ID from action_log_list.',
+    {
+      action_id: { type: 'string', description: 'ID of the action to rollback' },
+    },
+    async args => {
+      const id = args['action_id'] as string;
+      const action = await getActionById(id);
+      if (!action) return { error: `Action ${id} not found.` };
+      if (!action.rollback) return { error: `Action ${id} has no rollback information.` };
+
+      const { domain, service, entity_id, data } = action.rollback;
+      const res = await ha.callService(domain, service, { ...data, entity_id });
+      
+      await logAction(
+        'system',
+        `Rollback ausgeführt für Aktion ${id}: ${action.description}`,
+        'action_log_rollback',
+      );
+      
+      return { success: true, original_action: action.description, rollback_result: res };
+    },
+    { required: ['action_id'], dangerous: true },
   );
 
   // ── ha_call_service_dangerous (security-sensitive domains) ─
@@ -304,18 +469,17 @@ export function registerHATools(): void {
         description: 'Service name (e.g. "lock", "unlock", "trigger", "reload")',
       },
       entity_id: {
-        type: 'string',
-        description: 'Target entity ID (optional for some services)',
-      },
-      data: {
-        type: 'object',
-        description: 'Optional service data',
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } }
+        ],
+        description: 'Target entity ID or list of entity IDs (optional for some services)',
       },
     },
     async args => {
       const domain = args['domain'] as string;
       const service = args['service'] as string;
-      const entityId = args['entity_id'] as string | undefined;
+      const entityId = args['entity_id'] as string | string[] | undefined;
       const extraData = (args['data'] as Record<string, unknown>) ?? {};
 
       const payload: Record<string, unknown> = { ...extraData };
@@ -323,13 +487,17 @@ export function registerHATools(): void {
 
       const res = await ha.callService(domain, service, payload);
 
-      // Clear cache if entityId is known
-      if (entityId) setCachedResult(`state:${entityId}`, undefined, 0);
+      // Clear cache
+      if (Array.isArray(entityId)) {
+        for (const eid of entityId) setCachedResult(`state:${eid}`, undefined, 0);
+      } else if (entityId) {
+        setCachedResult(`state:${entityId}`, undefined, 0);
+      }
 
       const rollback = entityId ? getRollback(domain, service, entityId, extraData) : undefined;
       await logAction(
         'switch',
-        `${domain}.${service}${entityId ? ' auf ' + entityId : ''}`,
+        `${domain}.${service}${entityId ? ' auf ' + (Array.isArray(entityId) ? entityId.join(', ') : entityId) : ''}`,
         'ha_call_service_dangerous',
         rollback,
       );
@@ -535,6 +703,70 @@ export function registerHATools(): void {
       return ha.saveScriptConfig(id, config);
     },
     { dangerous: true, required: ['id', 'config'], complexity: 3 },
+  );
+
+  // ── ha_call_service_dangerous ──────────────────────────────
+  registerTool(
+    'ha_call_service_dangerous',
+    'Call ANY Home Assistant service on one or more entities. Use this for sensitive domains like lock, alarm_control_panel, automation, or homeassistant. Requires user confirmation.',
+    {
+      domain: {
+        type: 'string',
+        description: 'The domain of the service (e.g. "lock", "alarm_control_panel")',
+      },
+      service: {
+        type: 'string',
+        description: 'The service name (e.g. "lock", "unlock", "arm_away")',
+      },
+      entity_id: {
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } }
+        ],
+        description: 'Target entity ID or list of entity IDs',
+      },
+      data: {
+        type: 'object',
+        description: 'Optional service data',
+      },
+    },
+    async args => {
+      const domain = args['domain'] as string;
+      const service = args['service'] as string;
+      const entityIds = Array.isArray(args['entity_id'])
+        ? (args['entity_id'] as string[])
+        : [args['entity_id'] as string];
+      const extraData = (args['data'] as Record<string, unknown>) ?? {};
+
+      // Capture states before action
+      const statesBefore: Record<string, string | null> = {};
+      for (const eid of entityIds) {
+        try {
+          statesBefore[eid] = (await ha.getState(eid)).state;
+        } catch {
+          statesBefore[eid] = null;
+        }
+      }
+
+      const res = await ha.callService(domain, service, {
+        entity_id: entityIds.length === 1 ? entityIds[0] : entityIds,
+        ...extraData,
+      });
+
+      // Clear cache
+      for (const eid of entityIds) setCachedResult(`state:${eid}`, undefined, 0);
+
+      const rollback = getRollback(domain, service, entityIds.length === 1 ? entityIds[0]! : entityIds, extraData);
+      await logAction(
+        'system',
+        `${domain}.${service} auf ${entityIds.join(', ')}`,
+        'ha_call_service_dangerous',
+        rollback,
+      );
+
+      return { ...res, warning: 'Aktion an sicherheitssensiblen Bereich gesendet.' };
+    },
+    { dangerous: true, required: ['domain', 'service', 'entity_id'], complexity: 2 },
   );
 
   log.info('HA tools registered', { count: 12 });

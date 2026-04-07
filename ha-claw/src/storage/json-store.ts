@@ -39,7 +39,7 @@ export interface StoredRecord {
 // Initialize storage directories
 // ---------------------------------------------------------------------------
 
-const COLLECTIONS = ['notes', 'conversations', 'memory'] as const;
+const COLLECTIONS = ['notes', 'conversations', 'memory', 'usage'] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 
 export async function initStorage(): Promise<void> {

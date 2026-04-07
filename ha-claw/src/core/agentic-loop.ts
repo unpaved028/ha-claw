@@ -34,11 +34,28 @@ import { getDynamicPrunedCache } from './entity-cache.js';
 import { clearToolCache } from '../tools/tool-cache.js';
 import { countTokens, pruneMessages } from './context-manager.js';
 import { getProfile } from './profile.js';
-import type { ChatMessage, AgentConfig, LoopResult, ToolCall } from './types.js';
+import type { ChatMessage, AgentConfig, LoopResult, ToolCall, ProgressCallback } from './types.js';
 
 const log = createLogger('loop');
 
 const MAX_ITERATIONS = 10; // Non-negotiable
+
+// Rotating thinking phrases for real-time status feedback
+const THINKING_PHRASES = [
+  'denkt nach',
+  'kombiniert Wissen',
+  'analysiert Situation',
+  'plant nächsten Schritt',
+  'prüft Zusammenhänge',
+  'formuliert Antwort',
+  'berechnet Optionen',
+  'greift auf Daten zu',
+  'ordnet Informationen',
+  'zieht Schlussfolgerungen',
+];
+function randomPhrase(): string {
+  return THINKING_PHRASES[Math.floor(Math.random() * THINKING_PHRASES.length)];
+}
 
 /**
  * Confirmation callback type.
@@ -59,6 +76,7 @@ export async function runAgenticLoop(
   confirmFn: ConfirmationFn = autoApprove,
   history: ChatMessage[] = [],
   toolFilter?: string[],
+  onProgress?: ProgressCallback,
 ): Promise<LoopResult> {
   clearToolCache();
   let toolDefs = getToolDefinitions();
@@ -139,12 +157,16 @@ export async function runAgenticLoop(
   });
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // Emit 'thinking' event before each LLM call
+    onProgress?.({ type: 'thinking', message: randomPhrase(), iteration: i + 1 });
+
     // 1. Call LLM (using the pruned/managed message list)
     const response = await callLLM(messages, {
       model: agent.model,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
       temperature: agent.temperature,
       maxTokens: agent.maxTokens,
+      onStreamChunk: onProgress ? (chunk) => onProgress({ type: 'text_chunk', chunk }) : undefined,
     });
 
     const choice = response.choices[0];
@@ -176,9 +198,16 @@ export async function runAgenticLoop(
 
     for (let j = 0; j < toolCalls.length; j += CONCURRENCY_LIMIT) {
       const batch = toolCalls.slice(j, j + CONCURRENCY_LIMIT);
+
+      // Emit tool_call events before executing
+      for (const call of batch) {
+        onProgress?.({ type: 'tool_call', toolName: call.function.name });
+      }
+
       const results = await Promise.all(
         batch.map(async call => {
           const result = await executeWithSafetyGate(call, confirmFn);
+          onProgress?.({ type: 'tool_result', toolName: call.function.name });
           return { call, result };
         }),
       );

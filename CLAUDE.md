@@ -3,7 +3,7 @@
 ## Was ist HA-Claw?
 Lokaler KI-Assistent als Home Assistant Add-on. Agentic Loop mit Tool Calling, Web UI (Ingress), Telegram Bot. Nutzt OpenRouter für LLM-Zugang.
 
-## Aktuelle Version: 0.7.0
+## Aktuelle Version: 0.8.0
 
 ## Architektur (Kerndateien)
 
@@ -90,29 +90,48 @@ ha-claw/
 | 0.6.5 | 2026-04-03 | Automation/Script editing support, native HA ID logic for automation loading |
 | 0.6.6 | 2026-04-03 | Fixed Web UI transparent confirmation modal background |
 | 0.7.0 | 2026-04-03 | **v0.7.0 – Token-Effizienz & Performance**: System-Prompt-Größe begrenzen (maxContextTokens), Context-Aware Pruning, Daten-Retention (Corrections max 100, Action-Log 7d) |
+| 0.7.1 | 2026-04-03 | **Proaktiver Butler-Modus**: Periodische Systemanalyse, Push-Nachrichten bei High-Priority Tasks, Inline-Keyboard für Fast-Track Ausführung / Ignorieren via Telegram. |
+| 0.7.2 | 2026-04-06 | **v0.7.2 – UX & Batching**: Telegram Befehle (`/rooms`, `/status`, `/help`), LLM Usage Tracker mit Kostenberechnung, Multi-Entity Tool Batching (`ha_call_service`, `ha_get_state`), `ha_call_service_dangerous` Tool. |
+| 0.8.0 | 2026-04-07 | **v0.8.0 – Nutzererlebnis & Zuverlässigkeit**: Telegram Voice-to-Text via Whisper/STT, Streaming Responses (SSE), Circuit Breaker für API-Stabilität, Web UI Lade-Optimierung. |
 
 ## Nächste Schritte (Roadmap)
 
-### v0.7.0 – Token-Effizienz & Performance (Completed)
+### v0.7.x – Token-Effizienz & Butler-Modus ✅
 - [x] **System-Prompt-Größe begrenzen**: `maxContextTokens` (4K default), smart pruning logic
-- [ ] **Chat-History Paginierung**: Letzte 30 Nachrichten laden, "Mehr laden"-Button (Roadmap)
-- [ ] **HA State Caching**: Kurzzeit-Cache (5s TTL) zwischen Tool-Calls im selben Loop (Roadmap)
 - [x] **Daten-Retention**: Corrections max 100, Action-Log 7-Tage-Fenster
+- [x] **Proaktiver Butler-Modus**: Periodische 60-Minuten-Analyse und proaktive Telegram-Nachrichten.
+- [x] **Fast-Track Approve**: Inline-Buttons zum direkten Ausführen von Warnungen.
 
-### v0.8.0 – Zuverlässigkeit & Features
-- [ ] **Circuit Breaker für OpenRouter**: Nach 3 Fehlern → 60s Pause, Half-Open Probe
+### v0.8.0 – Nutzererlebnis & Zuverlässigkeit ✅
+
+#### Pflicht (High Impact)
+- [x] **Telegram Voice-to-Text**: Sprachnachrichten via Whisper/OpenRouter STT → „Hey, mach Licht im Bad an" statt Tippen. Grammy `message:voice` Handler + Audio-Transcription. ✅
+- [x] **Streaming Responses (SSE)**: Web UI zeigt sofort „🔍 Suche...", „⚡ Schalte...", „✅ Fertig!" statt 15s Ladebalken. Telegram: `sendChatAction('typing')` + Zwischen-Updates. Erfordert SSE-Endpoint in `server.ts` + Callback-Hooks in `agentic-loop.ts`. ✅
+- [x] **Multi-Entity Batching**: `ha_call_service` akzeptiert `entity_id` als Array. ✅
+- [x] **Telegram Command-Menü**: `/help`, `/status`, `/rooms`. ✅
+
+#### Soll (Medium Impact)
+- [x] **Circuit Breaker für OpenRouter**: Nach 3 Fehlern → 60s Pause, Half-Open Probe. Globaler State über Requests hinweg statt isolierter Retry-Loops. Scheduler prüft LLM-Verfügbarkeit vor Job-Ausführung.
+- [x] **Token-Kosten-Tracking**: Kumulativer Counter + Kostenberechnung (USD) in `/status`. ✅
+- [ ] **Retry-bei-Fehler**: Telegram: Inline-Button „🔄 Nochmal versuchen" bei Fehlern. Web: Retry-Button an Fehlernachrichten. Statt erneut tippen.
+
+#### Kann (Low Priority, nur wenn nötig)
+- [ ] **Web UI Refactoring**: Dashboard HTML-String nur ablösen wenn Streaming (SSE) es erfordert – kein Selbstzweck-Refactoring.
 - [ ] **Daten-Export Tool**: Conversations, Memory, Backlog als JSON exportieren
-- [ ] **Telegram Command-Menü**: `/help`, `/status`, `/rooms`
 - [ ] **Tool-Timeouts**: 15s pro Tool-Ausführung
+
+### v0.9.0 – Optimierung & Erweiterung
+- [ ] **Chat-History Paginierung**: Letzte 30 Nachrichten laden, „Mehr laden"-Button
+- [ ] **HA State Caching**: Kurzzeit-Cache (5s TTL) zwischen Tool-Calls im selben Loop
+- [ ] **Memory Card Vector Search**: TF-IDF durch Embedding-basierte Suche ersetzen (skaliert besser ab 1000+ Cards)
 
 ### v1.0.0 – Qualität & Hardening
 - [ ] **Tests einführen**: vitest, Storage + Agentic Loop + Config
 - [ ] **Dockerfile-Hardening**: HEALTHCHECK, non-root User, Alpine-Version pinnen
-- [ ] **Bild/Vision-Support**: OpenRouter Vision-Modelle, Screenshot-Analyse
-- [ ] **Token-Kosten-Anzeige**: Counter pro Gespräch in Statusbar + Settings
+- [ ] **Bild/Vision-Support**: OpenRouter Vision-Modelle & `ha_get_camera_image` Kamera-Integration (Zählerstände ablesen, Haustür prüfen)
 
 ## Bekannte Probleme
-- Dashboard ist ein 2700-Zeilen HTML-String in TypeScript (schwer wartbar)
+- Dashboard ist ein 2700-Zeilen HTML-String in TypeScript (schwer wartbar, Refactoring nur wenn Streaming es erfordert)
 - ~~Kein Linting (eslint) oder Formatting (prettier) konfiguriert~~ → gelöst (ESLint v9 flat config + Prettier, `npm run lint` / `npm run format:fix`)
-- Memory Card Suche ist O(n) Linear-Scan (wird bei 1000+ Cards langsam)
+- Memory Card Suche ist O(n) Linear-Scan (→ Vector Search in v0.9.0)
 - ~~Backlog Processor pollt alle 30s~~ → gelöst in v0.6.2 (event-driven)

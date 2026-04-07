@@ -370,7 +370,7 @@ export async function saveAutomationConfig(
   config: Record<string, unknown>,
 ): Promise<HAServiceResponse> {
   log.info('Saving automation config', { id });
-  await haFetch<unknown>(`/config/automation/config/${id}`, 'POST', config);
+  await haFetch<unknown>((`/config/automation/config/${id}`), 'POST', config);
   return { success: true };
 }
 
@@ -408,7 +408,7 @@ export async function saveScriptConfig(
   config: Record<string, unknown>,
 ): Promise<HAServiceResponse> {
   log.info('Saving script config', { id });
-  await haFetch<unknown>(`/config/script/config/${id}`, 'POST', config);
+  await haFetch<unknown>((`/config/script/config/${id}`), 'POST', config);
   return { success: true };
 }
 
@@ -417,6 +417,25 @@ export async function saveScriptConfig(
  */
 export async function getConfig(): Promise<Record<string, unknown>> {
   return haFetch<Record<string, unknown>>('/config');
+}
+
+/**
+ * Get all entities that have labels assigned.
+ * Returns { entity_id: string, labels: string[] }[]
+ */
+export async function getEntitiesWithLabels(): Promise<{ entity_id: string; labels: string[] }[]> {
+  const tpl = [
+    '{% set ns = namespace(out=[]) %}',
+    '{% for s in states %}',
+    '{% set l = labels(s.entity_id) %}',
+    '{% if l %}',
+    '{% set ns.out = ns.out + [{"entity_id": s.entity_id, "labels": l}] %}',
+    '{% endif %}',
+    '{% endfor %}',
+    '{{ ns.out | tojson }}',
+  ].join('');
+  const raw = await renderTemplate(tpl);
+  return JSON.parse(raw);
 }
 
 export type { HAState, HAServiceResponse };

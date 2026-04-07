@@ -21,6 +21,9 @@ interface AppConfig {
   openRouterApiKey: string;
   openRouterDefaultModel: string;
 
+  // OpenAI (optional, mainly for Whisper STT)
+  openaiApiKey: string | null;
+
   // Telegram (optional – bot only starts if token is set)
   telegramBotToken: string | null;
   telegramAllowedUserIds: number[];
@@ -49,6 +52,7 @@ interface AppConfig {
 interface AddonOptions {
   openrouter_api_key: string;
   openrouter_default_model: string;
+  openai_api_key?: string;
   telegram_bot_token: string;
   telegram_allowed_user_ids: string | number[] | number;
   log_level: string;
@@ -91,6 +95,7 @@ function loadConfig(): AppConfig {
         openrouter_api_key: process.env['OPENROUTER_API_KEY'] ?? '',
         openrouter_default_model:
           process.env['OPENROUTER_DEFAULT_MODEL'] ?? 'google/gemini-2.5-flash-preview',
+        openai_api_key: process.env['OPENAI_API_KEY'] ?? '',
         telegram_bot_token: process.env['TELEGRAM_BOT_TOKEN'] ?? '',
         telegram_allowed_user_ids: (process.env['TELEGRAM_ALLOWED_USER_IDS'] ?? '')
           .split(',')
@@ -121,6 +126,8 @@ function loadConfig(): AppConfig {
   return Object.freeze({
     openRouterApiKey: options.openrouter_api_key,
     openRouterDefaultModel: options.openrouter_default_model,
+
+    openaiApiKey: options.openai_api_key || null,
 
     telegramBotToken: hasTelegram ? options.telegram_bot_token : null,
     telegramAllowedUserIds: allowedUserIds,

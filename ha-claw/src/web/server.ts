@@ -26,7 +26,8 @@ import { listJobs, toggleJob, deleteJob } from '../storage/scheduler.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
 import { buildEntityCache } from '../core/entity-cache.js';
 import { runAgenticLoop, type ConfirmationFn } from '../core/agentic-loop.js';
-import type { ChatMessage } from '../core/types.js';
+import { getCircuitBreakerState } from '../core/openrouter.js';
+import type { ChatMessage, ProgressCallback } from '../core/types.js';
 import { dashboardHtml } from './dashboard.js';
 import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
@@ -155,14 +156,20 @@ export async function startWebServer(): Promise<void> {
         WEB_SESSION,
       );
       const history = record?.messages || [];
+      const historyWithUser: ChatMessage[] = [...history, { role: 'user', content: message }];
+      await store.upsert('conversations', WEB_SESSION, { messages: historyWithUser.slice(-20) });
+
       const result = await runAgenticLoop(message, agent, undefined, history, ONBOARDING_TOOLS);
 
-      const newMessages: ChatMessage[] = [
-        ...history,
-        { role: 'user', content: message },
-        { role: 'assistant', content: result.response },
-      ];
-      await store.upsert('conversations', WEB_SESSION, { messages: newMessages.slice(-20) });
+      // Persist assistant response
+      const recordAfter = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+        'conversations',
+        WEB_SESSION,
+      );
+      const historyAfter = recordAfter?.messages || historyWithUser;
+      await store.upsert('conversations', WEB_SESSION, {
+        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20)
+      });
 
       if (!needsOnboarding()) endOnboarding(WEB_SESSION);
       return result;
@@ -187,22 +194,103 @@ export async function startWebServer(): Promise<void> {
     );
     const history = record?.messages || [];
 
+    // Persist user message immediately to avoid losing it on refresh
+    const historyWithUser: ChatMessage[] = [...history, { role: 'user', content: message }];
+    await store.upsert('conversations', WEB_SESSION, { messages: historyWithUser.slice(-20) });
+
     // 2. Run loop (passing history) with web safety gate
     const webConfirmFn = createWebConfirmFn();
     const result = await runAgenticLoop(userMessage, agent, webConfirmFn, history);
 
     // 3. Persist updated history
-    const newMessages: ChatMessage[] = [
-      ...history,
-      { role: 'user', content: message },
-      { role: 'assistant', content: result.response },
-    ];
-
-    // Keep it efficient: last 20 messages (~10 turns)
-    const limited = newMessages.slice(-20);
-    await store.upsert('conversations', WEB_SESSION, { messages: limited });
+    const recordAfter = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+      'conversations',
+      WEB_SESSION,
+    );
+    const historyAfter = recordAfter?.messages || historyWithUser;
+    await store.upsert('conversations', WEB_SESSION, {
+      messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20)
+    });
 
     return result;
+  });
+
+  // ── SSE Streaming Chat ───────────────────────────────────
+  // GET /api/chat/stream?message=...
+  // Emits: data: {type, ...}\n\n for thinking/tool_call/tool_result/done/error
+  app.get<{ Querystring: { message: string } }>('/api/chat/stream', async (req, reply) => {
+    const message = req.query?.message;
+    if (!message || typeof message !== 'string') {
+      reply.status(400);
+      return { error: 'Missing "message" query param' };
+    }
+
+    // Check circuit breaker before starting
+    const cb = getCircuitBreakerState();
+    if (cb.isOpen) {
+      reply.status(503);
+      return {
+        error: `Circuit breaker aktiv – bitte in ${Math.round(cb.remainingMs / 1000)}s erneut versuchen.`,
+      };
+    }
+
+    // Set SSE headers
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+
+    const send = (payload: Record<string, unknown>) => {
+      reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    const onProgress: ProgressCallback = event => {
+      send(event);
+    };
+
+    try {
+      log.info('SSE stream started', { length: message.length });
+
+      const agent = buildAgent();
+      const webConfirmFn = createWebConfirmFn();
+      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+        'conversations',
+        WEB_SESSION,
+      );
+      const history = record?.messages || [];
+
+      // Persist user message immediately so it's not lost on refresh
+      const historyWithUser: ChatMessage[] = [...history, { role: 'user', content: message }];
+      await store.upsert('conversations', WEB_SESSION, { messages: historyWithUser.slice(-20) });
+
+      const result = await runAgenticLoop(message, agent, webConfirmFn, history, undefined, onProgress);
+
+      const recordAfter = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
+        'conversations',
+        WEB_SESSION,
+      );
+      const historyAfter = recordAfter?.messages || historyWithUser;
+
+      // Persist history
+      await store.upsert('conversations', WEB_SESSION, {
+        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20)
+      });
+
+      // Final event
+      send({ type: 'done', response: result.response, toolCalls: result.toolCalls });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error('SSE stream error', { error: msg });
+      send({ type: 'error', message: msg });
+    }
+
+    reply.raw.end();
+  });
+
+  // ── Circuit Breaker Status ───────────────────────────────
+  app.get('/api/status/circuit-breaker', async () => {
+    return getCircuitBreakerState();
   });
 
   app.get('/api/chat/history', async () => {
@@ -329,7 +417,7 @@ export async function startWebServer(): Promise<void> {
   });
 
   app.get('/api/actions', async () => {
-    const actions = await actionLog.listActions(100);
+    const actions = await actionLog.listActions({ limit: 100 });
     return { count: actions.length, actions };
   });
 

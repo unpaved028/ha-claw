@@ -25,6 +25,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createLogger } from '../core/logger.js';
+import { getCircuitBreakerState } from '../core/openrouter.js';
 
 const log = createLogger('scheduler');
 
@@ -101,6 +102,15 @@ export function stopScheduler(): void {
 
 async function tick(): Promise<void> {
   const now = new Date();
+  
+  // Wenn der Circuit Breaker offen ist, führen wir in diesem Tick keine Jobs aus.
+  // Sie bleiben in der Queue, da ihr nextRunAt in der Vergangenheit liegt
+  // und beim nächsten Tick (alle 30s) wieder geprüft wird.
+  if (getCircuitBreakerState().isOpen) {
+    // Da wir alle 30s ticken, loggen wir dies nur kurz (oder gar nicht, um Spam zu vermeiden).
+    return;
+  }
+
   for (const job of jobs) {
     if (!job.enabled || !job.nextRunAt) continue;
     const next = new Date(job.nextRunAt);

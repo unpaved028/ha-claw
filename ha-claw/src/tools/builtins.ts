@@ -13,7 +13,7 @@ import * as backlog from '../storage/backlog.js';
 import * as scheduler from '../storage/scheduler.js';
 import * as learning from '../storage/learning.js';
 import { runAnalysis } from '../core/proactive-analysis.js';
-import { logAction } from '../storage/action-log.js';
+import { logAction, listActions } from '../storage/action-log.js';
 import { saveProfile, needsOnboarding } from '../core/profile.js';
 
 export function registerBuiltinTools(): void {
@@ -142,6 +142,60 @@ export function registerBuiltinTools(): void {
       return res;
     },
     { required: ['collection', 'content'] },
+  );
+
+  // ── notes_add ───────────────────────────────────────────
+  registerTool(
+    'notes_add',
+    'Quickly create a note with a title, content, and optional tags/labels.',
+    {
+      title: { type: 'string', description: 'Subject or title of the note' },
+      content: { type: 'string', description: 'Detailed text of the note' },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional tags (e.g. ["private", "work", "todo"])',
+      },
+    },
+    async args => {
+      const res = await store.create('notes', {
+        title: (args['title'] as string) || 'Unbenannte Notiz',
+        content: args['content'] as string,
+        tags: (args['tags'] as string[]) || [],
+      });
+      await logAction('note', `Notiz erstellt: ${res.title}`, 'notes_add');
+      return res;
+    },
+    { required: ['content'] },
+  );
+
+  // ── tasks_add ───────────────────────────────────────────
+  registerTool(
+    'tasks_add',
+    'Add a new task or optimization proposal to the backlog. Supports basic checklists if content is formatted with "- [ ]".',
+    {
+      title: { type: 'string', description: 'Task summary' },
+      description: { type: 'string', description: 'Full description or checklist' },
+      priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+      category: {
+        type: 'string',
+        enum: ['energy', 'comfort', 'security', 'automation', 'maintenance'],
+      },
+    },
+    async args => {
+      const task = await backlog.createTask({
+        title: args['title'] as string,
+        toBe: args['description'] as string,
+        asIs: 'Manuell hinzugefügt',
+        impact: 'Nutzermanagement',
+        priority: (args['priority'] as backlog.Priority) ?? 'medium',
+        category: (args['category'] as string) ?? 'automation',
+        proposedBy: 'user',
+      });
+      await logAction('task', `Aufgabe hinzugefügt: ${task.title}`, 'tasks_add');
+      return { success: true, id: task.id };
+    },
+    { required: ['title'] },
   );
 
   // ── store_delete ─────────────────────────────────────────
@@ -698,6 +752,27 @@ export function registerBuiltinTools(): void {
         })),
         errors: errors.slice(0, 10),
       };
+    },
+  );
+
+  // ── action_log_list ──────────────────────────────────────
+  registerTool(
+    'action_log_list',
+    'Show a list of recent bot actions. Can be filtered by category (switch, note, task, config, system).',
+    {
+      limit: { type: 'number', description: 'Number of entries to show (default 20)' },
+      category: {
+        type: 'string',
+        enum: ['switch', 'note', 'task', 'config', 'system', 'schedule'],
+        description: 'Filter by category',
+      },
+    },
+    async args => {
+      const actions = await listActions({
+        limit: (args['limit'] as number) ?? 20,
+        category: args['category'] as any,
+      });
+      return { count: actions.length, actions };
     },
   );
 }

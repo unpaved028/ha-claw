@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+- **Telegram Voice-to-Text**: Sprachnachrichten via Whisper/OpenRouter STT Handler + Audio-Transcription.
+- **Streaming Responses (SSE)**: UI & Telegram Streaming Updates.
+- **Multi-Entity Batching**: `ha_call_service` akzeptiert `entity_id` als Array.
+- **Telegram Command-Menü**: `/help`, `/status`, `/rooms`.
+- **Token-Kosten-Tracking**: Kumulativer Counter + Kostenberechnung (USD) in `/status`.
+
+### Improved
+
+- **Circuit Breaker für OpenRouter**: Schutz vor API-Fehlern mit Global State.
+
+---
+
 ## 0.7.0
 
 ### Added

@@ -12,6 +12,7 @@
 import { createLogger } from '../core/logger.js';
 import { getTask, updateTask, listTasks, onProcessableStatusChange } from './backlog.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
+import { getCircuitBreakerState } from '../core/openrouter.js';
 import type { AgentConfig } from '../core/types.js';
 
 const log = createLogger('backlog-proc');
@@ -22,9 +23,15 @@ let pendingNotify = false; // coalesce rapid-fire notifications
 
 /**
  * Initialize the backlog processor.
- * On startup, runs one initial scan to catch tasks that were approved/solution_approved
+ * On startup, runs one initial scan to catch tasks that were approved/solution_approved/fast_track_approved
  * before the add-on started. After that, processing is purely event-driven.
  */
+export type ExecutionListener = (task: import('./backlog.js').BacklogTask) => void;
+let executionFinishedListener: ExecutionListener | null = null;
+
+export function onExecutionFinished(listener: ExecutionListener): void {
+  executionFinishedListener = listener;
+}
 export function initBacklogProcessor(buildAgent: () => AgentConfig): void {
   agentBuilder = buildAgent;
 
@@ -66,13 +73,20 @@ async function processQueue(): Promise<void> {
     pendingNotify = true;
     return;
   }
+
+  if (getCircuitBreakerState().isOpen) {
+    log.warn('Backlog processor paused: Circuit breaker is OPEN.');
+    // Keep pending tasks, wait for next tick or event
+    return;
+  }
+
   processing = true;
 
   try {
-    // Find tasks that need solution generation
+    // Find tasks that need solution generation (approved or fast_track_approved)
     const allTasks = await listTasks();
-    const approved = allTasks.filter(t => t.status === 'approved');
-    for (const task of approved) {
+    const needsSolution = allTasks.filter(t => t.status === 'approved' || t.status === 'fast_track_approved');
+    for (const task of needsSolution) {
       await generateSolution(task.id);
     }
 
@@ -97,9 +111,11 @@ async function processQueue(): Promise<void> {
 
 async function generateSolution(taskId: string): Promise<void> {
   const task = await getTask(taskId);
-  if (!task || task.status !== 'approved') return;
+  if (!task || (task.status !== 'approved' && task.status !== 'fast_track_approved')) return;
 
-  log.info('Generating solution for task', { id: taskId, title: task.title });
+  const isFastTrack = task.status === 'fast_track_approved';
+
+  log.info('Generating solution for task', { id: taskId, title: task.title, isFastTrack });
 
   const prompt = `Analysiere folgende Verbesserungsaufgabe und schlage eine konkrete Loesung vor.
 
@@ -117,10 +133,10 @@ Antworte NUR mit der Loesung, keine Einleitung oder Erklaerung drumherum.`;
     const agent = agentBuilder!();
     const result = await runAgenticLoop(prompt, agent);
     await updateTask(taskId, {
-      status: 'solution_proposed',
+      status: isFastTrack ? 'solution_approved' : 'solution_proposed',
       solution: result.response,
     });
-    log.info('Solution proposed for task', { id: taskId });
+    log.info('Solution proposed for task', { id: taskId, autoApproved: isFastTrack });
   } catch (err) {
     log.error('Solution generation failed', { id: taskId, error: String(err) });
   }
@@ -142,17 +158,19 @@ Nutze die verfuegbaren Tools um die Loesung umzusetzen. Bestaetige was du getan 
   try {
     const agent = agentBuilder!();
     const result = await runAgenticLoop(prompt, agent);
-    await updateTask(taskId, {
+    const updated = await updateTask(taskId, {
       status: 'done',
       executionResult: result.response,
     });
     log.info('Task completed', { id: taskId });
+    if (updated && executionFinishedListener) executionFinishedListener(updated);
   } catch (err) {
     log.error('Task execution failed', { id: taskId, error: String(err) });
-    await updateTask(taskId, {
+    const updated = await updateTask(taskId, {
       status: 'solution_approved', // revert to allow retry
       executionResult: `FEHLER: ${String(err).slice(0, 500)}`,
     });
+    if (updated && executionFinishedListener) executionFinishedListener(updated);
   }
 }
 

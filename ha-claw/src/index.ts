@@ -30,6 +30,11 @@ import { getToolNames, applyDisabledTools } from './tools/registry.js';
 import { startWebServer, buildAgent } from './web/server.js';
 import { runAgenticLoop } from './core/agentic-loop.js';
 import { createBot, startBot } from './telegram/bot.js';
+import { setupProactiveNotifications, sendProactiveMessage } from './telegram/notifications.js';
+import { onNewHighPriorityTask } from './storage/backlog.js';
+import { onExecutionFinished } from './storage/backlog-processor.js';
+import { runAnalysis } from './core/proactive-analysis.js';
+import { InlineKeyboard } from 'grammy';
 
 const log = createLogger('main');
 
@@ -94,6 +99,7 @@ async function main(): Promise<void> {
   let telegramBot: ReturnType<typeof createBot> | null = null;
   if (appConfig.telegramBotToken) {
     telegramBot = createBot();
+    setupProactiveNotifications(telegramBot);
     await startBot(telegramBot);
 
     const shutdown = (sig: string) => {
@@ -150,6 +156,38 @@ async function main(): Promise<void> {
 
   // Step 8: Backlog processor – auto-processes approved tasks
   initBacklogProcessor(buildAgent);
+
+  // Step 9: Proactive Analysis Loop & Push Hooks
+  if (telegramBot) {
+    onNewHighPriorityTask((task) => {
+      const kb = new InlineKeyboard()
+        .text('✅ Ausführen', `task:fast_track:${task.id}`)
+        .text('❌ Ignorieren', `task:reject:${task.id}`);
+      
+      const msg = `⚠️ *Proaktive Warnung: ${task.title}*\n\n*Ist-Zustand:* ${task.asIs}\n*Soll-Zustand:* ${task.toBe}`;
+      sendProactiveMessage(msg, kb).catch(err => log.error('Failed to send push', { error: String(err) }));
+    });
+
+    onExecutionFinished((task) => {
+      if (task.status === 'done') {
+        const msg = `✅ *Aufgabe erledigt:* ${task.title}\n\n*Ergebnis:*\n${String(task.executionResult || 'Ohne Rückmeldung').substring(0, 1000)}`;
+        sendProactiveMessage(msg).catch(err => log.error('Failed to send finish push', { error: String(err) }));
+      } else {
+        const msg = `❌ *Fehler bei Aufgabe:* ${task.title}\n\n*Details:*\n${String(task.executionResult || 'Unbekannt').substring(0, 1000)}`;
+        sendProactiveMessage(msg).catch(err => log.error('Failed to send error push', { error: String(err) }));
+      }
+    });
+  }
+
+  // Run analysis every 60 minutes
+  setInterval(async () => {
+    try {
+      log.info('Running periodic system analysis (60 min)');
+      await runAnalysis();
+    } catch (err) {
+      log.error('Periodic analysis failed', { error: String(err) });
+    }
+  }, 60 * 60 * 1000);
 
   log.info('=== HA-Claw ready ===');
 }
