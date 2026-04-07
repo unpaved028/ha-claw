@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+### Fixed
+
+- **Web UI Buttons**: Fixed syntax errors caused by flawed string escaping in Dashboard Buttons (`handleAction`, `respondConfirm`, `rollbackAction`).
+
+---
+
 ## 0.8.0
 
 ### Added

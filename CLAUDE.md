@@ -3,7 +3,7 @@
 ## Was ist HA-Claw?
 Lokaler KI-Assistent als Home Assistant Add-on. Agentic Loop mit Tool Calling, Web UI (Ingress), Telegram Bot. Nutzt OpenRouter für LLM-Zugang.
 
-## Aktuelle Version: 0.8.0
+## Aktuelle Version: 0.8.1
 
 ## Architektur (Kerndateien)
 
@@ -93,6 +93,7 @@ ha-claw/
 | 0.7.1 | 2026-04-03 | **Proaktiver Butler-Modus**: Periodische Systemanalyse, Push-Nachrichten bei High-Priority Tasks, Inline-Keyboard für Fast-Track Ausführung / Ignorieren via Telegram. |
 | 0.7.2 | 2026-04-06 | **v0.7.2 – UX & Batching**: Telegram Befehle (`/rooms`, `/status`, `/help`), LLM Usage Tracker mit Kostenberechnung, Multi-Entity Tool Batching (`ha_call_service`, `ha_get_state`), `ha_call_service_dangerous` Tool. |
 | 0.8.0 | 2026-04-07 | **v0.8.0 – Nutzererlebnis & Zuverlässigkeit**: Telegram Voice-to-Text via Whisper/STT, Streaming Responses (SSE), Circuit Breaker für API-Stabilität, Web UI Lade-Optimierung. |
+| 0.8.1 | 2026-04-07 | Bugfix: Fixed syntax errors breaking interactive buttons in the web dashboard. |
 
 ## Nächste Schritte (Roadmap)
 
