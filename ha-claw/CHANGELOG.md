@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.4
+
+### Fixed
+
+- **Dashboard Actions**: Final stabilization of string escaping for interactive action buttons (Primary/Secondary).
+- **Rollback UI**: Fixed string escaping for the rollback action button in the activity log.
+
+---
+
 ## 0.8.3
 
 ### Fixed

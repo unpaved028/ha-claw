@@ -1962,7 +1962,7 @@ function renderRichContent(text){
     for(const action of actions){
       const match=action.match(/^(primary|secondary):(.+)$/);
       if(match){
-        out+='<button class="msg-action-btn '+match[1]+'" data-action-group="'+gid+'" onclick="handleAction(this,\''+escHtml2(match[2].trim()).replace(/'/g,'&#39;')+'\')">'+escHtml2(match[2].trim())+'</button>';
+        out+='<button class="msg-action-btn '+match[1]+'" data-action-group="'+gid+'" onclick="handleAction(this,\\''+escHtml2(match[2].trim()).replace(/'/g,'&#39;')+'\\')">'+escHtml2(match[2].trim())+'</button>';
       }
     }
     out+='</div>';
@@ -2815,7 +2815,7 @@ async function loadActions(){
       else if(tool.startsWith('memory')){icon='&#129504;';cls='note';}
       else if(tool.startsWith('backlog')){icon='&#128161;';cls='task';}
       
-      const rollbackBtn = a.rollback ? '<button class="action-rollback" onclick="rollbackAction(event, \'' + a.id + '\')">Rollback</button>' : '';
+      const rollbackBtn = a.rollback ? '<button class="action-rollback" onclick="rollbackAction(event, \\'' + a.id + '\\')">Rollback</button>' : '';
 
       return '<div class="action-entry">'
         +'<div class="action-icon '+cls+'">'+icon+'</div>'
