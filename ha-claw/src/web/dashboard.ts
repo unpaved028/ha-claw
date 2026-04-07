@@ -2154,8 +2154,8 @@ function showConfirmModal(id,toolName,args){
     +'<div class="confirm-title">Sicherheitsabfrage</div>'
     +'<div class="confirm-body">Tool <strong>'+escHtml2(toolName)+'</strong> moechte ausgefuehrt werden:<pre>'+escHtml2(argsStr)+'</pre></div>'
     +'<div class="confirm-actions">'
-    +'<button class="confirm-btn approve" onclick="respondConfirm(\''+id+'\',true)">Ausfuehren</button>'
-    +'<button class="confirm-btn deny" onclick="respondConfirm(\''+id+'\',false)">Ablehnen</button>'
+    +'<button class="confirm-btn approve" onclick="respondConfirm(\\''+id+'\\',true)">Ausfuehren</button>'
+    +'<button class="confirm-btn deny" onclick="respondConfirm(\\''+id+'\\',false)">Ablehnen</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
 }
@@ -2444,7 +2444,7 @@ async function loadSettings(){
         '<div class="tool-card'+(enabled?'':' disabled')+'" id="tc-'+name+'">'
         +'<div class="tool-card-top">'
           +'<div class="tool-card-icon">'+icon+'</div>'
-          +'<button class="tool-toggle'+(enabled?' on':'')+'" onclick="toggleTool(\\x27'+name+'\\x27,this)" title="'+(enabled?'Deaktivieren':'Aktivieren')+'"></button>'
+          +'<button class="tool-toggle'+(enabled?' on':'')+'" onclick="toggleTool(\\''+name+'\\',this)" title="'+(enabled?'Deaktivieren':'Aktivieren')+'"></button>'
         +'</div>'
         +'<div class="tool-card-name">'+name+'</div>'
         +'<div class="tool-card-type">'+desc+'</div>'
@@ -2452,7 +2452,7 @@ async function loadSettings(){
           +'<span class="tool-card-badge'+(isDanger?' danger':'')+'">'+
             (isDanger?'Bestaetigung noetig':'Safe')+'</span>'
           +'<span style="font-size:0.7rem;color:var(--accent);letter-spacing:0.1em" title="Komplexitaet '+complexity+'">'+complexStars+'</span>'
-          +'<a href="#" onclick="showToolDetails(\\x27'+name+'\\x27);return false" style="font-size:0.65rem;color:var(--text-dim);text-decoration:none;opacity:0.7">Details &rarr;</a>'
+          +'<a href="#" onclick="showToolDetails(\\''+name+'\\');return false" style="font-size:0.65rem;color:var(--text-dim);text-decoration:none;opacity:0.7">Details &rarr;</a>'
         +'</div>'
         +'</div>';
     }
@@ -2569,18 +2569,18 @@ function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 function buildBacklogActions(t){
   const btns=[];
   if(t.status==='proposed'){
-    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27approved\\x27)">Genehmigen</button>');
-    btns.push('<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27deferred\\x27)">Zurueckstellen</button>');
-    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27rejected\\x27)">Ablehnen</button>');
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'approved\\')">Genehmigen</button>');
+    btns.push('<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'deferred\\')">Zurueckstellen</button>');
+    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'rejected\\')">Ablehnen</button>');
   }
   if(t.status==='approved'){
     btns.push('<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; KI erarbeitet Loesung...</span>');
-    btns.push('<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27deferred\\x27)">Zurueckstellen</button>');
+    btns.push('<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'deferred\\')">Zurueckstellen</button>');
   }
   if(t.status==='solution_proposed'){
-    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27solution_approved\\x27)">Loesung genehmigen</button>');
-    btns.push('<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27approved\\x27)">Neue Loesung</button>');
-    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27rejected\\x27)">Ablehnen</button>');
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'solution_approved\\')">Loesung genehmigen</button>');
+    btns.push('<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'approved\\')">Neue Loesung</button>');
+    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'rejected\\')">Ablehnen</button>');
   }
   if(t.status==='solution_approved'){
     btns.push('<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; Wird ausgefuehrt...</span>');
@@ -2589,16 +2589,16 @@ function buildBacklogActions(t){
     btns.push('<span style="color:#ed8936;font-size:0.72rem;font-style:italic">&#9881; Ausfuehrung laeuft...</span>');
   }
   if(t.status==='in_progress'){
-    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27done\\x27)">Abschliessen</button>');
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'done\\')">Abschliessen</button>');
   }
   if(t.status==='deferred'){
-    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27proposed\\x27)">Reaktivieren</button>');
-    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27rejected\\x27)">Ablehnen</button>');
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'proposed\\')">Reaktivieren</button>');
+    btns.push('<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'rejected\\')">Ablehnen</button>');
   }
   if(t.status==='rejected'){
-    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\x27'+t.id+'\\x27,\\x27proposed\\x27)">Reaktivieren</button>');
+    btns.push('<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\''+t.id+'\\',\\'proposed\\')">Reaktivieren</button>');
   }
-  btns.push('<button class="backlog-action-btn delete" onclick="deleteBacklogTask(\\x27'+t.id+'\\x27)">Loeschen</button>');
+  btns.push('<button class="backlog-action-btn delete" onclick="deleteBacklogTask(\\''+t.id+'\\')">Loeschen</button>');
   return btns.join('');
 }
 

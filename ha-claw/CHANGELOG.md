@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.5
+
+### Fixed
+
+- **Confirmation Overlays**: Fixed double-escaping for `respondConfirm` call.
+- **Tool Management**: Standardized escaping for `toggleTool` and `showToolDetails` (replaced `\x27` with proper double-escaped quotes).
+- **Backlog Actions**: Fixed escaping for all backlog status update and delete buttons.
+
+---
+
 ## 0.8.4
 
 ### Fixed
