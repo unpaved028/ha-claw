@@ -1,12 +1,19 @@
 # Changelog
 
-## 0.8.8
+## 0.8.9
+
+### Added
+
+- **Cleanup**: Repository für Public Release auf GitHub bereinigt. Interne Agent-Dateien (`.agents/`, `CLAUDE.md`) werden nun ignoriert.
 
 ### Fixed
 
-- **UI Bundling**: Fixed syntax errors in `client.js` caused by improper backslash escaping in HTML event handler attributes.
-- **Robustness**: Improved `bundle-dashboard.js` to correctly handle variable spacing (e.g., from Prettier) when identifying the base path.
-- **Standards**: Added `.agents/rules/shell-conventions.md` to ensure future tool usage respects Windows/PowerShell environments.
+- **UI Bundling**: Syntax-Fehler in `client.js` behoben (falsches Escaping von Backslashes in HTML-Attributen).
+- **Stabilität**: `bundle-dashboard.js` verbessert, um variable Abstände bei der Pfaderkennung robuster zu handhaben.
+
+### Removed
+
+- **Debris**: Alte temporäre `tmp_v*` Dateien aus dem Repository entfernt.
 
 ---
 

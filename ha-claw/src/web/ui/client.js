@@ -118,20 +118,20 @@ document.querySelectorAll('.logs-subnav-item').forEach(btn => {
 function parseMd(text) {
   let s = text;
   // Escape HTML first
-  s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = escHtml(s);
   // Code blocks
-  s = s.replace(/\\x60\\x60\\x60([\\s\\S]*?)\\x60\\x60\\x60/g, '<pre><code>$1</code></pre>');
+  s = s.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
   // Inline code
-  s = s.replace(/\\x60([^\\x60]+)\\x60/g, '<code>$1</code>');
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
   // Bold **text** or __text__
-  s = s.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
   // Italic *text*
-  s = s.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
   // Highlighted "quoted terms"
   s = s.replace(/&quot;(.+?)&quot;/g, '<span class="highlight">&quot;$1&quot;</span>');
-  // Newlines
-  s = s.replace(/\\\\n/g, '<br>');
+  // Newlines: Support literal newlines (Standard Markdown)
+  s = s.replace(/\n/g, '<br>');
   return s;
 }
 
@@ -144,7 +144,7 @@ function renderRichContent(text) {
   let html = text;
 
   // Parse [CARDS]...[/CARDS]
-  html = html.replace(/\\[CARDS\\]([\\s\\S]*?)\\[\\/CARDS\\]/gi, (m, inner) => {
+  html = html.replace(/\[CARDS\]([\s\S]*?)\[\/CARDS\]/gi, (m, inner) => {
     const cards = inner
       .split(';;')
       .map(c => c.trim())
@@ -160,10 +160,10 @@ function renderRichContent(text) {
           '</div>' +
           '<div class="msg-card-body">' +
           '<div class="msg-card-label">' +
-          escHtml2(parts[1]) +
+          escHtml(parts[1]) +
           '</div>' +
           '<div class="msg-card-value">' +
-          escHtml2(parts[2]) +
+          escHtml(parts[2]) +
           '</div>' +
           '</div></div>';
       }
@@ -174,7 +174,7 @@ function renderRichContent(text) {
 
   // Parse [ACTIONS id=xxx]...[/ACTIONS]
   html = html.replace(
-    /\\[ACTIONS(?:\\s+id=(\\w+))?\\]([\\s\\S]*?)\\[\\/ACTIONS\\]/gi,
+    /\[ACTIONS(?:\s+id=(\w+))?\]([\s\S]*?)\[\/ACTIONS\]/gi,
     (m, id, inner) => {
       const actions = inner
         .split(';;')
@@ -191,9 +191,9 @@ function renderRichContent(text) {
             '" data-action-group="' +
             gid +
             '" onclick="handleAction(this,\'' +
-            escHtml2(match[2].trim()).replace(/'/g, '&#39;') +
+            escHtml(match[2].trim()).replace(/'/g, '&#39;') +
             '\')">' +
-            escHtml2(match[2].trim()) +
+            escHtml(match[2].trim()) +
             '</button>';
         }
       }
@@ -203,7 +203,7 @@ function renderRichContent(text) {
   );
 
   // Parse [MAP id=xxx]lat|lng|zoom[/MAP]
-  html = html.replace(/\\[MAP(?:\\s+id=(\\w+))?\\]([\\s\\S]*?)\\[\\/MAP\\]/gi, (m, id, inner) => {
+  html = html.replace(/\[MAP(?:\s+id=(\w+))?\]([\s\S]*?)\[\/MAP\]/gi, (m, id, inner) => {
     const parts = inner.split('|').map(p => p.trim());
     const lat = parts[0] || '52.52';
     const lng = parts[1] || '13.405';
@@ -225,8 +225,14 @@ function renderRichContent(text) {
   return html;
 }
 
-function escHtml2(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function escHtml(s) {
+  if (!s) return '';
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ── Messages ──────────────────────────────────────────────
@@ -420,15 +426,15 @@ function showConfirmModal(id, toolName, args) {
   overlay.className = 'confirm-overlay';
   overlay.id = 'confirm-overlay';
   const argsStr = Object.entries(args)
-    .map(([k, v]) => k + ': ' + JSON.stringify(v))
-    .join('\\n');
+    .map(([k, v]) => k + ': ' + JSON.stringify(v, null, 2))
+    .join('\n');
   overlay.innerHTML =
     '<div class="confirm-modal">' +
     '<div class="confirm-title">Sicherheitsabfrage</div>' +
     '<div class="confirm-body">Tool <strong>' +
-    escHtml2(toolName) +
+    escHtml(toolName) +
     '</strong> moechte ausgefuehrt werden:<pre>' +
-    escHtml2(argsStr) +
+    escHtml(argsStr) +
     '</pre></div>' +
     '<div class="confirm-actions">' +
     '<button class="confirm-btn approve" onclick="respondConfirm(\'' +
@@ -483,7 +489,7 @@ function sendMsg(isRetry) {
     if (data.type === 'thinking') {
       bubble.innerHTML =
         '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🤔 ' +
-        escHtml2(data.message) +
+        escHtml(data.message) +
         ' (Iteration ' +
         data.iteration +
         ')...</span></div>';
@@ -491,7 +497,7 @@ function sendMsg(isRetry) {
     } else if (data.type === 'tool_call') {
       bubble.innerHTML =
         '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🔧 Führe Tool aus: ' +
-        escHtml2(data.toolName) +
+        escHtml(data.toolName) +
         '...</span></div>';
       msgs.scrollTop = msgs.scrollHeight;
     } else if (data.type === 'done') {
@@ -528,7 +534,7 @@ function sendMsg(isRetry) {
     } else if (data.type === 'error') {
       bubble.innerHTML =
         '❌ Fehler: ' +
-        escHtml2(data.message) +
+        escHtml(data.message) +
         '<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 Nochmal versuchen</button>';
       es.close();
       cleanup();
@@ -1048,11 +1054,7 @@ function renderBacklog() {
 }
 
 function esc(s) {
-  return (s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return escHtml(s);
 }
 
 function buildBacklogActions(t) {
@@ -1259,9 +1261,7 @@ function renderLogLine(entry) {
   );
 }
 
-function escHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+
 
 async function fetchLogs() {
   try {
@@ -1321,7 +1321,7 @@ document.getElementById('logs-download').addEventListener('click', async () => {
           e.msg +
           (e.data ? ' ' + JSON.stringify(e.data) : ''),
       )
-      .join('\\n');
+      .join('\n');
     const blob = new Blob([text], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

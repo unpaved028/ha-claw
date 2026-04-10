@@ -2909,11 +2909,11 @@ document.querySelectorAll('.logs-subnav-item').forEach(btn => {
 function parseMd(text) {
   let s = text;
   // Escape HTML first
-  s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = escHtml(s);
   // Code blocks
-  s = s.replace(/\\x60\\x60\\x60([\\s\\S]*?)\\x60\\x60\\x60/g, '<pre><code>$1</code></pre>');
+  s = s.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, '<pre><code>$1</code></pre>');
   // Inline code
-  s = s.replace(/\\x60([^\\x60]+)\\x60/g, '<code>$1</code>');
+  s = s.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
   // Bold **text** or __text__
   s = s.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
   s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
@@ -2921,8 +2921,8 @@ function parseMd(text) {
   s = s.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
   // Highlighted "quoted terms"
   s = s.replace(/&quot;(.+?)&quot;/g, '<span class="highlight">&quot;$1&quot;</span>');
-  // Newlines
-  s = s.replace(/\\\\n/g, '<br>');
+  // Newlines: Support literal newlines (Standard Markdown)
+  s = s.replace(/\\n/g, '<br>');
   return s;
 }
 
@@ -2951,10 +2951,10 @@ function renderRichContent(text) {
           '</div>' +
           '<div class="msg-card-body">' +
           '<div class="msg-card-label">' +
-          escHtml2(parts[1]) +
+          escHtml(parts[1]) +
           '</div>' +
           '<div class="msg-card-value">' +
-          escHtml2(parts[2]) +
+          escHtml(parts[2]) +
           '</div>' +
           '</div></div>';
       }
@@ -2981,10 +2981,10 @@ function renderRichContent(text) {
             match[1] +
             '" data-action-group="' +
             gid +
-            '" onclick="handleAction(this,\'' +
-            escHtml2(match[2].trim()).replace(/'/g, '&#39;') +
-            '\')">' +
-            escHtml2(match[2].trim()) +
+            '" onclick="handleAction(this,\\'' +
+            escHtml(match[2].trim()).replace(/'/g, '&#39;') +
+            '\\')">' +
+            escHtml(match[2].trim()) +
             '</button>';
         }
       }
@@ -3016,8 +3016,14 @@ function renderRichContent(text) {
   return html;
 }
 
-function escHtml2(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function escHtml(s) {
+  if (!s) return '';
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ── Messages ──────────────────────────────────────────────
@@ -3211,23 +3217,23 @@ function showConfirmModal(id, toolName, args) {
   overlay.className = 'confirm-overlay';
   overlay.id = 'confirm-overlay';
   const argsStr = Object.entries(args)
-    .map(([k, v]) => k + ': ' + JSON.stringify(v))
+    .map(([k, v]) => k + ': ' + JSON.stringify(v, null, 2))
     .join('\\n');
   overlay.innerHTML =
     '<div class="confirm-modal">' +
     '<div class="confirm-title">Sicherheitsabfrage</div>' +
     '<div class="confirm-body">Tool <strong>' +
-    escHtml2(toolName) +
+    escHtml(toolName) +
     '</strong> moechte ausgefuehrt werden:<pre>' +
-    escHtml2(argsStr) +
+    escHtml(argsStr) +
     '</pre></div>' +
     '<div class="confirm-actions">' +
-    '<button class="confirm-btn approve" onclick="respondConfirm(\'' +
+    '<button class="confirm-btn approve" onclick="respondConfirm(\\'' +
     id +
-    '\',true)">Ausfuehren</button>' +
-    '<button class="confirm-btn deny" onclick="respondConfirm(\'' +
+    '\\',true)">Ausfuehren</button>' +
+    '<button class="confirm-btn deny" onclick="respondConfirm(\\'' +
     id +
-    '\',false)">Ablehnen</button>' +
+    '\\',false)">Ablehnen</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
 }
@@ -3274,7 +3280,7 @@ function sendMsg(isRetry) {
     if (data.type === 'thinking') {
       bubble.innerHTML =
         '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🤔 ' +
-        escHtml2(data.message) +
+        escHtml(data.message) +
         ' (Iteration ' +
         data.iteration +
         ')...</span></div>';
@@ -3282,7 +3288,7 @@ function sendMsg(isRetry) {
     } else if (data.type === 'tool_call') {
       bubble.innerHTML =
         '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🔧 Führe Tool aus: ' +
-        escHtml2(data.toolName) +
+        escHtml(data.toolName) +
         '...</span></div>';
       msgs.scrollTop = msgs.scrollHeight;
     } else if (data.type === 'done') {
@@ -3319,7 +3325,7 @@ function sendMsg(isRetry) {
     } else if (data.type === 'error') {
       bubble.innerHTML =
         '❌ Fehler: ' +
-        escHtml2(data.message) +
+        escHtml(data.message) +
         '<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 Nochmal versuchen</button>';
       es.close();
       cleanup();
@@ -3631,9 +3637,9 @@ async function loadSettings() {
         '</div>' +
         '<button class="tool-toggle' +
         (enabled ? ' on' : '') +
-        '" onclick="toggleTool(\'' +
+        '" onclick="toggleTool(\\'' +
         name +
-        '\',this)" title="' +
+        '\\',this)" title="' +
         (enabled ? 'Deaktivieren' : 'Aktivieren') +
         '"></button>' +
         '</div>' +
@@ -3654,9 +3660,9 @@ async function loadSettings() {
         '">' +
         complexStars +
         '</span>' +
-        '<a href="#" onclick="showToolDetails(\'' +
+        '<a href="#" onclick="showToolDetails(\\'' +
         name +
-        '\');return false" style="font-size:0.65rem;color:var(--text-dim);text-decoration:none;opacity:0.7">Details &rarr;</a>' +
+        '\\');return false" style="font-size:0.65rem;color:var(--text-dim);text-decoration:none;opacity:0.7">Details &rarr;</a>' +
         '</div>' +
         '</div>';
     }
@@ -3839,30 +3845,26 @@ function renderBacklog() {
 }
 
 function esc(s) {
-  return (s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return escHtml(s);
 }
 
 function buildBacklogActions(t) {
   const btns = [];
   if (t.status === 'proposed') {
     btns.push(
-      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','approved')\">Genehmigen</button>",
+        "','approved')\\">Genehmigen</button>",
     );
     btns.push(
-      '<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','deferred')\">Zurueckstellen</button>",
+        "','deferred')\\">Zurueckstellen</button>",
     );
     btns.push(
-      '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','rejected')\">Ablehnen</button>",
+        "','rejected')\\">Ablehnen</button>",
     );
   }
   if (t.status === 'approved') {
@@ -3870,26 +3872,26 @@ function buildBacklogActions(t) {
       '<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; KI erarbeitet Loesung...</span>',
     );
     btns.push(
-      '<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','deferred')\">Zurueckstellen</button>",
+        "','deferred')\\">Zurueckstellen</button>",
     );
   }
   if (t.status === 'solution_proposed') {
     btns.push(
-      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','solution_approved')\">Loesung genehmigen</button>",
+        "','solution_approved')\\">Loesung genehmigen</button>",
     );
     btns.push(
-      '<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','approved')\">Neue Loesung</button>",
+        "','approved')\\">Neue Loesung</button>",
     );
     btns.push(
-      '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','rejected')\">Ablehnen</button>",
+        "','rejected')\\">Ablehnen</button>",
     );
   }
   if (t.status === 'solution_approved') {
@@ -3904,34 +3906,34 @@ function buildBacklogActions(t) {
   }
   if (t.status === 'in_progress') {
     btns.push(
-      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','done')\">Abschliessen</button>",
+        "','done')\\">Abschliessen</button>",
     );
   }
   if (t.status === 'deferred') {
     btns.push(
-      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','proposed')\">Reaktivieren</button>",
+        "','proposed')\\">Reaktivieren</button>",
     );
     btns.push(
-      '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','rejected')\">Ablehnen</button>",
+        "','rejected')\\">Ablehnen</button>",
     );
   }
   if (t.status === 'rejected') {
     btns.push(
-      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
+      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\\'' +
         t.id +
-        "','proposed')\">Reaktivieren</button>",
+        "','proposed')\\">Reaktivieren</button>",
     );
   }
   btns.push(
-    '<button class="backlog-action-btn delete" onclick="deleteBacklogTask(\'' +
+    '<button class="backlog-action-btn delete" onclick="deleteBacklogTask(\\'' +
       t.id +
-      '\')">Loeschen</button>',
+      '\\')">Loeschen</button>',
   );
   return btns.join('');
 }
@@ -4050,9 +4052,7 @@ function renderLogLine(entry) {
   );
 }
 
-function escHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+
 
 async function fetchLogs() {
   try {
@@ -4227,9 +4227,9 @@ async function loadActions() {
         }
 
         const rollbackBtn = a.rollback
-          ? '<button class="action-rollback" onclick="rollbackAction(event, \'' +
+          ? '<button class="action-rollback" onclick="rollbackAction(event, \\'' +
             a.id +
-            '\')">Rollback</button>'
+            '\\')">Rollback</button>'
           : '';
 
         return (
