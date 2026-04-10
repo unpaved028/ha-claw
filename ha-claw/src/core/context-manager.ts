@@ -1,6 +1,6 @@
 /**
  * context-manager.ts – Conversation context and token management.
- * 
+ *
  * Provides utilities to count tokens (estimated) and prune the conversation
  * history to fit within a target token budget.
  */
@@ -32,7 +32,7 @@ export function countTokens(messages: ChatMessage[]): number {
 
 /**
  * Prune message history to stay within a target token limit.
- * 
+ *
  * Strategy (Middle-Pruning):
  * 1. Always keep the first message (System Prompt).
  * 2. Always keep the last N messages (Recent context).
@@ -42,20 +42,26 @@ export function pruneMessages(messages: ChatMessage[], targetLimit: number): Cha
   const currentCount = countTokens(messages);
   if (currentCount <= targetLimit) return messages;
 
-  log.info('Context limit exceeded – pruning history', { current: currentCount, target: targetLimit });
+  log.info('Context limit exceeded – pruning history', {
+    current: currentCount,
+    target: targetLimit,
+  });
 
   const systemMessage = messages[0]?.role === 'system' ? messages[0] : null;
   const otherMessages = systemMessage ? messages.slice(1) : messages;
 
   // We want to keep at least 4 recent messages if possible (usually 2 user/assistant pairs)
   const MIN_KEEP_RECENT = 4;
-  
+
   let pruned = [...otherMessages];
-  
+
   // Repeatedly remove the oldest non-system message until we are within budget
   // or reach our minimum "recent" buffer.
-  while (countTokens(systemMessage ? [systemMessage, ...pruned] : pruned) > targetLimit && pruned.length > MIN_KEEP_RECENT) {
-    // Check if the next message is a tool result. 
+  while (
+    countTokens(systemMessage ? [systemMessage, ...pruned] : pruned) > targetLimit &&
+    pruned.length > MIN_KEEP_RECENT
+  ) {
+    // Check if the next message is a tool result.
     // If it is, we should try to keep the corresponding assistant message too.
     // Simplifying for now: Just shift the oldest.
     pruned.shift();
@@ -63,6 +69,6 @@ export function pruneMessages(messages: ChatMessage[], targetLimit: number): Cha
 
   const final = systemMessage ? [systemMessage, ...pruned] : pruned;
   log.info('Context pruned', { finalCount: countTokens(final) });
-  
+
   return final;
 }

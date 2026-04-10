@@ -370,7 +370,7 @@ export async function saveAutomationConfig(
   config: Record<string, unknown>,
 ): Promise<HAServiceResponse> {
   log.info('Saving automation config', { id });
-  await haFetch<unknown>((`/config/automation/config/${id}`), 'POST', config);
+  await haFetch<unknown>(`/config/automation/config/${id}`, 'POST', config);
   return { success: true };
 }
 
@@ -408,7 +408,7 @@ export async function saveScriptConfig(
   config: Record<string, unknown>,
 ): Promise<HAServiceResponse> {
   log.info('Saving script config', { id });
-  await haFetch<unknown>((`/config/script/config/${id}`), 'POST', config);
+  await haFetch<unknown>(`/config/script/config/${id}`, 'POST', config);
   return { success: true };
 }
 

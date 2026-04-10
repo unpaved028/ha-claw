@@ -14,8 +14,6 @@ import { createLogger } from './logger.js';
 
 const log = createLogger('entity-cache');
 
-
-
 /** Device classes of binary_sensor to include in cache (safety/spatial relevance). */
 const IMPORTANT_SENSOR_CLASSES = new Set([
   'window',
@@ -219,7 +217,9 @@ function renderCache(focusAreas?: string[]): string {
         // Summary only for unfocused area
         const actionableCount = [...domainMap.keys()].filter(d => ACTIONABLE_DOMAINS.has(d)).length;
         if (actionableCount > 0) {
-          lines.push(`## ${area} (${actionableCount} Gerätetypen verfügbar – für Details explizit nach "${area}" fragen)`);
+          lines.push(
+            `## ${area} (${actionableCount} Gerätetypen verfügbar – für Details explizit nach "${area}" fragen)`,
+          );
         }
         continue;
       }
@@ -244,7 +244,9 @@ function renderCache(focusAreas?: string[]): string {
           }
           for (const [state, group] of byState) {
             if (group.length >= 3) {
-              lines.push(`- ${group.length}× ${domain} (alle ${state}): ${group.map(e => `\`${e.id}\``).join(', ')}`);
+              lines.push(
+                `- ${group.length}× ${domain} (alle ${state}): ${group.map(e => `\`${e.id}\``).join(', ')}`,
+              );
             } else {
               for (const e of group) lines.push(`- ${e.name || e.id} → \`${e.id}\` (${e.state})`);
             }
@@ -255,10 +257,21 @@ function renderCache(focusAreas?: string[]): string {
       }
 
       if (importantSensors.length > 0) {
-        const TYPE_ICONS: Record<string, string> = { window: '🪟', door: '🚪', motion: '🏃', smoke: '🔥', moisture: '💧', garage_door: '🏠', lock: '🔒', presence: '👤' };
+        const TYPE_ICONS: Record<string, string> = {
+          window: '🪟',
+          door: '🚪',
+          motion: '🏃',
+          smoke: '🔥',
+          moisture: '💧',
+          garage_door: '🏠',
+          lock: '🔒',
+          presence: '👤',
+        };
         for (const e of importantSensors) {
           const stateDE = e.state === 'on' ? 'offen' : e.state === 'off' ? 'zu' : e.state;
-          lines.push(`- ${TYPE_ICONS[e.deviceClass] || '📡'} ${e.name || e.id} → \`${e.id}\` (${stateDE})`);
+          lines.push(
+            `- ${TYPE_ICONS[e.deviceClass] || '📡'} ${e.name || e.id} → \`${e.id}\` (${stateDE})`,
+          );
         }
       }
       lines.push('');

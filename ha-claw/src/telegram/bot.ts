@@ -30,10 +30,10 @@ import { processVoiceMessage } from './voice.js';
 
 const log = createLogger('telegram');
 
-function loadButlerPrompt(): string {
+function loadMainPrompt(): string {
   try {
     const dir = dirname(fileURLToPath(import.meta.url));
-    const mdPath = resolve(dir, '../../agents/butler.md');
+    const mdPath = resolve(dir, '../../agents/main.md');
     let prompt = readFileSync(mdPath, 'utf-8');
     return prompt;
   } catch {
@@ -48,10 +48,10 @@ function loadButlerPrompt(): string {
 
 function buildAgent() {
   const profile = getProfile();
-  const basePrompt = loadButlerPrompt();
+  const basePrompt = loadMainPrompt();
   const personality = personalityPrompt();
   return {
-    name: 'butler',
+    name: 'main',
     systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}${getSchedulerSummary()}`,
     model: profile.modelOverride || undefined,
   };
@@ -102,7 +102,7 @@ export function createBot(): Bot {
 
     let usageMsg = '';
     if (stats) {
-      usageMsg = 
+      usageMsg =
         `• Anfragen: ${stats.numRequests}\n` +
         `• Tokens: ${stats.totalTokens.toLocaleString()}\n` +
         `• Kosten: $${stats.totalCostUsd.toFixed(4)}\n`;
@@ -159,10 +159,10 @@ export function createBot(): Bot {
   bot.callbackQuery(/^room:(.+)$/, async ctx => {
     const room = ctx.match[1];
     await ctx.answerCallbackQuery();
-    
+
     // Inject a special system prompt into the loop to discuss the room
     const agent = buildAgent();
-    
+
     await ctx.reply(`🔍 Rufe Status für *${room}* ab...`, { parse_mode: 'Markdown' });
     await ctx.replyWithChatAction('typing');
 
@@ -174,7 +174,7 @@ export function createBot(): Bot {
       undefined,
       () => {
         ctx.replyWithChatAction('typing').catch(console.error);
-      }
+      },
     );
 
     await sendTelegramResponse(ctx as any, result.response);
@@ -232,7 +232,7 @@ export function createBot(): Bot {
           ONBOARDING_TOOLS,
           () => {
             ctx.replyWithChatAction('typing').catch(console.error);
-          }
+          },
         );
 
         // Persist history
@@ -261,25 +261,30 @@ export function createBot(): Bot {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
     const sessionId = `tg-${chatId}`;
-    
+
     const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
       'conversations',
       sessionId,
     );
     const history = record?.messages || [];
     const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
-    
+
     if (!lastUserMsg || typeof lastUserMsg.content !== 'string') {
       await ctx.reply('Keine vorherige Nachricht für Retry gefunden.');
       return;
     }
-    
+
     await ctx.replyWithChatAction('typing');
     await handleAgenticLoop(ctx, chatId, sessionId, lastUserMsg.content, true);
   });
 
-  async function handleAgenticLoop(ctx: any, chatId: number, sessionId: string, text: string, isRetry = false) {
-
+  async function handleAgenticLoop(
+    ctx: any,
+    chatId: number,
+    sessionId: string,
+    text: string,
+    isRetry = false,
+  ) {
     try {
       const confirmFn = createTelegramConfirmFn(bot, chatId);
       const agent = buildAgent();
@@ -298,7 +303,7 @@ export function createBot(): Bot {
         'conversations',
         sessionId,
       );
-      // If it's a retry, we need to remove the last user message from history 
+      // If it's a retry, we need to remove the last user message from history
       // so it doesn't get duplicated, or we can just pass the history as is but without the last message.
       let history = record?.messages || [];
       if (isRetry && history.length > 0 && history[history.length - 1].role === 'user') {
@@ -306,16 +311,9 @@ export function createBot(): Bot {
       }
 
       // 2. Run loop (passing history)
-      const result = await runAgenticLoop(
-        userMessage,
-        agent,
-        confirmFn,
-        history,
-        undefined,
-        () => {
-          ctx.replyWithChatAction('typing').catch(console.error);
-        }
-      );
+      const result = await runAgenticLoop(userMessage, agent, confirmFn, history, undefined, () => {
+        ctx.replyWithChatAction('typing').catch(console.error);
+      });
 
       // 3. Persist history
       const newMessages: ChatMessage[] = [

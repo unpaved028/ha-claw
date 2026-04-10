@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.8
+
+### Fixed
+
+- **UI Bundling**: Fixed syntax errors in `client.js` caused by improper backslash escaping in HTML event handler attributes.
+- **Robustness**: Improved `bundle-dashboard.js` to correctly handle variable spacing (e.g., from Prettier) when identifying the base path.
+- **Standards**: Added `.agents/rules/shell-conventions.md` to ensure future tool usage respects Windows/PowerShell environments.
+
+---
+
+## 0.8.7
+
+### Changed
+
+- **Rebranding**: System-Prompt `butler.md` in `main.md` umbenannt, "Butler" Referenzen und Namen aus dem System und Web UI (Copyrights, Titel) entfernt.
+
+---
+
 ## 0.8.6
 
 ### Changed
@@ -9,7 +27,6 @@
 - **Release Workflow**: Updated `.agents/workflows/publish.md` to automatically bundle the dashboard and check TypeScript before tagging.
 
 ---
-
 
 ## 0.8.5
 

@@ -76,14 +76,14 @@ const PKG_VERSION = (() => {
 })();
 const VALID = new Set(['notes', 'conversations', 'memory']);
 
-function loadButlerPrompt(): string {
+function loadMainPrompt(): string {
   try {
     const dir = dirname(fileURLToPath(import.meta.url));
-    const mdPath = resolve(dir, '../../agents/butler.md');
+    const mdPath = resolve(dir, '../../agents/main.md');
     let prompt = readFileSync(mdPath, 'utf-8');
     return prompt;
   } catch {
-    log.warn('Could not load butler.md – using fallback prompt');
+    log.warn('Could not load main.md – using fallback prompt');
     return [
       'Du bist HA-Claw, ein lokaler KI-Assistent für Smart Home und Produktivität.',
       'Du läufst als Home Assistant Add-on.',
@@ -96,10 +96,10 @@ function loadButlerPrompt(): string {
 /** Build the agent config with dynamic personality injection. */
 export function buildAgent() {
   const profile = getProfile();
-  const basePrompt = loadButlerPrompt();
+  const basePrompt = loadMainPrompt();
   const personality = personalityPrompt();
   return {
-    name: 'butler',
+    name: 'main',
     systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}${getSchedulerSummary()}`,
     model: profile.modelOverride || undefined,
   };
@@ -168,7 +168,7 @@ export async function startWebServer(): Promise<void> {
       );
       const historyAfter = recordAfter?.messages || historyWithUser;
       await store.upsert('conversations', WEB_SESSION, {
-        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20)
+        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20),
       });
 
       if (!needsOnboarding()) endOnboarding(WEB_SESSION);
@@ -209,7 +209,7 @@ export async function startWebServer(): Promise<void> {
     );
     const historyAfter = recordAfter?.messages || historyWithUser;
     await store.upsert('conversations', WEB_SESSION, {
-      messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20)
+      messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20),
     });
 
     return result;
@@ -264,7 +264,14 @@ export async function startWebServer(): Promise<void> {
       const historyWithUser: ChatMessage[] = [...history, { role: 'user', content: message }];
       await store.upsert('conversations', WEB_SESSION, { messages: historyWithUser.slice(-20) });
 
-      const result = await runAgenticLoop(message, agent, webConfirmFn, history, undefined, onProgress);
+      const result = await runAgenticLoop(
+        message,
+        agent,
+        webConfirmFn,
+        history,
+        undefined,
+        onProgress,
+      );
 
       const recordAfter = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
         'conversations',
@@ -274,7 +281,7 @@ export async function startWebServer(): Promise<void> {
 
       // Persist history
       await store.upsert('conversations', WEB_SESSION, {
-        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20)
+        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20),
       });
 
       // Final event

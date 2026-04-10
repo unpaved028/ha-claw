@@ -57,14 +57,14 @@ export async function addCorrection(data: {
     createdAt: new Date().toISOString(),
     hitCount: 0,
   };
-  
+
   corrections.push(c);
-  
+
   // Cap at 100, remove oldest
   if (corrections.length > MAX_CORRECTIONS) {
     corrections = corrections.slice(-MAX_CORRECTIONS);
   }
-  
+
   await persistCorrections();
   log.info('Correction saved', { id: c.id });
   return c;

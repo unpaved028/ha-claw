@@ -10,7 +10,7 @@ import { createLogger } from '../core/logger.js';
 const log = createLogger('usage');
 
 // Estimations ($ / 1M tokens) – average across Claude Haiku/Sonnet models on OpenRouter
-const COST_PROMPT = 0.25; 
+const COST_PROMPT = 0.25;
 const COST_COMPLETION = 0.75;
 
 export interface UsageStats extends store.StoredRecord {

@@ -51,7 +51,7 @@ export async function logAction(
   try {
     await appendFile(ACTIONS_PATH, JSON.stringify(entry) + '\n', 'utf-8');
     log.debug('Action logged', { id: entry.id, category, description });
-    
+
     // Occasionally prune (1 in 20 chance)
     if (Math.random() < 0.05) {
       pruneOldActions().catch(() => {});
@@ -68,7 +68,7 @@ async function pruneOldActions(): Promise<void> {
     const lines = raw.trim().split('\n').filter(Boolean);
     const now = Date.now();
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    
+
     const filtered = lines.filter(l => {
       try {
         const entry = JSON.parse(l) as ActionEntry;
@@ -78,7 +78,7 @@ async function pruneOldActions(): Promise<void> {
         return false;
       }
     });
-    
+
     if (filtered.length < lines.length) {
       await writeFile(ACTIONS_PATH, filtered.join('\n') + '\n', 'utf-8');
       log.info('Action log pruned', { removed: lines.length - filtered.length });

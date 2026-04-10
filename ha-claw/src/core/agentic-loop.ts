@@ -97,7 +97,10 @@ export async function runAgenticLoop(
     const memContext = buildMemoryContext(memResults);
     if (memContext) {
       systemPrompt += '\n\n' + memContext;
-      log.debug('Memory injected', { cards: memResults.length, scores: memResults.map(c => c.score.toFixed(2)) });
+      log.debug('Memory injected', {
+        cards: memResults.length,
+        scores: memResults.map(c => c.score.toFixed(2)),
+      });
     }
   } catch {
     /* non-critical */
@@ -149,11 +152,11 @@ export async function runAgenticLoop(
   const profile = getProfile();
   const messages = pruneMessages(initialMessages, profile.maxContextTokens || 4000);
 
-  log.info('Loop started', { 
-    agent: agent.name, 
-    tools: toolDefs.length, 
+  log.info('Loop started', {
+    agent: agent.name,
+    tools: toolDefs.length,
     initialHistory: history.length,
-    tokens: countTokens(messages)
+    tokens: countTokens(messages),
   });
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
@@ -166,7 +169,7 @@ export async function runAgenticLoop(
       tools: toolDefs.length > 0 ? toolDefs : undefined,
       temperature: agent.temperature,
       maxTokens: agent.maxTokens,
-      onStreamChunk: onProgress ? (chunk) => onProgress({ type: 'text_chunk', chunk }) : undefined,
+      onStreamChunk: onProgress ? chunk => onProgress({ type: 'text_chunk', chunk }) : undefined,
     });
 
     const choice = response.choices[0];

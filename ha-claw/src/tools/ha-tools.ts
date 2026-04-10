@@ -87,37 +87,36 @@ export function registerHATools(): void {
     'Get current state and attributes of one or more Home Assistant entities. Supports batching for efficiency.',
     {
       entity_id: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
         description: 'Single entity ID or array of entity IDs',
       },
     },
     async args => {
       const input = args['entity_id'] as string | string[];
       const entityIds = Array.isArray(input) ? input : [input];
-      
-      const results = await Promise.all(entityIds.map(async eid => {
-        const cacheKey = `state:${eid}`;
-        const cached = getCachedResult(cacheKey);
-        if (cached) return cached;
 
-        try {
-          const state = await ha.getState(eid);
-          const res = {
-            entity_id: state.entity_id,
-            state: state.state,
-            friendly_name: state.attributes['friendly_name'] ?? null,
-            attributes: state.attributes,
-            last_changed: state.last_changed,
-          };
-          setCachedResult(cacheKey, res, 5000);
-          return res;
-        } catch (err) {
-          return { entity_id: eid, error: 'Entity not found or HA error' };
-        }
-      }));
+      const results = await Promise.all(
+        entityIds.map(async eid => {
+          const cacheKey = `state:${eid}`;
+          const cached = getCachedResult(cacheKey);
+          if (cached) return cached;
+
+          try {
+            const state = await ha.getState(eid);
+            const res = {
+              entity_id: state.entity_id,
+              state: state.state,
+              friendly_name: state.attributes['friendly_name'] ?? null,
+              attributes: state.attributes,
+              last_changed: state.last_changed,
+            };
+            setCachedResult(cacheKey, res, 5000);
+            return res;
+          } catch (err) {
+            return { entity_id: eid, error: 'Entity not found or HA error' };
+          }
+        }),
+      );
 
       return Array.isArray(input) ? { results } : results[0];
     },
@@ -138,18 +137,14 @@ export function registerHATools(): void {
         description: 'Optional: filter by domain (e.g. "light", "sensor")',
       },
       area: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
-        description: 'Optional: area name or array of area names (e.g. "Living Room", ["Kitchen", "Garden"])',
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+        description:
+          'Optional: area name or array of area names (e.g. "Living Room", ["Kitchen", "Garden"])',
       },
       floor: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
-        description: 'Optional: floor name or array of floor names (e.g. "Ground", ["First", "Basement"])',
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+        description:
+          'Optional: floor name or array of floor names (e.g. "Ground", ["First", "Basement"])',
       },
       device_class: {
         type: 'string',
@@ -168,8 +163,16 @@ export function registerHATools(): void {
       const deviceClassFilter = ((args['device_class'] as string) ?? '').toLowerCase();
       const limit = (args['limit'] as number) ?? 50;
 
-      const areaFilters = areaInput ? (Array.isArray(areaInput) ? areaInput.map(a => a.toLowerCase()) : [areaInput.toLowerCase()]) : null;
-      const floorFilters = floorInput ? (Array.isArray(floorInput) ? floorInput.map(f => f.toLowerCase()) : [floorInput.toLowerCase()]) : null;
+      const areaFilters = areaInput
+        ? Array.isArray(areaInput)
+          ? areaInput.map(a => a.toLowerCase())
+          : [areaInput.toLowerCase()]
+        : null;
+      const floorFilters = floorInput
+        ? Array.isArray(floorInput)
+          ? floorInput.map(f => f.toLowerCase())
+          : [floorInput.toLowerCase()]
+        : null;
 
       // Resolve floor → areas if floorFilter is set
       let floorAreaNames: Set<string> | null = null;
@@ -192,7 +195,7 @@ export function registerHATools(): void {
           const lowerName = areaName.toLowerCase();
           const matchFloor = floorAreaNames ? floorAreaNames.has(lowerName) : true;
           const matchArea = areaFilters ? areaFilters.some(af => lowerName.includes(af)) : true;
-          
+
           if (matchFloor && matchArea) {
             for (const eid of entityIds) areaEntityIds.add(eid);
           }
@@ -226,7 +229,6 @@ export function registerHATools(): void {
     { required: [] },
   );
 
-
   // ── ha_call_service (safe everyday domains) ─────────────
   registerTool(
     'ha_call_service',
@@ -241,10 +243,7 @@ export function registerHATools(): void {
         description: 'Service name (e.g. "turn_on", "turn_off", "toggle", "set_temperature")',
       },
       entity_id: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
         description: 'Target entity ID or list of entity IDs (batching)',
       },
       data: {
@@ -286,7 +285,12 @@ export function registerHATools(): void {
         setCachedResult(`state:${eid}`, undefined, 0);
       }
 
-      const rollback = getRollback(domain, service, entityIds.length === 1 ? entityIds[0]! : entityIds, extraData);
+      const rollback = getRollback(
+        domain,
+        service,
+        entityIds.length === 1 ? entityIds[0]! : entityIds,
+        extraData,
+      );
       await logAction(
         'switch',
         `${domain}.${service} auf ${entityIds.join(', ')}`,
@@ -366,10 +370,7 @@ export function registerHATools(): void {
     'Set color or color temperature of one or more lights. Also turns them on if they are off.',
     {
       entity_id: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
         description: 'Target light entity ID(s)',
       },
       rgb_color: {
@@ -442,13 +443,13 @@ export function registerHATools(): void {
 
       const { domain, service, entity_id, data } = action.rollback;
       const res = await ha.callService(domain, service, { ...data, entity_id });
-      
+
       await logAction(
         'system',
         `Rollback ausgeführt für Aktion ${id}: ${action.description}`,
         'action_log_rollback',
       );
-      
+
       return { success: true, original_action: action.description, rollback_result: res };
     },
     { required: ['action_id'], dangerous: true },
@@ -469,10 +470,7 @@ export function registerHATools(): void {
         description: 'Service name (e.g. "lock", "unlock", "trigger", "reload")',
       },
       entity_id: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
         description: 'Target entity ID or list of entity IDs (optional for some services)',
       },
     },
@@ -719,10 +717,7 @@ export function registerHATools(): void {
         description: 'The service name (e.g. "lock", "unlock", "arm_away")',
       },
       entity_id: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
         description: 'Target entity ID or list of entity IDs',
       },
       data: {
@@ -756,7 +751,12 @@ export function registerHATools(): void {
       // Clear cache
       for (const eid of entityIds) setCachedResult(`state:${eid}`, undefined, 0);
 
-      const rollback = getRollback(domain, service, entityIds.length === 1 ? entityIds[0]! : entityIds, extraData);
+      const rollback = getRollback(
+        domain,
+        service,
+        entityIds.length === 1 ? entityIds[0]! : entityIds,
+        extraData,
+      );
       await logAction(
         'system',
         `${domain}.${service} auf ${entityIds.join(', ')}`,

@@ -85,7 +85,9 @@ async function processQueue(): Promise<void> {
   try {
     // Find tasks that need solution generation (approved or fast_track_approved)
     const allTasks = await listTasks();
-    const needsSolution = allTasks.filter(t => t.status === 'approved' || t.status === 'fast_track_approved');
+    const needsSolution = allTasks.filter(
+      t => t.status === 'approved' || t.status === 'fast_track_approved',
+    );
     for (const task of needsSolution) {
       await generateSolution(task.id);
     }

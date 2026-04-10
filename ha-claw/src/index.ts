@@ -159,35 +159,44 @@ async function main(): Promise<void> {
 
   // Step 9: Proactive Analysis Loop & Push Hooks
   if (telegramBot) {
-    onNewHighPriorityTask((task) => {
+    onNewHighPriorityTask(task => {
       const kb = new InlineKeyboard()
         .text('✅ Ausführen', `task:fast_track:${task.id}`)
         .text('❌ Ignorieren', `task:reject:${task.id}`);
-      
+
       const msg = `⚠️ *Proaktive Warnung: ${task.title}*\n\n*Ist-Zustand:* ${task.asIs}\n*Soll-Zustand:* ${task.toBe}`;
-      sendProactiveMessage(msg, kb).catch(err => log.error('Failed to send push', { error: String(err) }));
+      sendProactiveMessage(msg, kb).catch(err =>
+        log.error('Failed to send push', { error: String(err) }),
+      );
     });
 
-    onExecutionFinished((task) => {
+    onExecutionFinished(task => {
       if (task.status === 'done') {
         const msg = `✅ *Aufgabe erledigt:* ${task.title}\n\n*Ergebnis:*\n${String(task.executionResult || 'Ohne Rückmeldung').substring(0, 1000)}`;
-        sendProactiveMessage(msg).catch(err => log.error('Failed to send finish push', { error: String(err) }));
+        sendProactiveMessage(msg).catch(err =>
+          log.error('Failed to send finish push', { error: String(err) }),
+        );
       } else {
         const msg = `❌ *Fehler bei Aufgabe:* ${task.title}\n\n*Details:*\n${String(task.executionResult || 'Unbekannt').substring(0, 1000)}`;
-        sendProactiveMessage(msg).catch(err => log.error('Failed to send error push', { error: String(err) }));
+        sendProactiveMessage(msg).catch(err =>
+          log.error('Failed to send error push', { error: String(err) }),
+        );
       }
     });
   }
 
   // Run analysis every 60 minutes
-  setInterval(async () => {
-    try {
-      log.info('Running periodic system analysis (60 min)');
-      await runAnalysis();
-    } catch (err) {
-      log.error('Periodic analysis failed', { error: String(err) });
-    }
-  }, 60 * 60 * 1000);
+  setInterval(
+    async () => {
+      try {
+        log.info('Running periodic system analysis (60 min)');
+        await runAnalysis();
+      } catch (err) {
+        log.error('Periodic analysis failed', { error: String(err) });
+      }
+    },
+    60 * 60 * 1000,
+  );
 
   log.info('=== HA-Claw ready ===');
 }

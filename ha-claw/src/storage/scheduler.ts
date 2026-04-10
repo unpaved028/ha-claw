@@ -102,7 +102,7 @@ export function stopScheduler(): void {
 
 async function tick(): Promise<void> {
   const now = new Date();
-  
+
   // Wenn der Circuit Breaker offen ist, führen wir in diesem Tick keine Jobs aus.
   // Sie bleiben in der Queue, da ihr nextRunAt in der Vergangenheit liegt
   // und beim nächsten Tick (alle 30s) wieder geprüft wird.

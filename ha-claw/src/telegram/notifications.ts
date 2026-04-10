@@ -61,7 +61,10 @@ export function setupProactiveNotifications(bot: Bot): void {
 /**
  * Send a proactive push notification to the configured telegramChatId.
  */
-export async function sendProactiveMessage(text: string, replyMarkup?: InlineKeyboard): Promise<void> {
+export async function sendProactiveMessage(
+  text: string,
+  replyMarkup?: InlineKeyboard,
+): Promise<void> {
   if (!telegramBot) {
     log.debug('Proactive notification skipped: Telegram bot not initialized');
     return;

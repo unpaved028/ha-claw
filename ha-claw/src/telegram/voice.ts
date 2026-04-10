@@ -28,15 +28,15 @@ export async function processVoiceMessage(ctx: Context): Promise<string | null> 
 
     log.debug('Downloading voice message', { size: voice.file_size, path: file.file_path });
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       throw new Error(`Download failed: ${response.statusText}`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    
+
     log.debug('Sending to Whisper API', { bytes: arrayBuffer.byteLength });
-    
+
     const formData = new FormData();
     const blob = new Blob([arrayBuffer], { type: 'audio/ogg' });
     formData.append('file', blob, 'voice.ogg');
@@ -46,9 +46,9 @@ export async function processVoiceMessage(ctx: Context): Promise<string | null> 
     const sttRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${appConfig.openaiApiKey}`
+        Authorization: `Bearer ${appConfig.openaiApiKey}`,
       },
-      body: formData
+      body: formData,
     });
 
     if (!sttRes.ok) {
@@ -57,7 +57,7 @@ export async function processVoiceMessage(ctx: Context): Promise<string | null> 
     }
 
     const data = (await sttRes.json()) as { text: string };
-    
+
     log.info('Voice message transcribed', { textPreview: data.text.slice(0, 50) });
     return data.text || null;
   } catch (err) {

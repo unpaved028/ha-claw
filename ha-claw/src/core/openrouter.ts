@@ -63,7 +63,9 @@ export async function callLLM(
   const now = Date.now();
   if (now < circuitOpenUntil) {
     const remaining = Math.round((circuitOpenUntil - now) / 1000);
-    throw new Error(`Circuit breaker offen – OpenRouter pausiert (noch ${remaining}s). Bitte später erneut versuchen.`);
+    throw new Error(
+      `Circuit breaker offen – OpenRouter pausiert (noch ${remaining}s). Bitte später erneut versuchen.`,
+    );
   }
 
   const body = JSON.stringify({
@@ -163,7 +165,7 @@ function sleep(ms: number): Promise<void> {
  */
 async function parseStream(
   body: ReadableStream<Uint8Array>,
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
 ): Promise<OpenRouterResponse> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -172,7 +174,7 @@ async function parseStream(
   let activeToolCalls: any[] = [];
   let finishReason = 'stop';
   let responseId = '';
-  
+
   let incompleteLine = '';
 
   while (true) {
@@ -186,18 +188,18 @@ async function parseStream(
     for (let line of lines) {
       line = line.trim();
       if (!line.startsWith('data: ')) continue;
-      
+
       const jsonStr = line.slice(6);
       if (jsonStr === '[DONE]') continue;
 
       try {
         const parsed = JSON.parse(jsonStr);
         if (parsed.id) responseId = parsed.id;
-        
+
         const choice = parsed.choices?.[0];
         if (choice) {
           if (choice.finish_reason) finishReason = choice.finish_reason;
-          
+
           const delta = choice.delta;
           if (delta) {
             if (delta.content) {
@@ -211,7 +213,7 @@ async function parseStream(
                   activeToolCalls[index] = {
                     id: tc.id,
                     type: tc.type || 'function',
-                    function: { name: tc.function?.name || '', arguments: '' }
+                    function: { name: tc.function?.name || '', arguments: '' },
                   };
                 }
                 if (tc.function?.name) {
@@ -240,10 +242,10 @@ async function parseStream(
         message: {
           role: 'assistant',
           content: contentBuffer || null,
-          ...(tool_calls.length > 0 ? { tool_calls } : {})
+          ...(tool_calls.length > 0 ? { tool_calls } : {}),
         },
         finish_reason: finishReason as any,
-      }
+      },
     ],
     // Usage is usually not included in standard SSE unless requested explicitly (e.g. format options in OpenRouter)
     // We omit it or return empty/estimate if needed, currently omitted so it skips tracking.
