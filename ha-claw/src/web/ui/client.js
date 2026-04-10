@@ -237,7 +237,7 @@ function escHtml(s) {
 
 // ── Messages ──────────────────────────────────────────────
 function addMsg(text, cls, suppressScroll) {
-  // Hide welcome block once chat has messages
+  // Hide welcome block (+ quick actions) once chat has messages
   const wb = document.getElementById('welcome-block');
   if (wb) wb.style.display = 'none';
 
@@ -457,6 +457,12 @@ async function respondConfirm(id, approved) {
   const ov = document.getElementById('confirm-overlay');
   if (ov) ov.remove();
   startConfirmPolling();
+}
+
+// ── CIE Deep Analysis quick action ──────────────────────
+function triggerCIE() {
+  inp.value = 'Analysiere mein Zuhause (CIE Deep Analysis)';
+  sendMsg();
 }
 
 // ── Send ──────────────────────────────────────────────────

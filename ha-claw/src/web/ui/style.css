@@ -270,6 +270,50 @@ body {
   margin-top: 0.35rem;
 }
 
+/* ── Quick Actions (welcome block chips) ─────────────────── */
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.quick-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+.quick-chip-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+.cie-chip {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+.cie-chip:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 18px var(--accent-glow);
+}
+
 /* ── Messages ────────────────────────────────────────────── */
 #messages {
   flex: 1;
@@ -727,8 +771,7 @@ body {
   margin-bottom: 1.25rem;
   flex-wrap: wrap;
 }
-.logs-header-left {
-}
+
 .logs-header h1 {
   font-size: 2rem;
   font-weight: 300;
@@ -1459,8 +1502,7 @@ body {
   flex-direction: column;
   gap: 1rem;
 }
-.profile-slider-row {
-}
+
 .profile-slider-label {
   display: flex;
   align-items: center;

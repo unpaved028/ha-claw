@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+
+- **CIE Deep Analysis**: Neuer Quick-Action-Chip „🧠 Zuhause analysieren" im Welcome-Block des Dashboards. Startet per Klick eine KI-gestützte Tiefenanalyse des Zuhauses (CIE) mit dem ★★★ Komplex-Modell.
+
+---
+
 ## 0.8.9
 
 ### Added
