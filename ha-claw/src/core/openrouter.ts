@@ -217,7 +217,11 @@ async function parseStream(
                   };
                 }
                 if (tc.function?.name) {
-                  activeToolCalls[index].function.name += tc.function.name;
+                  // Name arrives in the first chunk only – overwrite, never append.
+                  // Appending caused duplicate names like "analyze_homeanalyze_home".
+                  if (!activeToolCalls[index].function.name) {
+                    activeToolCalls[index].function.name = tc.function.name;
+                  }
                 }
                 if (tc.function?.arguments) {
                   activeToolCalls[index].function.arguments += tc.function.arguments;

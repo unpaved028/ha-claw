@@ -4,7 +4,11 @@
 
 ### Added
 
-- **CIE Deep Analysis**: Neuer Quick-Action-Chip „🧠 Zuhause analysieren" im Welcome-Block des Dashboards. Startet per Klick eine KI-gestützte Tiefenanalyse des Zuhauses (CIE) mit dem ★★★ Komplex-Modell.
+- **CIE Deep Analysis**: Neuer Quick-Action-Chip "🧠 Zuhause analysieren" im Welcome-Block des Dashboards. Startet per Klick eine KI-gestützte Tiefenanalyse des Zuhauses (CIE) mit dem ★★★ Komplex-Modell.
+
+### Fixed
+
+- **SSE Tool-Name-Bug**: Bei Streaming-Antworten wurde der Tool-Name fälschlicherweise akkumuliert (z.B. `analyze_homeanalyze_home`). Der Name wird jetzt nur beim ersten Chunk gesetzt.
 
 ---
 
