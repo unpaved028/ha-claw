@@ -3,7 +3,7 @@
 ## Was ist HA-Claw?
 Lokaler KI-Assistent als Home Assistant Add-on. Agentic Loop mit Tool Calling, Web UI (Ingress), Telegram Bot. Nutzt OpenRouter für LLM-Zugang.
 
-## Aktuelle Version: 0.8.5
+## Aktuelle Version: 0.8.6
 
 ## Architektur (Kerndateien)
 
@@ -37,7 +37,7 @@ ha-claw/
 │   │   └── backlog-processor.ts  # Event-driven Task-Ausführung (kein Polling)
 │   ├── web/
 │   │   ├── server.ts             # Fastify Server (Chat API, Settings, Safety Gate, Cache Refresh)
-│   │   └── dashboard.ts          # Komplettes Web UI als HTML-String (2700+ Zeilen)
+│   │   └── dashboard.ts          # ⚠️ AUTO-GENERIERT – Web UI (gebündelt aus src/web/ui/)
 │   └── telegram/
 │       ├── bot.ts                # Grammy Telegram Bot
 │       └── confirmation.ts       # Telegram Safety Gate (Inline Keyboard)
@@ -98,6 +98,7 @@ ha-claw/
 | 0.8.3 | 2026-04-07 | Fixed mobile version display and double-escaped regex for Dashboard Maps. |
 | 0.8.4 | 2026-04-07 | Final stabilization of string escaping for dashboard action buttons and rollbacks. |
 | 0.8.5 | 2026-04-07 | Complete fixes for string escaping in Confirmation Overlays, Tool Toggles, and Backlog Actions. |
+| 0.8.6 | 2026-04-10 | **v0.8.6 – Modularisierung**: Dashboard in HTML/CSS/JS aufgeteilt, automatische Build-Pipeline (`bundle-dashboard.js`), TypeScript-Check vor Release. |
 
 ## Nächste Schritte (Roadmap)
 
@@ -121,7 +122,7 @@ ha-claw/
 - [ ] **Retry-bei-Fehler**: Telegram: Inline-Button „🔄 Nochmal versuchen" bei Fehlern. Web: Retry-Button an Fehlernachrichten. Statt erneut tippen.
 
 #### Kann (Low Priority, nur wenn nötig)
-- [ ] **Web UI Refactoring**: Dashboard HTML-String nur ablösen wenn Streaming (SSE) es erfordert – kein Selbstzweck-Refactoring.
+- [x] **Web UI Refactoring**: Dashboard ist jetzt modular in `src/web/ui/` und wird via Build-Script gebündelt. ✅
 - [ ] **Daten-Export Tool**: Conversations, Memory, Backlog als JSON exportieren
 - [ ] **Tool-Timeouts**: 15s pro Tool-Ausführung
 
@@ -136,7 +137,7 @@ ha-claw/
 - [ ] **Bild/Vision-Support**: OpenRouter Vision-Modelle & `ha_get_camera_image` Kamera-Integration (Zählerstände ablesen, Haustür prüfen)
 
 ## Bekannte Probleme
-- Dashboard ist ein 2700-Zeilen HTML-String in TypeScript (schwer wartbar, Refactoring nur wenn Streaming es erfordert)
+- ~~Dashboard ist ein 2700-Zeilen HTML-String~~ → gelöst (Modularisierung & Build-Pipeline in v0.8.6)
 - ~~Kein Linting (eslint) oder Formatting (prettier) konfiguriert~~ → gelöst (ESLint v9 flat config + Prettier, `npm run lint` / `npm run format:fix`)
 - Memory Card Suche ist O(n) Linear-Scan (→ Vector Search in v0.9.0)
 - ~~Backlog Processor pollt alle 30s~~ → gelöst in v0.6.2 (event-driven)
