@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.6
+
+### Changed
+
+- **UI Architecture**: Modularized the web dashboard into separate HTML, CSS, and JS files for better maintainability (src/web/ui/).
+- **Build Pipeline**: Added an automatic bundling process (`bundle-dashboard.js`) that converts source UI files into an inlined TypeScript string.
+- **Release Workflow**: Updated `.agents/workflows/publish.md` to automatically bundle the dashboard and check TypeScript before tagging.
+
+---
+
+
 ## 0.8.5
 
 ### Fixed
