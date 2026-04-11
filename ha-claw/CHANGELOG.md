@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1
+
+### Fixed
+
+- **SSE Tool-Name-Bug**: Bei Streaming-Antworten wurde der Tool-Name fälschlicherweise akkumuliert (z.B. `analyze_homeanalyze_home` statt `analyze_home`). Der Name wird jetzt nur beim ersten Chunk gesetzt.
+
+---
+
 ## 0.9.0
 
 ### Added
