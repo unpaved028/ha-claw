@@ -18,9 +18,17 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 | --------------------------- | ------- | ---------------------------------------------------------------- |
 | `openrouter_api_key`        | ✅      | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai)) |
 | `openrouter_default_model`  | ❌      | LLM Model (Standard: `anthropic/claude-haiku-4.5`)               |
+| `openai_api_key`            | ❌      | Eigener OpenAI-Key, nur für Telegram-Sprachnachrichten nötig     |
 | `telegram_bot_token`        | ❌      | Telegram Bot Token (von @BotFather)                              |
 | `telegram_allowed_user_ids` | ❌\*    | Telegram User-IDs die Zugriff haben (\*Pflicht wenn Bot aktiv)   |
 | `log_level`                 | ❌      | `debug`, `info`, `warn`, `error` (Standard: `info`)              |
+
+### Sprachnachrichten (Telegram)
+
+Sprachnachrichten werden per OpenAI Whisper transkribiert. Das läuft **nicht**
+über OpenRouter, sondern braucht einen eigenen OpenAI-API-Key in
+`openai_api_key`. Ohne diesen Key antwortet der Bot auf Sprachnachrichten mit
+einem Hinweis; Textnachrichten funktionieren unabhängig davon.
 
 ## Sicherheit & Datenfluss
 
@@ -73,10 +81,21 @@ Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Ba
 
 ## Sicherheit bei Geraetesteuerung
 
-Gefaehrliche Aktionen (Schloesser, Alarmanlagen, Automationen, Loeschungen) erfordern eine Bestaetigung:
+Alltaegliche Geraete (Licht, Schalter, Klima, Rollos, Medienplayer) steuert
+HA-Claw direkt. Eine Bestaetigung ist immer erforderlich bei:
 
-- **Telegram**: Inline-Buttons (Ja/Nein) direkt im Chat
-- **Web UI**: Bestaetigungs-Modal mit Details zur geplanten Aktion. Automatische Ablehnung nach 60 Sekunden.
+- Schloessern, Alarmanlagen, Automationen und Loeschungen
+- Skripten und Buttons — ihre Wirkung laesst sich vorab nicht pruefen
+- Rollos/Toren mit `device_class` `garage`, `gate` oder `door`
+- Szenen, die ein Schloss oder eine Alarmanlage mitschalten
+
+So bestaetigst du:
+
+- **Telegram**: Inline-Buttons (Ja/Nein) direkt im Chat. Nur wer die Aktion
+  ausgeloest hat, kann sie bestaetigen.
+- **Web UI**: Bestaetigungs-Modal mit Details zur geplanten Aktion. Automatische
+  Ablehnung nach 60 Sekunden. Mehrere gleichzeitige Anfragen werden als Warteschlange
+  abgearbeitet.
 
 ## Raumstruktur & Automationen
 

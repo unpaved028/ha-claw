@@ -19,7 +19,12 @@
 
 import { callLLM } from './openrouter.js';
 import { createLogger } from './logger.js';
-import { getToolDefinitions, executeTool, isDangerous } from '../tools/registry.js';
+import {
+  getToolDefinitions,
+  executeTool,
+  isDangerous,
+  getToolComplexity,
+} from '../tools/registry.js';
 import { searchCards, buildMemoryContext } from '../storage/memory-cards.js';
 import {
   findRelevantCorrections,
@@ -34,7 +39,14 @@ import { getDynamicPrunedCache } from './entity-cache.js';
 import { clearToolCache } from '../tools/tool-cache.js';
 import { countTokens, pruneMessages } from './context-manager.js';
 import { getProfile } from './profile.js';
-import type { ChatMessage, AgentConfig, LoopResult, ToolCall, ProgressCallback } from './types.js';
+import type {
+  ChatMessage,
+  AgentConfig,
+  LoopResult,
+  ToolCall,
+  ToolDefinition,
+  ProgressCallback,
+} from './types.js';
 
 const log = createLogger('loop');
 
@@ -68,6 +80,42 @@ export type ConfirmationFn = (toolName: string, args: Record<string, unknown>) =
 const autoApprove: ConfirmationFn = async () => true;
 
 /**
+ * Pick the model for the next LLM call based on the current complexity tier.
+ *
+ * Tool complexity can only be known after the model has decided which tools to
+ * call, so it cannot be routed up front. The loop therefore escalates: the
+ * first call uses the level-1 model, and once a level-2 or level-3 tool has
+ * run, the remaining iterations use that tier's model to reason about the
+ * result. An explicit per-agent model (profile.modelOverride) always wins, and
+ * an empty tier falls back to the configured default inside callLLM.
+ */
+function selectModel(agent: AgentConfig, level: 1 | 2 | 3): string | undefined {
+  if (agent.model) return agent.model;
+  const tiers = getProfile().complexityModels;
+  const chosen = level === 3 ? tiers.level3 : level === 2 ? tiers.level2 : tiers.level1;
+  return chosen || undefined;
+}
+
+/**
+ * Render the inventory of callable tools for the {{TOOL_LIST}} placeholder.
+ *
+ * Only names (plus a confirmation marker) are listed: the full descriptions and
+ * parameter schemas already travel with the request in the `tools` field, so
+ * repeating them in the prompt would just cost tokens. Generating this from the
+ * registry means the prompt can no longer claim tools that do not exist, or
+ * hide tools that do – the hand-maintained list in main.md had drifted by 11.
+ */
+function buildToolInventory(defs: ToolDefinition[]): string {
+  if (defs.length === 0) return '_(keine Tools verfügbar)_';
+  return defs
+    .map(d => {
+      const name = d.function.name;
+      return isDangerous(name) ? `- \`${name}\` (erfordert Bestätigung)` : `- \`${name}\``;
+    })
+    .join('\n');
+}
+
+/**
  * Run the agentic loop for a single user message.
  */
 export async function runAgenticLoop(
@@ -90,6 +138,9 @@ export async function runAgenticLoop(
   let systemPrompt = agent.systemPrompt.includes('{{ENTITY_CACHE}}')
     ? agent.systemPrompt.replace('{{ENTITY_CACHE}}', entityCache)
     : agent.systemPrompt + '\n\n## Entity Cache\n' + entityCache;
+
+  // Inject the live tool inventory (no-op for prompts without the placeholder).
+  systemPrompt = systemPrompt.replace('{{TOOL_LIST}}', () => buildToolInventory(toolDefs));
 
   // 1. Memory cards (relevant to this query)
   try {
@@ -159,13 +210,15 @@ export async function runAgenticLoop(
     tokens: countTokens(messages),
   });
 
+  let complexityTier: 1 | 2 | 3 = 1;
+
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     // Emit 'thinking' event before each LLM call
     onProgress?.({ type: 'thinking', message: randomPhrase(), iteration: i + 1 });
 
     // 1. Call LLM (using the pruned/managed message list)
     const response = await callLLM(messages, {
-      model: agent.model,
+      model: selectModel(agent, complexityTier),
       tools: toolDefs.length > 0 ? toolDefs : undefined,
       temperature: agent.temperature,
       maxTokens: agent.maxTokens,
@@ -223,6 +276,13 @@ export async function runAgenticLoop(
           content: result,
         });
       }
+    }
+
+    // Escalate the model tier if a more complex tool ran in this iteration.
+    const maxTier = Math.max(...toolCalls.map(c => getToolComplexity(c.function.name)));
+    if (maxTier > complexityTier) {
+      complexityTier = maxTier as 1 | 2 | 3;
+      log.debug('Model tier escalated', { tier: complexityTier });
     }
   }
 

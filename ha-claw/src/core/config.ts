@@ -11,6 +11,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { DEFAULT_MODEL } from './models.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,8 +94,7 @@ function loadConfig(): AppConfig {
       // Env var fallback for CI/testing
       options = {
         openrouter_api_key: process.env['OPENROUTER_API_KEY'] ?? '',
-        openrouter_default_model:
-          process.env['OPENROUTER_DEFAULT_MODEL'] ?? 'google/gemini-2.5-flash-preview',
+        openrouter_default_model: process.env['OPENROUTER_DEFAULT_MODEL'] ?? DEFAULT_MODEL,
         openai_api_key: process.env['OPENAI_API_KEY'] ?? '',
         telegram_bot_token: process.env['TELEGRAM_BOT_TOKEN'] ?? '',
         telegram_allowed_user_ids: (process.env['TELEGRAM_ALLOWED_USER_IDS'] ?? '')

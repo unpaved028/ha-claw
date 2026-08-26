@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import Fastify from 'fastify';
 import { appConfig } from '../core/config.js';
+import { AVAILABLE_MODELS } from '../core/models.js';
 import { createLogger, getLogBuffer, clearLogBuffer } from '../core/logger.js';
 import {
   getProfile,
@@ -39,13 +40,19 @@ const log = createLogger('web');
 const STARTUP_TIME = new Date().toISOString();
 
 // ── Web Safety Gate (confirmation for dangerous tools) ────
+// Keyed by id rather than a single slot: with one slot a second dangerous call
+// overwrote the first, and the first promise then never settled because its
+// timeout guard no longer recognised itself as the active request.
 interface PendingConfirmation {
   id: string;
   toolName: string;
   args: Record<string, unknown>;
   resolve: (approved: boolean) => void;
+  timer: NodeJS.Timeout;
 }
-let pendingConfirmation: PendingConfirmation | null = null;
+
+const CONFIRM_TIMEOUT_MS = 60_000;
+const pendingConfirmations = new Map<string, PendingConfirmation>();
 let confirmCounter = 0;
 
 function createWebConfirmFn(): ConfirmationFn {
@@ -53,17 +60,26 @@ function createWebConfirmFn(): ConfirmationFn {
     const id = String(++confirmCounter);
     log.info('Web safety gate: awaiting confirmation', { id, toolName });
     return new Promise<boolean>(resolve => {
-      pendingConfirmation = { id, toolName, args, resolve };
-      // Auto-deny after 60s
-      setTimeout(() => {
-        if (pendingConfirmation?.id === id) {
-          pendingConfirmation = null;
-          resolve(false);
+      const timer = setTimeout(() => {
+        // Auto-deny, but only this entry – other pending requests stay alive.
+        if (pendingConfirmations.delete(id)) {
           log.warn('Web confirmation timed out', { id, toolName });
+          resolve(false);
         }
-      }, 60_000);
+      }, CONFIRM_TIMEOUT_MS);
+      pendingConfirmations.set(id, { id, toolName, args, resolve, timer });
     });
   };
+}
+
+/** Settle one pending confirmation. Returns false if the id is unknown. */
+function settleConfirmation(id: string, approved: boolean): boolean {
+  const entry = pendingConfirmations.get(id);
+  if (!entry) return false;
+  clearTimeout(entry.timer);
+  pendingConfirmations.delete(id);
+  entry.resolve(approved);
+  return true;
 }
 const PKG_VERSION = (() => {
   try {
@@ -309,13 +325,17 @@ export async function startWebServer(): Promise<void> {
   });
 
   // ── Web Safety Gate Endpoints ────────────────────────
+  // Returns the oldest outstanding confirmation (Map preserves insertion order),
+  // so the UI walks a queue instead of only ever seeing the newest request.
   app.get('/api/confirm/pending', async () => {
-    if (!pendingConfirmation) return { pending: false };
+    const [next] = pendingConfirmations.values();
+    if (!next) return { pending: false, count: 0 };
     return {
       pending: true,
-      id: pendingConfirmation.id,
-      toolName: pendingConfirmation.toolName,
-      args: pendingConfirmation.args,
+      count: pendingConfirmations.size,
+      id: next.id,
+      toolName: next.toolName,
+      args: next.args,
     };
   });
 
@@ -324,12 +344,10 @@ export async function startWebServer(): Promise<void> {
     async req => {
       const { id } = req.params;
       const { approved } = req.body;
-      if (!pendingConfirmation || pendingConfirmation.id !== id) {
+      if (!settleConfirmation(id, approved)) {
         return { error: 'No matching pending confirmation' };
       }
       log.info('Web confirmation received', { id, approved });
-      pendingConfirmation.resolve(approved);
-      pendingConfirmation = null;
       return { ok: true };
     },
   );
@@ -360,24 +378,7 @@ export async function startWebServer(): Promise<void> {
       version: PKG_VERSION,
       haAvailable: !!(appConfig.supervisorToken && appConfig.haApiUrl),
       telegramConfigured: !!appConfig.telegramBotToken,
-      availableModels: Array.from(
-        new Set([
-          appConfig.openRouterDefaultModel,
-          // Anthropic
-          'anthropic/claude-opus-4.6',
-          'anthropic/claude-sonnet-4.6',
-          'anthropic/claude-haiku-4.5',
-          // Google
-          'google/gemini-3.1-pro-preview',
-          'google/gemini-3-flash-preview',
-          'google/gemini-3.1-flash-lite-preview',
-          // OpenAI
-          'openai/gpt-5.4',
-          'openai/gpt-5.4-mini',
-          // Sonstige
-          'deepseek/deepseek-chat',
-        ]),
-      ),
+      availableModels: Array.from(new Set([appConfig.openRouterDefaultModel, ...AVAILABLE_MODELS])),
     };
   });
 

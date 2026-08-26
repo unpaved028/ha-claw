@@ -12,7 +12,11 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 - **Sensor Awareness** — Window, door, motion, smoke, and moisture sensors displayed per room with type-icons (🪟🚪🏃🔥💧) and entity IDs for precise identification
 - **HA Best Practices** — Built-in knowledge base for automations, templates, helpers, device control, and safe refactoring
 - **Backlog Automation** — AI proposes, generates, and executes improvement tasks through an approval workflow
-- **Tool Complexity Levels** — Map different LLM models to tool complexity (1-3) for cost optimization
+- **Tool Complexity Levels** — Map a different LLM model to each tool complexity tier (1-3); the loop escalates to the higher tier once a complex tool has run
+- **Streaming Responses (SSE)** — The Web UI shows progress live instead of a spinner
+- **Voice Messages** — Telegram voice notes are transcribed via Whisper (needs `openai_api_key`)
+- **Cost Tracking** — Cumulative token usage and a per-model cost estimate in `/status`
+- **Circuit Breaker** — Pauses LLM calls after repeated provider failures instead of hammering the API
 - **Self-Improvement** — Learns from corrections, tracks usage patterns, records errors for smarter retries
 - **Proactive Analysis** — Scans your home for energy waste, security gaps, maintenance issues, and automation opportunities
 - **Conversational Onboarding** — Natural LLM-powered setup instead of rigid forms, with feature introduction and weekly analysis suggestion
@@ -54,6 +58,7 @@ Meta-models `openrouter/free` and `openrouter/auto` are also available.
 | --------------------------- | -------- | ---------------------------------------------------------------- |
 | `openrouter_api_key`        | Yes      | Your OpenRouter API key ([openrouter.ai](https://openrouter.ai)) |
 | `openrouter_default_model`  | No       | Default LLM model (default: `anthropic/claude-haiku-4.5`)        |
+| `openai_api_key`            | No       | Separate OpenAI key, only needed for Telegram voice messages     |
 | `telegram_bot_token`        | No       | Telegram Bot Token (from @BotFather)                             |
 | `telegram_allowed_user_ids` | No\*     | Comma-separated Telegram User IDs (\*required if bot is active)  |
 | `log_level`                 | No       | `debug`, `info`, `warn`, `error` (default: `info`)               |
@@ -61,14 +66,15 @@ Meta-models `openrouter/free` and `openrouter/auto` are also available.
 ## Security
 
 - **Whitelist-Only**: Only configured Telegram User IDs can interact with the bot
-- **Safety Gate**: Dangerous actions require explicit confirmation via Telegram inline buttons
+- **Safety Gate**: Dangerous actions require explicit confirmation via Telegram inline buttons or a Web UI modal. A confirmation is bound to the user who triggered it, so another whitelisted member cannot approve someone else's action.
+- **Domain Allowlist**: Only everyday domains can be controlled without confirmation. Locks, alarms, automations, scripts and buttons always require it — as do covers with `device_class` `garage`, `gate` or `door`, and scenes that touch a lock or alarm.
 - **Secret Redaction**: API keys and tokens are masked in logs
 - **No Open Ports**: Web UI runs exclusively through HA Ingress (no external access)
 - **Cloud LLM**: Chat messages are sent to the configured LLM provider. All actions (device control, storage) execute locally on your Home Assistant.
 
 ## Architecture
 
-See [Architecture.md](Architecture.md) for the full system architecture and component overview.
+See [architecture.md](../architecture.md) for the full system architecture and component overview.
 
 ## Supported Architectures
 

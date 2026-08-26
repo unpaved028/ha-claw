@@ -13,11 +13,12 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 
 const log = createLogger('learning');
 
-const STORE_DIR = join(process.env['HA_CLAW_DATA'] || '/data/store', 'learning');
+const STORE_DIR = join(appConfig.dataPath, 'store', 'learning');
 
 // ═══════════════════════════════════════════════════════════════
 // 1. CORRECTIONS – "Nicht X, sondern Y"

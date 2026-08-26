@@ -63,6 +63,6 @@ export async function processVoiceMessage(ctx: Context): Promise<string | null> 
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     log.error('STT conversion error', { error: errorMsg });
-    throw new Error(`Spracherkennung fehlgeschlagen: ${errorMsg}`);
+    throw new Error(`Spracherkennung fehlgeschlagen: ${errorMsg}`, { cause: err });
   }
 }

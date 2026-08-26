@@ -169,7 +169,7 @@ export function createBot(): Bot {
     const result = await runAgenticLoop(
       `[System: Der Nutzer hat den Raum "${room}" über das Menü ausgewählt. Gib eine kurze Zusammenfassung über den Status der Geräte in diesem Raum.]`,
       agent,
-      createTelegramConfirmFn(bot, ctx.chat!.id),
+      createTelegramConfirmFn(bot, ctx.chat!.id, ctx.from?.id ?? null),
       [], // New short-term context for point-and-click actions
       undefined,
       () => {
@@ -218,7 +218,7 @@ export function createBot(): Bot {
       if (!isOnboarding(sessionId)) startOnboarding(sessionId);
       try {
         const agent = buildOnboardingAgent();
-        const confirmFn = createTelegramConfirmFn(bot, chatId);
+        const confirmFn = createTelegramConfirmFn(bot, chatId, ctx.from.id);
         const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
           'conversations',
           sessionId,
@@ -253,7 +253,7 @@ export function createBot(): Bot {
       return;
     }
 
-    await handleAgenticLoop(ctx, chatId, sessionId, text);
+    await handleAgenticLoop(ctx, chatId, ctx.from.id, sessionId, text);
   });
 
   bot.callbackQuery('retry:loop', async ctx => {
@@ -275,18 +275,26 @@ export function createBot(): Bot {
     }
 
     await ctx.replyWithChatAction('typing');
-    await handleAgenticLoop(ctx, chatId, sessionId, lastUserMsg.content, true);
+    await handleAgenticLoop(
+      ctx,
+      chatId,
+      ctx.from?.id ?? null,
+      sessionId,
+      lastUserMsg.content,
+      true,
+    );
   });
 
   async function handleAgenticLoop(
     ctx: any,
     chatId: number,
+    userId: number | null,
     sessionId: string,
     text: string,
     isRetry = false,
   ) {
     try {
-      const confirmFn = createTelegramConfirmFn(bot, chatId);
+      const confirmFn = createTelegramConfirmFn(bot, chatId, userId);
       const agent = buildAgent();
 
       // Daily greeting hint

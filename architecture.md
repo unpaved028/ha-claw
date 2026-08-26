@@ -48,9 +48,11 @@ ha-claw/
 │   ├── core/
 │   │   ├── agentic-loop.ts      # LLM loop with tool calling (max 10 iterations)
 │   │   ├── config.ts            # Config loader (Supervisor + dev fallback)
+│   │   ├── context-manager.ts   # Token estimation + history pruning
 │   │   ├── entity-cache.ts      # HA entity discovery, grouped by area
 │   │   ├── ha-client.ts         # Home Assistant REST API client
 │   │   ├── logger.ts            # Pino-based structured logger
+│   │   ├── models.ts            # Canonical list of selectable LLM models
 │   │   ├── onboarding.ts        # LLM-based conversational onboarding
 │   │   ├── openrouter.ts        # OpenRouter API client (OpenAI-compatible)
 │   │   ├── proactive-analysis.ts# Home analysis modules (energy, security, etc.)
@@ -63,6 +65,7 @@ ha-claw/
 │   │   ├── backlog-processor.ts # Automated task processing (approve → solve → execute)
 │   │   ├── action-log.ts        # Persistent action/tool execution log
 │   │   ├── learning.ts          # Self-improvement (corrections, patterns, errors)
+│   │   ├── usage-tracker.ts     # Cumulative token usage + cost estimate
 │   │   └── scheduler.ts         # Job scheduler (recurring + one-shot timers)
 │   ├── tools/
 │   │   ├── registry.ts          # Tool registration, complexity levels, enable/disable
@@ -71,23 +74,41 @@ ha-claw/
 │   │   └── ha-best-practices.ts # Best practices knowledge base (6 reference files)
 │   ├── web/
 │   │   ├── server.ts            # Fastify server, API routes, Ingress
-│   │   └── dashboard.ts         # Embedded HTML/CSS/JS dashboard
+│   │   ├── dashboard.ts         # GENERATED – inlined dashboard (do not edit)
+│   │   └── ui/                  # Dashboard sources (html, css, client js)
 │   └── telegram/
 │       ├── bot.ts               # Grammy bot setup, message handling
 │       ├── confirmation.ts      # Inline-keyboard safety gate
+│       ├── notifications.ts     # Proactive push + fast-track task buttons
+│       ├── voice.ts             # Voice message transcription (Whisper)
 │       └── whitelist.ts         # User ID whitelist guard
 ├── agents/
-│   ├── butler.md                # Main agent system prompt
+│   ├── main.md                  # Main agent system prompt
 │   ├── onboarding.md            # Conversational onboarding prompt
 │   ├── cie.md                   # CIE (Continuous Improvement Engine) prompt
 │   ├── KI-Systemarchitekt.md    # System architect prompt
 │   └── skills/
 │       └── ha-best-practices/   # Reference files (6 markdown/yaml docs)
+├── scripts/
+│   └── bundle-dashboard.cjs     # Generates web/dashboard.ts from web/ui/
 ├── config.yaml                  # HA Add-on manifest
 ├── Dockerfile                   # Multi-stage Docker build (Node 22)
 ├── package.json                 # Dependencies (grammy, fastify)
 └── tsconfig.json                # TypeScript config (ESM)
 ```
+
+### Web UI build
+
+`src/web/dashboard.ts` is generated, not written by hand. HA Ingress rewrites
+URLs under `/api/hassio_ingress/<token>/`, so the browser cannot resolve
+relative `<link>` or `<script src>` paths — the entire UI has to be inlined in
+one HTML response. `scripts/bundle-dashboard.cjs` assembles
+`src/web/ui/{dashboard.html,style.css,client.js}` into that single file.
+
+Run it with `npm run bundle`; `npm run build` triggers it automatically through
+the `prebuild` hook, so the Docker image can never ship a stale dashboard.
+`npm run verify:bundle` fails when the generated file has drifted from its
+sources, and CI runs it on every push.
 
 ## Key Components
 
@@ -105,11 +126,19 @@ Central registry for all tools. Each tool has:
 
 ### Tool Complexity Levels
 Each tool is assigned a complexity rating:
-- **Level 1** (simple): State queries, entity search, basic service calls
+- **Level 1** (simple): State queries, entity search, everyday service calls
 - **Level 2** (moderate): Dangerous service calls, home analysis
-- **Level 3** (complex): Reserved for future advanced multi-step tools
+- **Level 3** (complex): Writing automation and script configurations
 
-Users can map different LLM models to each level in Settings, e.g. Haiku for Level 1, Sonnet for Level 2, Opus for Level 3.
+Users can map a different LLM model to each level in Settings, e.g. Haiku for
+Level 1, Sonnet for Level 2, Opus for Level 3.
+
+Routing works by **escalation**, because which tools a request needs is only
+known after the model has chosen them. The first LLM call of a loop uses the
+Level 1 model; once a Level 2 or 3 tool has executed, the remaining iterations
+use that tier's model to reason about the result. A model set explicitly as
+`modelOverride` always wins, and an empty tier falls back to
+`openrouter_default_model`.
 
 ### HA Best Practices (`tools/ha-best-practices.ts`)
 Loads 6 reference files from `agents/skills/ha-best-practices/`:
@@ -123,8 +152,10 @@ Loads 6 reference files from `agents/skills/ha-best-practices/`:
 The `ha_best_practices` tool searches by topic or keyword and returns relevant sections.
 
 ### Backlog Processor (`storage/backlog-processor.ts`)
-Automated task processing pipeline:
-1. Polls every 30 seconds for tasks needing work
+Automated task processing pipeline. It is **event-driven** (since v0.6.2): a
+status change schedules a debounced run, so an idle system costs no tokens and
+produces no polling traffic.
+1. Runs on task status changes (plus one scan at startup)
 2. `approved` tasks → AI generates a concrete solution → `solution_proposed`
 3. User reviews and approves → `solution_approved`
 4. AI executes the solution using available tools → `done`
@@ -166,7 +197,7 @@ User Message (Web/Telegram)
     ▼
 Agentic Loop
     │
-    ├─ System Prompt (butler.md + personality + entity cache + memory + learning)
+    ├─ System Prompt (main.md + personality + entity cache + tool list + memory + learning)
     │
     ├─ LLM Call (OpenRouter) ──► Tool Call Response
     │                                │

@@ -12,6 +12,7 @@
  */
 
 import type { ToolDefinition } from '../core/types.js';
+import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -41,7 +42,7 @@ export interface ToolInfo {
 // ── Registry ─────────────────────────────────────────────────
 
 const tools = new Map<string, RegisteredTool>();
-const STORE_DIR = process.env['HA_CLAW_DATA'] || '/data/store';
+const STORE_DIR = join(appConfig.dataPath, 'store');
 const DISABLED_FILE = join(STORE_DIR, 'disabled-tools.json');
 
 /** Load disabled-tools set from disk. */

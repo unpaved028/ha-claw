@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# The add-on lives in a subdirectory, so every job runs from there.
+defaults:
+  run:
+    working-directory: ha-claw
+
+jobs:
+  quality:
+    name: Types, lint, format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ha-claw/package-lock.json
+
+      - run: npm ci
+
+      # Fails if src/web/dashboard.ts was hand-edited or is stale relative to
+      # src/web/ui/. Without this the generated file can silently drift.
+      - name: Verify dashboard bundle is up to date
+        run: npm run verify:bundle
+
+      - name: TypeScript
+        run: npm run check
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier
+        run: npm run format
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build add-on image
+        run: docker build -t ha-claw:ci .
+
+  manifest:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # package.json, config.yaml and the newest CHANGELOG heading must agree,
+      # otherwise the HA add-on store shows a different version than the code.
+      - name: Compare package.json, config.yaml and CHANGELOG
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          cfg=$(sed -n "s/^version: *'\(.*\)'$/\1/p" config.yaml)
+          log=$(grep -m1 '^## ' CHANGELOG.md | sed 's/^## *//')
+          echo "package.json=$pkg config.yaml=$cfg changelog=$log"
+          if [ "$pkg" != "$cfg" ] || [ "$pkg" != "$log" ]; then
+            echo "::error::Version mismatch between package.json, config.yaml and CHANGELOG.md"
+            exit 1
+          fi
+
+      # config.yaml cannot import from TypeScript, so the model enum is written
+      # out by hand there. This keeps it honest against src/core/models.ts.
+      - name: Compare model list in config.yaml and src/core/models.ts
+        run: |
+          yaml=$(sed -n "s/.*openrouter_default_model: 'list(\(.*\))'.*/\1/p" config.yaml \
+            | tr '|' '\n' | sort)
+          ts=$(sed -n "/AVAILABLE_MODELS/,/^];/p" src/core/models.ts \
+            | grep -o "'[^']*'" | tr -d "'" | sort)
+          if [ "$yaml" != "$ts" ]; then
+            echo "::error::Model list in config.yaml does not match src/core/models.ts"
+            diff <(echo "$yaml") <(echo "$ts") || true
+            exit 1
+          fi
+          echo "Model lists match ($(echo "$ts" | wc -l) entries)."

@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.9.2
+
+Fundament-Release. Keine neuen Endnutzer-Features, dafür ein reproduzierbarer
+Build, ein Safety Gate, das hält was es verspricht, und Doku die dem Code entspricht.
+
+### Security
+
+- **Domain-Allowlist geschärft**: `script` und `button` erfordern jetzt eine Bestätigung – ihre Wirkung lässt sich vorab nicht prüfen, und über `script.turn_on` war jedes Türskript ohne Rückfrage erreichbar. Rollos/Tore mit `device_class` `garage`, `gate` oder `door` und Szenen, die ein Schloss oder eine Alarmanlage mitschalten, gehen ebenfalls durch das Safety Gate.
+- **entity_id-Override geschlossen**: Vom LLM geliefertes `data` wurde **nach** `entity_id` in die Service-Payload gespreadet und konnte damit das Ziel überschreiben – die Domain-Prüfung war bestanden, getroffen wurde ein anderes Gerät. Zusätzlich wird jetzt validiert, dass jede `entity_id` zur angefragten Domain gehört (`domain: "light"` + `entity_id: "lock.haustuer"` wird abgelehnt).
+- **Telegram-Bestätigungen an den Auslöser gebunden**: In einem geteilten Chat konnte jedes Whitelist-Mitglied die gefährliche Aktion eines anderen freigeben. Gleiches gilt für die Fast-Track-Buttons proaktiver Aufgaben.
+
+### Fixed
+
+- **Telegram-Buttons reagierten nicht**: Der Safety-Gate-Handler war als erster Callback-Handler registriert und beendete die Middleware-Kette, ohne `next()` aufzurufen. Dadurch erreichten Callbacks fremder Präfixe ihre Handler nie – die Buttons von `/rooms`, „🔄 Nochmal versuchen" und die Fast-Track-Aufgaben waren wirkungslos.
+- **Web UI hing bei zwei gleichzeitigen Bestätigungen**: Es gab nur einen Slot für ausstehende Bestätigungen. Eine zweite gefährliche Aktion überschrieb die erste, deren Timeout sich danach nicht mehr selbst erkannte – das Promise löste nie auf, der Agentic Loop stand und der Request blieb offen. Ersetzt durch eine Warteschlange.
+- **Kosten-Tracking bei Streaming**: Streamende Antworten meldeten keine Token, und die Web UI nutzt Streaming als Standardweg – die Kosten in `/status` waren dadurch systematisch zu niedrig. Der Usage-Chunk wird nun über `stream_options.include_usage` angefordert und ausgewertet.
+- **Kostenschätzung pro Modell**: Statt eines pauschalen Mischpreises für alle Modelle wird jetzt eine Modell→Preis-Tabelle verwendet.
+- **`ha_call_service_dangerous` war doppelt registriert**; die zweite Registrierung überschrieb die erste stillschweigend. Die verbliebene Variante akzeptiert `data` und erlaubt weiterhin domainweite Aufrufe ohne `entity_id` (z. B. `automation.reload`).
+- **Daten landeten im Dev-Modus in zwei Bäumen**: `learning.ts`, `scheduler.ts` und die Tool-Registry nutzten `HA_CLAW_DATA || '/data/store'` statt `appConfig.dataPath`. Scheduler-Jobs und Korrekturen schienen dadurch lokal nach jedem Neustart verschwunden. Alles liegt jetzt unter `<dataPath>/store/`.
+- **`openai_api_key` war nicht konfigurierbar**: Die Option wurde im Code gelesen, fehlte aber in `config.yaml`. Telegram-Sprachnachrichten waren über die Add-on-UI damit nicht aktivierbar.
+- **Dev-Fallback-Modell** zeigte auf ein veraltetes Gemini-Preview statt auf das dokumentierte Default-Modell.
+
+### Added
+
+- **Complexity-Routing greift jetzt tatsächlich**: Die Modellzuordnung pro Komplexitätsstufe war vollständig gebaut – UI, Persistenz, Sterne pro Tool – aber `getToolComplexity()` hatte keine einzige Aufrufstelle, es wurde immer das Standardmodell benutzt. Der Loop eskaliert nun: erster Aufruf mit dem Stufe-1-Modell, nach Ausführung eines Stufe-2/3-Tools laufen die restlichen Iterationen auf dessen Modell.
+- **Tool-Liste im System-Prompt wird generiert**: In `main.md` fehlten 11 registrierte Tools, das Modell kannte eigene Fähigkeiten nicht. Der Platzhalter `{{TOOL_LIST}}` wird jetzt zur Laufzeit aus der Registry gefüllt und kann nicht mehr veralten.
+- **CI-Pipeline** (`.github/workflows/ci.yml`): Typen, ESLint, Prettier, Docker-Build sowie Konsistenzprüfungen für Version (package.json / config.yaml / CHANGELOG) und Modell-Liste (config.yaml / `src/core/models.ts`).
+- **`npm run verify:bundle`**: schlägt fehl, wenn `src/web/dashboard.ts` von `src/web/ui/` abweicht.
+
+### Changed
+
+- **Dashboard-Build ist reproduzierbar**: Der Bundler lag unter `.agents/`, also in einem per `.gitignore` ausgeschlossenen Verzeichnis – aus einem frischen Clone liess sich die UI nicht bauen. Er liegt jetzt unter `ha-claw/scripts/bundle-dashboard.cjs` und läuft über den `prebuild`-Hook automatisch bei `npm run build`, also auch im Docker-Build.
+- **Escaping-Fehlerklasse beseitigt**: Das Payload wurde in ein TypeScript-Template-Literal geschrieben, wobei `\`, `` ` `` und `${` in drei manuellen `replace`-Schritten maskiert werden mussten – die Ursache der Fehlerserie von 0.8.1 bis 0.8.5. Jede Zeile geht jetzt durch `JSON.stringify` und wird zur Laufzeit wieder zusammengefügt.
+- **Modell-Liste hat eine Quelle**: `src/core/models.ts`. Dadurch sind `openrouter/free` und `openrouter/auto` nun auch in der Web-UI wählbar.
+- **Repository aufgeräumt**: generierte Artefakte und ein abgeschlossenes Migrationsskript entfernt, pauschale `*.txt`-Regel aus `.gitignore` ersetzt.
+
+---
+
 ## 0.9.1
 
 ### Fixed
@@ -14,10 +52,6 @@
 
 - **CIE Deep Analysis**: Neuer Quick-Action-Chip "🧠 Zuhause analysieren" im Welcome-Block des Dashboards. Startet per Klick eine KI-gestützte Tiefenanalyse des Zuhauses (CIE) mit dem ★★★ Komplex-Modell.
 
-### Fixed
-
-- **SSE Tool-Name-Bug**: Bei Streaming-Antworten wurde der Tool-Name fälschlicherweise akkumuliert (z.B. `analyze_homeanalyze_home`). Der Name wird jetzt nur beim ersten Chunk gesetzt.
-
 ---
 
 ## 0.8.9
@@ -26,10 +60,15 @@
 
 - **Cleanup**: Repository für Public Release auf GitHub bereinigt. Interne Agent-Dateien (`.agents/`, `CLAUDE.md`) werden nun ignoriert.
 
+---
+
+## 0.8.8
+
 ### Fixed
 
 - **UI Bundling**: Syntax-Fehler in `client.js` behoben (falsches Escaping von Backslashes in HTML-Attributen).
 - **Stabilität**: `bundle-dashboard.js` verbessert, um variable Abstände bei der Pfaderkennung robuster zu handhaben.
+- **Standards**: `.agents/rules/shell-conventions.md` ergänzt, damit Tool-Aufrufe die Windows/PowerShell-Umgebung berücksichtigen.
 
 ### Removed
 

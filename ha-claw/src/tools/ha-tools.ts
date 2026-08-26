@@ -8,14 +8,22 @@
  * - Get HA system info
  *
  * Service calls are split by risk level:
- * - SAFE domains (light, switch, scene, media_player, cover, fan, input_boolean,
- *   input_number, input_select, input_text, climate, vacuum, humidifier, water_heater,
- *   script, number, select, button) → no confirmation needed
- * - DANGEROUS domains (lock, alarm_control_panel, automation, homeassistant, notify,
- *   persistent_notification, rest_command, shell_command, …) → confirmation required
+ * - SAFE domains (see SAFE_DOMAINS) → no confirmation needed
+ * - everything else → ha_call_service_dangerous, which requires confirmation
+ *
+ * A domain allowlist alone is not enough, because several everyday domains can
+ * reach security-relevant devices indirectly. Three extra guards close that gap:
+ *  1. entity_id must belong to the requested domain (see assertDomainMatches),
+ *     otherwise "domain: light" + "entity_id: lock.front_door" would pass.
+ *  2. cover entities with device_class garage/gate/door are treated as guarded,
+ *     because a garage door is an entrance, not a window blind.
+ *  3. scenes are inspected before activation and rejected if they target a
+ *     guarded domain, so a scene cannot be used to unlock a door.
+ * script and button stay out of the safe list entirely – their effects are
+ * arbitrary and cannot be inspected up front.
  */
 
-import { registerTool } from './registry.js';
+import { registerTool, getToolNames } from './registry.js';
 import * as ha from '../core/ha-client.js';
 import { createLogger } from '../core/logger.js';
 import { logAction, getActionById } from '../storage/action-log.js';
@@ -39,11 +47,92 @@ const SAFE_DOMAINS = new Set([
   'vacuum',
   'humidifier',
   'water_heater',
-  'script',
   'number',
   'select',
-  'button',
 ]);
+
+/** Domains that must never be reached without confirmation, not even indirectly. */
+const GUARDED_DOMAINS = new Set(['lock', 'alarm_control_panel']);
+
+/** Cover device classes that guard a building entrance rather than a window. */
+const GUARDED_COVER_CLASSES = new Set(['garage', 'gate', 'door']);
+
+/**
+ * Reject entity IDs that do not belong to the requested service domain.
+ * Without this the domain allowlist would be decorative.
+ */
+function assertDomainMatches(domain: string, entityIds: string[]): string | null {
+  const mismatched = entityIds.filter(eid => !eid.startsWith(`${domain}.`));
+  if (mismatched.length === 0) return null;
+  return `entity_id must belong to domain "${domain}". Mismatched: ${mismatched.join(', ')}`;
+}
+
+/** Return the subset of cover entities that guard an entrance. */
+async function findGuardedCovers(entityIds: string[]): Promise<string[]> {
+  const guarded: string[] = [];
+  for (const eid of entityIds) {
+    try {
+      const state = await ha.getState(eid);
+      const deviceClass = String(state.attributes['device_class'] ?? '');
+      if (GUARDED_COVER_CLASSES.has(deviceClass)) guarded.push(eid);
+    } catch {
+      // Unknown entity – let the service call itself report the problem.
+    }
+  }
+  return guarded;
+}
+
+/**
+ * Return scene targets that live in a guarded domain. A scene stores the
+ * entities it controls in its `entity_id` attribute, so this can be checked
+ * before the scene is activated.
+ */
+async function findGuardedSceneTargets(sceneIds: string[]): Promise<string[]> {
+  const guarded: string[] = [];
+  for (const sceneId of sceneIds) {
+    try {
+      const state = await ha.getState(sceneId);
+      const targets = state.attributes['entity_id'];
+      if (!Array.isArray(targets)) continue;
+      for (const target of targets) {
+        const targetDomain = String(target).split('.')[0] ?? '';
+        if (GUARDED_DOMAINS.has(targetDomain)) guarded.push(`${sceneId} -> ${target}`);
+      }
+    } catch {
+      // Unknown scene – let the service call itself report the problem.
+    }
+  }
+  return guarded;
+}
+
+/**
+ * Shared policy check for the non-confirming service tool.
+ * Returns an error message when the call must not proceed, otherwise null.
+ */
+async function checkSafeCallPolicy(domain: string, entityIds: string[]): Promise<string | null> {
+  if (!SAFE_DOMAINS.has(domain)) {
+    return `Domain "${domain}" is not allowed in ha_call_service. Use ha_call_service_dangerous for security-sensitive domains (including script and button).`;
+  }
+
+  const mismatch = assertDomainMatches(domain, entityIds);
+  if (mismatch) return mismatch;
+
+  if (domain === 'cover') {
+    const guarded = await findGuardedCovers(entityIds);
+    if (guarded.length > 0) {
+      return `${guarded.join(', ')} guards an entrance (device_class garage/gate/door). Use ha_call_service_dangerous.`;
+    }
+  }
+
+  if (domain === 'scene') {
+    const guarded = await findGuardedSceneTargets(entityIds);
+    if (guarded.length > 0) {
+      return `This scene targets a security-sensitive entity (${guarded.join(', ')}). Use ha_call_service_dangerous.`;
+    }
+  }
+
+  return null;
+}
 
 /** Expected state after common service calls (for verification). */
 const EXPECTED_STATE: Record<string, string> = {
@@ -78,9 +167,8 @@ function getRollback(
 }
 
 export function registerHATools(): void {
-  // ... (lines 34-100 unchanged)
-  // (Note: Skipping re-pasting ha_get_state and ha_search_entities for brevity,
-  // but they must remain in the file)
+  const registeredBefore = getToolNames().length;
+
   // ── ha_get_state ─────────────────────────────────────────
   registerTool(
     'ha_get_state',
@@ -232,7 +320,7 @@ export function registerHATools(): void {
   // ── ha_call_service (safe everyday domains) ─────────────
   registerTool(
     'ha_call_service',
-    `Call a Home Assistant service to control everyday devices. Use this for: lights, switches, scenes, media players, covers, fans, climate/thermostats, vacuums, input helpers, scripts, and buttons. This tool does NOT require user confirmation. For security-sensitive domains (lock, alarm, automation, homeassistant), use ha_call_service_dangerous instead.`,
+    `Call a Home Assistant service to control everyday devices. Use this for: lights, switches, scenes, media players, window covers, fans, climate/thermostats, vacuums and input helpers. This tool does NOT require user confirmation. Use ha_call_service_dangerous instead for locks, alarms, automations, scripts, buttons, garage/gate doors and anything else security-sensitive.`,
     {
       domain: {
         type: 'string',
@@ -259,11 +347,8 @@ export function registerHATools(): void {
         : [args['entity_id'] as string];
       const extraData = (args['data'] as Record<string, unknown>) ?? {};
 
-      if (!SAFE_DOMAINS.has(domain)) {
-        return {
-          error: `Domain "${domain}" is not allowed in ha_call_service. Use ha_call_service_dangerous for security-sensitive domains.`,
-        };
-      }
+      const policyError = await checkSafeCallPolicy(domain, entityIds);
+      if (policyError) return { error: policyError };
 
       // Capture states before action
       const statesBefore: Record<string, string | null> = {};
@@ -275,9 +360,11 @@ export function registerHATools(): void {
         }
       }
 
+      // entity_id is set last on purpose: extraData comes from the LLM and must
+      // not be able to redirect the call to a different entity.
       const res = await ha.callService(domain, service, {
-        entity_id: entityIds.length === 1 ? entityIds[0] : entityIds,
         ...extraData,
+        entity_id: entityIds.length === 1 ? entityIds[0] : entityIds,
       });
 
       // Clear cache for these entities
@@ -357,6 +444,11 @@ export function registerHATools(): void {
     },
     async args => {
       const sceneId = args['scene_id'] as string;
+
+      // Same policy as ha_call_service – this shorthand must not become a bypass.
+      const policyError = await checkSafeCallPolicy('scene', [sceneId]);
+      if (policyError) return { error: policyError };
+
       const res = await ha.callService('scene', 'turn_on', { entity_id: sceneId });
       await logAction('switch', `Szene aktiviert: ${sceneId}`, 'ha_light_set_scene');
       return res;
@@ -389,6 +481,11 @@ export function registerHATools(): void {
     },
     async args => {
       const entityId = args['entity_id'] as string | string[];
+      const ids = Array.isArray(entityId) ? entityId : [entityId];
+
+      const mismatch = assertDomainMatches('light', ids);
+      if (mismatch) return { error: mismatch };
+
       const data: Record<string, any> = { entity_id: entityId };
       if (args['rgb_color']) data['rgb_color'] = args['rgb_color'];
       if (args['color_temp']) data['color_temp'] = args['color_temp'];
@@ -397,7 +494,6 @@ export function registerHATools(): void {
       const res = await ha.callService('light', 'turn_on', data);
 
       // Clear cache
-      const ids = Array.isArray(entityId) ? entityId : [entityId];
       for (const eid of ids) setCachedResult(`state:${eid}`, undefined, 0);
 
       await logAction(
@@ -471,7 +567,12 @@ export function registerHATools(): void {
       },
       entity_id: {
         anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
-        description: 'Target entity ID or list of entity IDs (optional for some services)',
+        description:
+          'Target entity ID or list of entity IDs. Optional for domain-wide services such as automation.reload or homeassistant.restart.',
+      },
+      data: {
+        type: 'object',
+        description: 'Optional service data (e.g. {"code": "1234"} for an alarm panel)',
       },
     },
     async args => {
@@ -480,6 +581,8 @@ export function registerHATools(): void {
       const entityId = args['entity_id'] as string | string[] | undefined;
       const extraData = (args['data'] as Record<string, unknown>) ?? {};
 
+      // entity_id is set after the spread so LLM-supplied data cannot redirect
+      // the call, mirroring the guard in ha_call_service.
       const payload: Record<string, unknown> = { ...extraData };
       if (entityId) payload['entity_id'] = entityId;
 
@@ -703,71 +806,5 @@ export function registerHATools(): void {
     { dangerous: true, required: ['id', 'config'], complexity: 3 },
   );
 
-  // ── ha_call_service_dangerous ──────────────────────────────
-  registerTool(
-    'ha_call_service_dangerous',
-    'Call ANY Home Assistant service on one or more entities. Use this for sensitive domains like lock, alarm_control_panel, automation, or homeassistant. Requires user confirmation.',
-    {
-      domain: {
-        type: 'string',
-        description: 'The domain of the service (e.g. "lock", "alarm_control_panel")',
-      },
-      service: {
-        type: 'string',
-        description: 'The service name (e.g. "lock", "unlock", "arm_away")',
-      },
-      entity_id: {
-        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
-        description: 'Target entity ID or list of entity IDs',
-      },
-      data: {
-        type: 'object',
-        description: 'Optional service data',
-      },
-    },
-    async args => {
-      const domain = args['domain'] as string;
-      const service = args['service'] as string;
-      const entityIds = Array.isArray(args['entity_id'])
-        ? (args['entity_id'] as string[])
-        : [args['entity_id'] as string];
-      const extraData = (args['data'] as Record<string, unknown>) ?? {};
-
-      // Capture states before action
-      const statesBefore: Record<string, string | null> = {};
-      for (const eid of entityIds) {
-        try {
-          statesBefore[eid] = (await ha.getState(eid)).state;
-        } catch {
-          statesBefore[eid] = null;
-        }
-      }
-
-      const res = await ha.callService(domain, service, {
-        entity_id: entityIds.length === 1 ? entityIds[0] : entityIds,
-        ...extraData,
-      });
-
-      // Clear cache
-      for (const eid of entityIds) setCachedResult(`state:${eid}`, undefined, 0);
-
-      const rollback = getRollback(
-        domain,
-        service,
-        entityIds.length === 1 ? entityIds[0]! : entityIds,
-        extraData,
-      );
-      await logAction(
-        'system',
-        `${domain}.${service} auf ${entityIds.join(', ')}`,
-        'ha_call_service_dangerous',
-        rollback,
-      );
-
-      return { ...res, warning: 'Aktion an sicherheitssensiblen Bereich gesendet.' };
-    },
-    { dangerous: true, required: ['domain', 'service', 'entity_id'], complexity: 2 },
-  );
-
-  log.info('HA tools registered', { count: 12 });
+  log.info('HA tools registered', { count: getToolNames().length - registeredBefore });
 }

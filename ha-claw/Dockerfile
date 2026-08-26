@@ -7,10 +7,14 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci && echo "build-deps-installed"
 
-# Copy source & compile TypeScript (explicit path to avoid npx issues)
+# Copy source & compile TypeScript.
+# "npm run build" runs the prebuild hook first, which regenerates
+# src/web/dashboard.ts from src/web/ui/ – so the image can never ship a
+# dashboard that is out of sync with its sources.
 COPY tsconfig.json ./
+COPY scripts/ ./scripts/
 COPY src/ ./src/
-RUN ./node_modules/.bin/tsc
+RUN npm run build
 
 # ── Runtime Stage (minimal image) ─────────────────────────────
 FROM node:22-alpine

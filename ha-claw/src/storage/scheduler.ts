@@ -24,6 +24,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 import { getCircuitBreakerState } from '../core/openrouter.js';
 
@@ -49,7 +50,7 @@ type JobExecutor = (job: ScheduledJob) => Promise<string>;
 
 // ── Storage ──────────────────────────────────────────────────
 
-const STORE_DIR = process.env['HA_CLAW_DATA'] || '/data/store';
+const STORE_DIR = join(appConfig.dataPath, 'store');
 const SCHEDULER_FILE = join(STORE_DIR, 'scheduler.json');
 
 let jobs: ScheduledJob[] = [];

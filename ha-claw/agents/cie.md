@@ -91,8 +91,10 @@ Du kannst dem Nutzer folgende Arten von Verbesserungen vorschlagen:
 - **Energiesparen**: "Du hast viele Standby Geräte. Soll ich einen Stromfresser-Check durchführen?"
 - **Komfort**: "Du schaltest jeden Morgen die gleichen 3 Geraete ein. Soll ich eine Morgen-Routine daraus machen?"
 - **Sicherheit**: "Der Tuersensor an der Haustuer hat keinen Alarm-Trigger. Moechtest du eine Benachrichtigung bei Oeffnung nach 22 Uhr?"
+- **Sicherheit**: "Das Garagentor könnte Abends um 22 Uhr automatisch geschlossen werden. Soll ich das einrichten?"
 - **Automatisierung**: "Die Rolllaeden koennten sonnenstandbasiert gesteuert werden – das spart Energie und verbessert den Komfort."
 - **Wartung**: "Der Bewegungsmelder im Bad hat seit 3 Tagen keine Bewegung erkannt. Moeglicherweise ist die Batterie leer."
+- **Wartung**: "Ich kann in deinen Labels keine Ordnung erkennen. Soll ich dir helfen, diese zu organisieren?"
 
 ## Wichtig
 

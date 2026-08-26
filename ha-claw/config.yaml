@@ -2,7 +2,7 @@
 # Reference: https://developers.home-assistant.io/docs/add-ons/configuration
 
 name: 'HA-Claw'
-version: '0.9.1'
+version: '0.9.2'
 slug: 'ha-claw'
 description: 'Local AI-powered Smart Home Assistant with Telegram & Web UI'
 url: 'https://github.com/unpaved028/ha-claw'
@@ -35,14 +35,17 @@ map:
 options:
   openrouter_api_key: ''
   openrouter_default_model: 'anthropic/claude-haiku-4.5'
+  openai_api_key: ''
   telegram_bot_token: ''
   telegram_allowed_user_ids: ''
   log_level: 'info'
 
 # ── Schema validation for options ─────────────────────────────
+# NOTE: the model list must match src/core/models.ts – CI compares both.
 schema:
   openrouter_api_key: 'str'
   openrouter_default_model: 'list(openrouter/free|openrouter/auto|anthropic/claude-opus-4.6|anthropic/claude-sonnet-4.6|anthropic/claude-haiku-4.5|google/gemini-3.1-pro-preview|google/gemini-3-flash-preview|google/gemini-3.1-flash-lite-preview|openai/gpt-5.4|openai/gpt-5.4-mini|deepseek/deepseek-chat)'
+  openai_api_key: 'str?'
   telegram_bot_token: 'str?'
   telegram_allowed_user_ids: 'str?'
   log_level: 'list(debug|info|warn|error)'

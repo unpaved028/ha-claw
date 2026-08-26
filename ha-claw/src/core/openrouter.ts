@@ -74,7 +74,10 @@ export async function callLLM(
     ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
     ...(options.temperature != null ? { temperature: options.temperature } : {}),
     ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
-    ...(options.onStreamChunk ? { stream: true } : {}),
+    // include_usage makes the provider append a final chunk carrying token
+    // counts. Without it streamed requests report no usage at all, which
+    // silently excluded the whole Web UI from cost tracking.
+    ...(options.onStreamChunk ? { stream: true, stream_options: { include_usage: true } } : {}),
   });
 
   let lastError: Error | null = null;
@@ -126,7 +129,9 @@ export async function callLLM(
         });
 
         // Fire & Forget: Update global usage stats
-        trackUsage(data.usage.prompt_tokens, data.usage.completion_tokens);
+        trackUsage(data.usage.prompt_tokens, data.usage.completion_tokens, model);
+      } else {
+        log.debug('LLM response without usage data', { model, attempt });
       }
 
       return data;
@@ -171,9 +176,10 @@ async function parseStream(
   const decoder = new TextDecoder();
   let contentBuffer = '';
   // Array to accumulate incremental tool call chunks
-  let activeToolCalls: any[] = [];
+  const activeToolCalls: any[] = [];
   let finishReason = 'stop';
   let responseId = '';
+  let usage: OpenRouterResponse['usage'] | undefined;
 
   let incompleteLine = '';
 
@@ -195,6 +201,10 @@ async function parseStream(
       try {
         const parsed = JSON.parse(jsonStr);
         if (parsed.id) responseId = parsed.id;
+
+        // With stream_options.include_usage the final chunk carries the token
+        // counts and an empty choices array.
+        if (parsed.usage) usage = parsed.usage;
 
         const choice = parsed.choices?.[0];
         if (choice) {
@@ -230,7 +240,7 @@ async function parseStream(
             }
           }
         }
-      } catch (e) {
+      } catch {
         // ignore malformed JSON in SSE
       }
     }
@@ -248,10 +258,9 @@ async function parseStream(
           content: contentBuffer || null,
           ...(tool_calls.length > 0 ? { tool_calls } : {}),
         },
-        finish_reason: finishReason as any,
+        finish_reason: finishReason as OpenRouterResponse['choices'][number]['finish_reason'],
       },
     ],
-    // Usage is usually not included in standard SSE unless requested explicitly (e.g. format options in OpenRouter)
-    // We omit it or return empty/estimate if needed, currently omitted so it skips tracking.
+    ...(usage ? { usage } : {}),
   };
 }

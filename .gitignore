@@ -21,12 +21,10 @@ ha-claw/data/
 # Local Dev/Test Scripts & Generated Files
 .claude/settings.local.json
 ha-claw/lint-report.txt
-ha-claw/dashboard_generated.html
 ha-claw/test-*.ts
 
 # Agentic System & AI Context
 .agents/
 CLAUDE.md
 .gemini/
-*.txt
 tmp_v*

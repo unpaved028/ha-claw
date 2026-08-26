@@ -23,6 +23,28 @@ export function setupProactiveNotifications(bot: Bot): void {
   bot.on('callback_query:data', async (ctx, next) => {
     const data = ctx.callbackQuery.data;
 
+    if (!data.startsWith('task:')) {
+      await next();
+      return;
+    }
+
+    // Proactive messages are pushed to profile.telegramChatId, so only clicks
+    // coming back from that chat may act on them. In a group chat this still
+    // allows any whitelisted member of that group – tightening it further needs
+    // per-recipient task ownership, which the backlog does not track yet.
+    const owner = getProfile().telegramChatId;
+    if (owner && ctx.chat?.id !== owner) {
+      log.warn('Task callback rejected – foreign chat', {
+        expected: owner,
+        actual: ctx.chat?.id,
+      });
+      await ctx.answerCallbackQuery({
+        text: 'Diese Aufgabe gehört zu einem anderen Chat.',
+        show_alert: true,
+      });
+      return;
+    }
+
     // Fast-Track Approve
     if (data.startsWith('task:fast_track:')) {
       const taskId = data.slice('task:fast_track:'.length);
