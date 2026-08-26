@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.5
+
+Backup Health hat nur lokale Supervisor-Dateien gesehen. Cloud-Kopien (offizielle Backup-Agenten, Google-Drive-Add-on, Samba) fielen unter den Tisch, sobald die lokale Datei gelöscht war.
+
+### Fixed
+
+- **Backup Health kennt mehrere Offsite-Wege, braucht aber nur einen**: Offizielle Backup-Integration (HA 2025.1+, `backup/info`: Home Assistant Cloud, Google Drive, OneDrive, Synology, WebDAV, NAS-Mounts), Supervisor-Liste, Add-on _Home Assistant Google Drive Backup_, Add-on _Samba Backup_. Eine Offsite-Kopie reicht – ungenutzte Alternativen werden nicht angemahnt. Gelb bleibt, wenn wirklich _alles_ nur lokal liegt.
+
 ## 0.9.4
 
 System Health, Tasks und Logs lagen unter Settings bzw. als eigener Top-Punkt

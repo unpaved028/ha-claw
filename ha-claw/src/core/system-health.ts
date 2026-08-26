@@ -19,6 +19,7 @@ import { join, dirname } from 'node:path';
 import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
+import { checkBackup, isBackupStatusEntity } from './backup-health.js';
 
 const log = createLogger('health');
 
@@ -97,10 +98,6 @@ const STALE_HOURS = 48;
 
 /** Battery percentage below which a device counts as low. */
 const LOW_BATTERY_PCT = 20;
-
-/** Days without a Home Assistant backup before the check turns yellow / red. */
-const BACKUP_WARN_DAYS = 7;
-const BACKUP_CRITICAL_DAYS = 14;
 
 /**
  * Disks under 128 GiB are treated as SD/eMMC (Pi, HA Green, HA Yellow).
@@ -270,149 +267,6 @@ function checkLowBattery(entityIds: string[], info: ha.EntityDeviceInfo[]): Heal
   );
 }
 
-function backupIncludesHomeAssistant(backup: ha.SupervisorBackup): boolean {
-  return backup.type === 'full' || backup.content?.homeassistant === true;
-}
-
-function backupIsOffsite(backup: ha.SupervisorBackup): boolean {
-  const locs = backup.locations ?? [backup.location];
-  return locs.some(loc => loc != null && loc !== '' && loc !== '.local');
-}
-
-function formatBackupAge(days: number): string {
-  if (days <= 0) return 'heute';
-  if (days === 1) return 'vor 1 Tag';
-  return `vor ${days} Tagen`;
-}
-
-function formatBackupDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function formatBackupLabel(backup: ha.SupervisorBackup): string {
-  const kind = backup.type === 'full' ? 'Vollbackup' : 'Teilbackup';
-  const loc = backupIsOffsite(backup) ? (backup.location ?? 'extern') : 'lokal';
-  const size = backup.size != null && backup.size !== '' ? ` · ${String(backup.size)} MB` : '';
-  return `${formatBackupDate(backup.date)} · ${kind} · ${loc}${size}`;
-}
-
-function backupCheck(partial: Omit<HealthCheck, 'key' | 'label' | 'entities'>): HealthCheck {
-  return {
-    key: 'backup',
-    label: 'Backup',
-    entities: partial.items.map(i => i.label),
-    ...partial,
-  };
-}
-
-/**
- * Backup health is a standing condition like device reachability: it never
- * becomes a backlog task. Age is measured against the newest backup that
- * actually contains Home Assistant – an add-on-only partial yesterday does
- * not hide a 3-week-old last full backup.
- */
-async function checkBackup(now: Date): Promise<HealthCheck> {
-  const hint =
-    'Unter Einstellungen → System → Backups einen Zeitplan einrichten. Ein Backup nur auf der SD-Karte rettet bei Hardware-Tod nicht – zusätzlich NAS oder Cloud.';
-
-  if (!appConfig.isAddon) {
-    return backupCheck({
-      severity: 'ok',
-      count: 0,
-      short: 'n/a',
-      detail: 'Backup-Prüfung läuft nur im Home Assistant Add-on (Supervisor).',
-      items: [],
-      hint,
-    });
-  }
-
-  let info: ha.SupervisorBackupInfo;
-  try {
-    info = await ha.getBackupInfo();
-  } catch (err) {
-    log.warn('Backup list unavailable', { error: String(err) });
-    return backupCheck({
-      severity: 'warn',
-      count: 0,
-      short: 'nicht lesbar',
-      detail: `Backup-Liste nicht lesbar: ${String(err).slice(0, 160)}`,
-      items: [],
-      hint,
-    });
-  }
-
-  const backups = [...(info.backups ?? [])].sort((a, b) => b.date.localeCompare(a.date));
-  const items: HealthItem[] = backups.slice(0, MAX_EXAMPLES).map(b => ({
-    id: b.slug,
-    label: `${b.name || 'Backup'} – ${formatBackupLabel(b)}`,
-    entities: [],
-  }));
-
-  if (backups.length === 0) {
-    return backupCheck({
-      severity: 'critical',
-      count: 0,
-      short: 'keins',
-      detail: 'Keine Backups vorhanden.',
-      items: [],
-      hint,
-    });
-  }
-
-  const withHa = backups.filter(backupIncludesHomeAssistant);
-  const latestHa = withHa[0];
-  const latest = backups[0]!;
-  const offsite = backups.some(backupIsOffsite);
-
-  if (!latestHa) {
-    const latestAge = Math.max(
-      0,
-      Math.floor((now.getTime() - new Date(latest.date).getTime()) / 86_400_000),
-    );
-    return backupCheck({
-      severity: 'critical',
-      count: latestAge,
-      short: 'kein HA-Backup',
-      detail: `Kein Backup enthält Home Assistant. Zuletzt: ${latest.name} (${formatBackupAge(latestAge)}). ${backups.length} Backups insgesamt.`,
-      items,
-      hint,
-    });
-  }
-
-  const ageDays = Math.max(
-    0,
-    Math.floor((now.getTime() - new Date(latestHa.date).getTime()) / 86_400_000),
-  );
-
-  let severity: Severity = 'ok';
-  if (ageDays >= BACKUP_CRITICAL_DAYS) severity = 'critical';
-  else if (ageDays >= BACKUP_WARN_DAYS) severity = 'warn';
-  if (info.days_until_stale && ageDays >= info.days_until_stale && severity === 'ok') {
-    severity = 'warn';
-  }
-  if (!offsite && severity === 'ok') severity = 'warn';
-
-  const parts = [
-    `Letztes Backup mit Home Assistant ${formatBackupAge(ageDays)} (${latestHa.name}).`,
-  ];
-  if (latest.slug !== latestHa.slug) {
-    parts.push(`Neuester Stand ist ein Teilbackup ohne HA (${latest.name}).`);
-  }
-  parts.push(`${backups.length} Backup${backups.length === 1 ? '' : 's'} insgesamt.`);
-  if (!offsite) parts.push('Alle nur lokal – bei Platten-/SD-Tod weg.');
-
-  return backupCheck({
-    severity,
-    count: ageDays,
-    short: formatBackupAge(ageDays),
-    detail: parts.join(' '),
-    items,
-    hint,
-  });
-}
-
 type StorageKind = 'flash' | 'ssd';
 
 function classifyStorage(totalGb: number): StorageKind {
@@ -535,13 +389,17 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   const states = (await ha.getStates()) as HAState[];
   const now = new Date();
 
-  const unavailable = states.filter(s => s.state === 'unavailable').map(s => s.entity_id);
+  const unavailable = states
+    .filter(s => s.state === 'unavailable' && !isBackupStatusEntity(s.entity_id, s.attributes))
+    .map(s => s.entity_id);
   const stale = states
     .filter(s => {
       if (!s.entity_id.startsWith('sensor.') && !s.entity_id.startsWith('binary_sensor.')) {
         return false;
       }
       if (s.state === 'unavailable' || s.state === 'unknown') return false;
+      // Backup status entities stay put for days (timestamp state / "backed_up").
+      if (isBackupStatusEntity(s.entity_id, s.attributes)) return false;
       const hoursAgo = (now.getTime() - new Date(s.last_changed).getTime()) / 3_600_000;
       return hoursAgo > STALE_HOURS;
     })
@@ -556,7 +414,7 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   const involved = [...new Set([...unavailable, ...stale, ...lowBattery])];
   const [deviceInfo, backup, disk] = await Promise.all([
     involved.length > 0 ? ha.getEntityDeviceInfo(involved) : Promise.resolve([]),
-    checkBackup(now),
+    checkBackup(now, states),
     readDiskInfo(),
   ]);
 

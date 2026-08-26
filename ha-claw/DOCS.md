@@ -77,7 +77,7 @@ aktuellen Stand und einem Hinweis, was zu tun ist:
 - **Geräte nicht erreichbar** – physische Geräte, bei denen Entities auf `unavailable` stehen. Ein Fensterkontakt zählt **einmal**, auch wenn Batterie, Spannung, Firmware und Identifizieren-Button alle mit offline sind.
 - **Sensoren seit 48 h unverändert** – möglicher Batterie- oder Verbindungsausfall
 - **Batterie unter 20 %** – Batterien, die gewechselt werden sollten
-- **Backup** – Tage seit dem letzten Backup, das Home Assistant enthält. Gelb ab 7 Tagen, rot ab 14 Tagen oder wenn es gar keines gibt. Nur lokale Backups (SD-Karte) sind gelb, auch wenn sie frisch sind – die retten dich nicht bei Hardware-Tod.
+- **Backup** – Tage seit dem letzten Backup, das Home Assistant enthält. Gelb ab 7 Tagen, rot ab 14 Tagen oder wenn es gar keines gibt. Nur lokale Backups (SD-Karte) sind gelb, auch wenn sie frisch sind – die retten dich nicht bei Hardware-Tod. Eine Kopie ausserhalb des Geräts reicht: offizielle Backup-Orte (Home Assistant Cloud, Google Drive, OneDrive, NAS/WebDAV), das Add-on _Home Assistant Google Drive Backup_ oder _Samba Backup_. Du musst nicht mehrere davon einrichten.
 - **Speicherplatz** – freier Platz auf der HA-Datenpartition, ohne extra Sensor. Unter 128 GB (typisch SD/eMMC) gelb unter 5 GB frei, rot unter 3 GB. Grössere Platten (SSD) gelb unter 10 % frei, rot unter 5 %. Wenn das Laufwerk eine Lebensdauer meldet, warnt die Karte ab 90 % Verbrauch.
 
 Diese Prüfungen landen absichtlich **nicht** unter Tasks. Ein Task ist

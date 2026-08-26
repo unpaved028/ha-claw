@@ -185,9 +185,11 @@ reachability, stale sensors, low batteries. These never reach "done": in many
 installations a handful of devices are permanently unreachable. Counts are
 **devices**, not entities: a Zigbee window sensor that exposes battery, firmware
 and an identify button is one row, not twelve. Backup age is a fourth check
-(Supervisor `GET /backups/info`): warn after 7 days, critical after 14 or when
-there is no Home Assistant backup; local-only storage is a warning even when
-fresh. They are
+(official Backup agents via `backup/info`, Supervisor `GET /backups/info`,
+plus Google Drive Backup / Samba Backup add-on sensors when local copies were
+deleted after upload). One offsite location is enough; unused alternatives
+are not reported. Warn after 7 days, critical after 14 or when there is no
+Home Assistant backup; local-only storage is a warning even when fresh. They are
 computed on demand, surfaced via `GET /api/system-health`, the dashboard and
 Telegram `/status`, and never written to the backlog. `findHealthRegressions()`
 compares against `store/system-health.json` and reports a check only when its

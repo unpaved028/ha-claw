@@ -146,6 +146,132 @@ export async function getBackupInfo(): Promise<SupervisorBackupInfo> {
   return supervisorFetch<SupervisorBackupInfo>('/backups/info');
 }
 
+export interface CoreBackupAgentCopy {
+  protected?: boolean;
+  size?: number;
+}
+
+export interface CoreBackup {
+  backup_id: string;
+  name?: string | null;
+  date: string;
+  homeassistant_included?: boolean;
+  agents?: Record<string, CoreBackupAgentCopy>;
+  failed_agent_ids?: string[];
+}
+
+export interface CoreBackupInfo {
+  backups: CoreBackup[];
+  last_completed_automatic_backup?: string | null;
+  last_attempted_automatic_backup?: string | null;
+  state?: string;
+  agent_errors?: Record<string, string>;
+}
+
+function haWebsocketUrl(): string {
+  const rest = appConfig.haApiUrl.replace(/\/$/, '');
+  if (/\/core\/api$/i.test(rest)) {
+    return rest.replace(/^http/i, 'ws').replace(/\/core\/api$/i, '/core/websocket');
+  }
+  if (/\/api$/i.test(rest)) {
+    return `${rest.replace(/^http/i, 'ws')}/websocket`;
+  }
+  return `${rest.replace(/^http/i, 'ws')}/api/websocket`;
+}
+
+interface HaWsMessage<T> {
+  type: string;
+  success?: boolean;
+  result?: T;
+  error?: { code?: string; message?: string };
+}
+
+/**
+ * One-shot authenticated HA websocket command. Used for Core backup/info
+ * (REST has no equivalent). Supervisor token is an admin token in the add-on.
+ */
+function haWebsocketCommand<T>(commandType: string, timeoutMs = 10_000): Promise<T> {
+  if (!appConfig.supervisorToken) {
+    throw new Error('No SUPERVISOR_TOKEN – HA API unavailable');
+  }
+  const url = haWebsocketUrl();
+  const token = appConfig.supervisorToken;
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let authed = false;
+    const ws = new WebSocket(url);
+    const timer = setTimeout(
+      () => finish(new Error(`HA websocket timeout (${commandType})`)),
+      timeoutMs,
+    );
+
+    function finish(err: Error | null, value?: T): void {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        ws.close();
+      } catch {
+        /* already closed */
+      }
+      if (err) reject(err);
+      else resolve(value as T);
+    }
+
+    ws.addEventListener('error', () => {
+      finish(new Error(`HA websocket error (${commandType})`));
+    });
+    ws.addEventListener('close', () => {
+      if (!settled) finish(new Error(`HA websocket closed (${commandType})`));
+    });
+    ws.addEventListener('message', event => {
+      let msg: HaWsMessage<T>;
+      try {
+        msg = JSON.parse(String(event.data)) as HaWsMessage<T>;
+      } catch {
+        finish(new Error('HA websocket: invalid JSON'));
+        return;
+      }
+      if (msg.type === 'auth_required') {
+        ws.send(JSON.stringify({ type: 'auth', access_token: token }));
+        return;
+      }
+      if (msg.type === 'auth_invalid') {
+        finish(new Error('HA websocket auth failed'));
+        return;
+      }
+      if (msg.type === 'auth_ok') {
+        authed = true;
+        ws.send(JSON.stringify({ id: 1, type: commandType }));
+        return;
+      }
+      if (!authed || msg.type !== 'result') return;
+      if (msg.success === false) {
+        finish(new Error(msg.error?.message || `HA websocket ${commandType} failed`));
+        return;
+      }
+      finish(null, msg.result);
+    });
+  });
+}
+
+/**
+ * Official Backup integration list (agents: local, HA Cloud, Google Drive,
+ * OneDrive, Synology, WebDAV, Supervisor mounts). HAOS 2025.1+.
+ */
+export async function getCoreBackupInfo(): Promise<CoreBackupInfo> {
+  log.debug('Fetching core backup info');
+  const raw = await haWebsocketCommand<CoreBackupInfo>('backup/info');
+  return {
+    backups: Array.isArray(raw?.backups) ? raw.backups : [],
+    last_completed_automatic_backup: raw?.last_completed_automatic_backup ?? null,
+    last_attempted_automatic_backup: raw?.last_attempted_automatic_backup ?? null,
+    state: raw?.state,
+    agent_errors: raw?.agent_errors,
+  };
+}
+
 export interface HostDiskInfo {
   freeGb: number;
   totalGb: number;
