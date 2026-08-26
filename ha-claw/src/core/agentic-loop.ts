@@ -70,6 +70,17 @@ function randomPhrase(): string {
 }
 
 /**
+ * Strip a leading "[System: …]" wrapper so retrieval keys off the real question.
+ * The wrapped text is still sent to the model; only cache/memory/corrections
+ * use the stripped form.
+ */
+function retrievalQuery(userMessage: string): string {
+  if (!userMessage.startsWith('[System:')) return userMessage;
+  const idx = userMessage.indexOf('\n\n');
+  return idx === -1 ? userMessage : userMessage.slice(idx + 2);
+}
+
+/**
  * Confirmation callback type.
  * The agentic loop doesn't know about Telegram or Web UI –
  * it just calls this function and waits for a boolean.
@@ -133,8 +144,13 @@ export async function runAgenticLoop(
   }
   const toolCallLog: { name: string; result: string }[] = [];
 
+  // Retrieval (cache, memory, corrections) must see the user's actual question.
+  // Channel wrappers like "[System: Erste Nachricht heute…]" would otherwise
+  // dilute area matching and pull the wrong memory cards.
+  const lookupQuery = retrievalQuery(userMessage);
+
   // Build enriched system prompt with all learning context
-  const entityCache = getDynamicPrunedCache(userMessage);
+  const entityCache = getDynamicPrunedCache(lookupQuery);
   let systemPrompt = agent.systemPrompt.includes('{{ENTITY_CACHE}}')
     ? agent.systemPrompt.replace('{{ENTITY_CACHE}}', entityCache)
     : agent.systemPrompt + '\n\n## Entity Cache\n' + entityCache;
@@ -144,7 +160,7 @@ export async function runAgenticLoop(
 
   // 1. Memory cards (relevant to this query)
   try {
-    const memResults = (await searchCards(userMessage, 5)).filter(c => c.score >= 0.1);
+    const memResults = (await searchCards(lookupQuery, 5)).filter(c => c.score >= 0.1);
     const memContext = buildMemoryContext(memResults);
     if (memContext) {
       systemPrompt += '\n\n' + memContext;
@@ -159,7 +175,7 @@ export async function runAgenticLoop(
 
   // 2. Relevant corrections (learned from past mistakes)
   try {
-    const corr = findRelevantCorrections(userMessage, 3);
+    const corr = findRelevantCorrections(lookupQuery, 3);
     const corrContext = buildCorrectionContext(corr);
     if (corrContext) {
       systemPrompt += corrContext;

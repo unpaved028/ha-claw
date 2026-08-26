@@ -246,6 +246,10 @@ body {
   padding: 1.5rem;
   overflow: hidden;
 }
+.main:has(#page-status.active),
+.main:has(#page-settings.active) {
+  max-width: 960px;
+}
 
 /* Welcome */
 .welcome {
@@ -1083,6 +1087,7 @@ body {
   flex: 1;
   overflow-y: auto;
   min-width: 0;
+  min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
@@ -1865,7 +1870,7 @@ body {
 }
 .health-entity-list {
   margin-top: 0.5rem;
-  max-height: 200px;
+  max-height: 320px;
   overflow-y: auto;
   background: var(--bg-input);
   border-radius: 8px;
@@ -1874,6 +1879,22 @@ body {
   line-height: 1.7;
   color: var(--text-muted);
   font-family: ui-monospace, monospace;
+}
+.health-device {
+  margin: 0.15rem 0;
+}
+.health-device summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-family: inherit;
+}
+.health-device-count {
+  opacity: 0.7;
+  font-weight: 400;
+}
+.health-device-entities {
+  margin: 0.25rem 0 0.5rem 0.85rem;
+  opacity: 0.85;
 }
 .health-meta {
   font-size: 0.7rem;
@@ -2053,6 +2074,39 @@ body {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Status > Logs: fill remaining height so the terminal scrolls internally */
+#page-status .settings-header {
+  flex-shrink: 0;
+}
+#page-status:has(#status-logs.active) .settings-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#status-logs.settings-section.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#status-logs .logs-header {
+  flex-shrink: 0;
+  margin-bottom: 1rem;
+}
+#status-logs .logs-header .settings-section-title {
+  margin-bottom: 0.15rem;
+}
+#status-logs .logs-subnav {
+  flex-shrink: 0;
+}
+#status-logs .log-tab.active {
+  flex: 1;
+  min-height: 0;
+}
+#status-logs .terminal {
+  min-height: 280px;
 }
 
 /* ── Modal ──────────────────────────────────────────────── */

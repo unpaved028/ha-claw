@@ -223,7 +223,7 @@ async function reportHealthRegressions(hasTelegram: boolean): Promise<void> {
   if (regressions.length === 0 || !hasTelegram) return;
 
   const body = regressions
-    .map(r => `*${r.label}: ${r.count}*\n${r.detail}\n_${r.hint}_`)
+    .map(r => `*${r.label}: ${r.short ?? r.count}*\n${r.detail}\n_${r.hint}_`)
     .join('\n\n');
 
   await sendProactiveMessage(`🩺 *Systemzustand verschlechtert*\n\n${body}`).catch(err =>

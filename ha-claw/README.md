@@ -5,8 +5,8 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 ## Features
 
 - **AI Agent with Tool Calling** — Agentic loop with up to 10 iterations, calling HA services, querying entities, and managing data
-- **Web UI (Ingress)** — Embedded dashboard accessible via HA sidebar with chat, settings, backlog, logs, and tool management
-- **Telegram Bot** — Full chat interface with inline-keyboard safety gate for dangerous actions
+- **Web UI (Ingress)** — Embedded dashboard with Chat, Status (system health, tasks, logs), and Settings
+- **Telegram Bot** — Same conversation as the Web UI, with an inline-keyboard safety gate for dangerous actions
 - **Web Safety Gate** — Confirmation modal for dangerous actions (locks, alarms, automations) in the Web UI
 - **Home Assistant Integration** — Entity discovery, service calls with verification, Floor → Area → Entity spatial hierarchy, group resolution, automation inspection
 - **Sensor Awareness** — Window, door, motion, smoke, and moisture sensors displayed per room with type-icons (🪟🚪🏃🔥💧) and entity IDs for precise identification
@@ -19,7 +19,7 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 - **Circuit Breaker** — Pauses LLM calls after repeated provider failures instead of hammering the API
 - **Self-Improvement** — Learns from corrections, tracks usage patterns, records errors for smarter retries
 - **Proactive Analysis** — Scans your home for energy waste, security gaps, and automation opportunities, proposing them as backlog tasks
-- **System Health** — Device reachability, stale sensors and low batteries as live checks in the dashboard and in `/status`; these are standing conditions rather than tasks, so they stay out of the backlog and only push a message when they get worse
+- **System Health** — Device reachability, stale sensors, low batteries, backups and disk space as live checks under Status in the dashboard and in `/status`; these are standing conditions rather than tasks, so they stay out of the task list and only push a message when they get worse
 - **Conversational Onboarding** — Natural LLM-powered setup instead of rigid forms, with feature introduction and weekly analysis suggestion
 - **Scheduler** — Recurring jobs (`every 5m`, `daily 07:00`, `weekdays 08:00`, `weekly mon 08:00`) executed through the agentic loop
 - **One-Shot Timers & Reminders** — "Remind me in 30min to take out the trash" or "Turn off the basement light in 10min"
@@ -31,17 +31,17 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 
 ## Supported Models
 
-| Model                                  | Strength                    | Recommended Level |
-| -------------------------------------- | --------------------------- | ----------------- |
-| `anthropic/claude-opus-4.6`            | Top-tier reasoning          | Level 3 (complex) |
-| `anthropic/claude-sonnet-4.6`          | Balanced, very capable      | Level 2-3         |
-| `anthropic/claude-haiku-4.5`           | Fast & affordable           | Level 1 (simple)  |
-| `google/gemini-3.1-pro-preview`        | Powerful, top-tier          | Level 2-3         |
-| `google/gemini-3-flash-preview`        | Fast, good value            | Level 1-2         |
-| `google/gemini-3.1-flash-lite-preview` | Ultra-fast, very affordable | Level 1           |
-| `openai/gpt-5.4`                       | Powerful                    | Level 2-3         |
-| `openai/gpt-5.4-mini`                  | Affordable                  | Level 1           |
-| `deepseek/deepseek-chat`               | Open-source alternative     | Level 1           |
+| Model                          | Strength                       | Recommended Level |
+| ------------------------------ | ------------------------------ | ----------------- |
+| `anthropic/claude-haiku-4.5`   | Fast, affordable, strong tools | Level 1 (default) |
+| `anthropic/claude-sonnet-5`    | Everyday automations           | Level 2-3         |
+| `anthropic/claude-opus-5`      | Heavy reasoning                | Level 3           |
+| `google/gemini-3.7-flash`      | Strong value, agentic          | Level 1-2         |
+| `google/gemini-3.5-flash-lite` | Cheapest Google                | Level 1           |
+| `openai/gpt-5.6-luna`          | Cheap OpenAI                   | Level 1           |
+| `openai/gpt-5.6-sol`           | OpenAI coding / agentic        | Level 2-3         |
+| `deepseek/deepseek-v4-flash`   | Very cheap, huge context       | Level 1           |
+| `x-ai/grok-4.6`                | Strong reasoning               | Level 2-3         |
 
 Meta-models `openrouter/free` and `openrouter/auto` are also available.
 

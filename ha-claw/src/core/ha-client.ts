@@ -83,6 +83,110 @@ async function haFetch<T>(path: string, method = 'GET', body?: unknown): Promise
   }
 }
 
+/**
+ * Call the Supervisor API (not Core). Add-on only: http://supervisor/...
+ * Responses are wrapped as `{ result, data }`.
+ */
+async function supervisorFetch<T>(path: string): Promise<T> {
+  if (!appConfig.isAddon || !appConfig.supervisorToken) {
+    throw new Error('Supervisor API only available inside the add-on');
+  }
+
+  const url = `http://supervisor${path}`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${appConfig.supervisorToken}`,
+    'Content-Type': 'application/json',
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    const res = await fetch(url, { method: 'GET', headers, signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Supervisor API ${res.status}: ${errText.slice(0, 300)}`);
+    }
+    const json = (await res.json()) as { result?: string; data?: T; message?: string };
+    if (json.result && json.result !== 'ok') {
+      throw new Error(json.message || `Supervisor result: ${json.result}`);
+    }
+    return (json.data ?? json) as T;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+export interface SupervisorBackup {
+  slug: string;
+  name: string;
+  date: string;
+  type: string;
+  size?: string | number;
+  location: string | null;
+  locations?: Array<string | null>;
+  content?: {
+    homeassistant?: boolean;
+    addons?: unknown[];
+    apps?: unknown[];
+    folders?: string[];
+  };
+}
+
+export interface SupervisorBackupInfo {
+  backups: SupervisorBackup[];
+  days_until_stale?: number;
+}
+
+/** List backups + stale threshold. Add-on only (needs hassio_api). */
+export async function getBackupInfo(): Promise<SupervisorBackupInfo> {
+  log.debug('Fetching supervisor backups');
+  return supervisorFetch<SupervisorBackupInfo>('/backups/info');
+}
+
+export interface HostDiskInfo {
+  freeGb: number;
+  totalGb: number;
+  usedGb: number;
+  chassis: string | null;
+  /** Estimated lifetime used, 0–100. Null when the disk does not report it. */
+  diskLifeTime: number | null;
+}
+
+/**
+ * Host data-disk usage from Supervisor `/host/info` (same partition HA OS
+ * stores recorder, backups and add-on data on). Throws when unavailable;
+ * callers fall back to fs.statfs on the add-on data path.
+ */
+export async function getHostDiskInfo(): Promise<HostDiskInfo> {
+  const raw = await supervisorFetch<{
+    disk_free?: number;
+    disk_total?: number;
+    disk_used?: number;
+    chassis?: string | null;
+    disk_life_time?: number | null;
+  }>('/host/info');
+
+  const freeGb = Number(raw.disk_free);
+  const totalGb = Number(raw.disk_total);
+  if (!Number.isFinite(freeGb) || !Number.isFinite(totalGb) || totalGb <= 0) {
+    throw new Error('Supervisor /host/info returned no usable disk figures');
+  }
+
+  const usedGb = Number.isFinite(Number(raw.disk_used)) ? Number(raw.disk_used) : totalGb - freeGb;
+  const life = Number(raw.disk_life_time);
+
+  return {
+    freeGb,
+    totalGb,
+    usedGb,
+    chassis: raw.chassis ?? null,
+    diskLifeTime: Number.isFinite(life) ? life : null,
+  };
+}
+
 // ── Public API ────────────────────────────────────────────────
 
 /**
@@ -436,6 +540,77 @@ export async function getEntitiesWithLabels(): Promise<{ entity_id: string; labe
   ].join('');
   const raw = await renderTemplate(tpl);
   return JSON.parse(raw);
+}
+
+/**
+ * Resolve Home Assistant device id + name for a list of entities.
+ *
+ * A physical device (one Zigbee sensor, one bulb) exposes many entities.
+ * Health checks must group by device, otherwise one dead window sensor
+ * looks like a dozen independent failures. Registry REST endpoints are
+ * WebSocket-only, so this goes through the template API (`device_id` /
+ * `device_attr`) in chunks.
+ */
+export interface EntityDeviceInfo {
+  entityId: string;
+  deviceId: string | null;
+  deviceName: string | null;
+}
+
+const DEVICE_INFO_CHUNK = 80;
+const SAFE_ENTITY_ID = /^[a-z0-9_.]+$/i;
+
+export async function getEntityDeviceInfo(entityIds: string[]): Promise<EntityDeviceInfo[]> {
+  const safe = [...new Set(entityIds.filter(id => SAFE_ENTITY_ID.test(id)))];
+  if (safe.length === 0) return [];
+
+  const results: EntityDeviceInfo[] = [];
+  for (let i = 0; i < safe.length; i += DEVICE_INFO_CHUNK) {
+    const chunk = safe.slice(i, i + DEVICE_INFO_CHUNK);
+    try {
+      results.push(...(await fetchDeviceInfoChunk(chunk)));
+    } catch (err) {
+      log.warn('Device info template failed for chunk – entities stay ungrouped', {
+        size: chunk.length,
+        error: String(err),
+      });
+      for (const entityId of chunk) {
+        results.push({ entityId, deviceId: null, deviceName: null });
+      }
+    }
+  }
+  return results;
+}
+
+async function fetchDeviceInfoChunk(entityIds: string[]): Promise<EntityDeviceInfo[]> {
+  const quoted = entityIds.map(id => `"${id}"`).join(', ');
+  const tpl = [
+    `{% set ids = [${quoted}] %}`,
+    '{% set ns = namespace(out=[]) %}',
+    '{% for eid in ids %}',
+    '{% set did = device_id(eid) %}',
+    '{% if did %}',
+    '{% set dname = device_attr(eid, "name_by_user") or device_attr(eid, "name") %}',
+    '{% set ns.out = ns.out + [{"entity": eid, "device": did, "name": dname}] %}',
+    '{% else %}',
+    '{% set ns.out = ns.out + [{"entity": eid, "device": none, "name": none}] %}',
+    '{% endif %}',
+    '{% endfor %}',
+    '{{ ns.out | tojson }}',
+  ].join('');
+
+  const raw = await renderTemplate(tpl);
+  const parsed = JSON.parse(raw) as {
+    entity: string;
+    device: string | null;
+    name: string | null;
+  }[];
+
+  return parsed.map(row => ({
+    entityId: row.entity,
+    deviceId: row.device,
+    deviceName: row.name,
+  }));
 }
 
 export type { HAState, HAServiceResponse };

@@ -17,16 +17,25 @@ const log = createLogger('usage');
  * models.
  */
 const MODEL_PRICES: Record<string, [number, number]> = {
-  'anthropic/claude-opus-4.6': [15, 75],
-  'anthropic/claude-sonnet-4.6': [3, 15],
   'anthropic/claude-haiku-4.5': [1, 5],
-  'google/gemini-3.1-pro-preview': [1.25, 10],
-  'google/gemini-3-flash-preview': [0.3, 2.5],
-  'google/gemini-3.1-flash-lite-preview': [0.1, 0.4],
-  'openai/gpt-5.4': [1.25, 10],
-  'openai/gpt-5.4-mini': [0.25, 2],
-  'deepseek/deepseek-chat': [0.25, 1],
+  'anthropic/claude-sonnet-5': [2, 10],
+  'anthropic/claude-opus-5': [5, 25],
+  'google/gemini-3.7-flash': [0.38, 1.88],
+  'google/gemini-3.5-flash-lite': [0.3, 2.5],
+  'openai/gpt-5.6-luna': [0.2, 1.2],
+  'openai/gpt-5.6-sol': [2, 10],
+  'deepseek/deepseek-v4-flash': [0.09, 0.18],
+  'x-ai/grok-4.6': [2, 6],
   'openrouter/free': [0, 0],
+  // Still listed so leftover profile overrides from older versions estimate sanely.
+  'anthropic/claude-opus-4.6': [5, 25],
+  'anthropic/claude-sonnet-4.6': [3, 15],
+  'google/gemini-3.1-pro-preview': [2, 12],
+  'google/gemini-3-flash-preview': [0.5, 3],
+  'google/gemini-3.1-flash-lite-preview': [0.25, 1.5],
+  'openai/gpt-5.4': [2.5, 15],
+  'openai/gpt-5.4-mini': [0.75, 4.5],
+  'deepseek/deepseek-chat': [0.26, 1.03],
 };
 
 /** Fallback when the model is unknown – roughly a small/cheap model. */

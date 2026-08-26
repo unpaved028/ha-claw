@@ -10,19 +10,19 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 - **Timer & Erinnerungen** setzen kann ("Erinnere mich in 30min an den Müll")
 - **Proaktive Benachrichtigungen** via Telegram senden kann
 - Den **Systemzustand** im Blick behält (nicht erreichbare Geräte, tote Sensoren, schwache Batterien)
-- Per **Telegram** oder **Web-Chat** erreichbar ist
+- Per **Telegram** oder **Web-Chat** erreichbar ist – beides ist dasselbe Gespräch
 - Mit jeder Interaktion **dazulernt** und besser wird
 
 ## Konfiguration
 
-| Option                      | Pflicht | Beschreibung                                                     |
-| --------------------------- | ------- | ---------------------------------------------------------------- |
-| `openrouter_api_key`        | ✅      | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai)) |
-| `openrouter_default_model`  | ❌      | LLM Model (Standard: `anthropic/claude-haiku-4.5`)               |
-| `openai_api_key`            | ❌      | Eigener OpenAI-Key, nur für Telegram-Sprachnachrichten nötig     |
-| `telegram_bot_token`        | ❌      | Telegram Bot Token (von @BotFather)                              |
-| `telegram_allowed_user_ids` | ❌\*    | Telegram User-IDs die Zugriff haben (\*Pflicht wenn Bot aktiv)   |
-| `log_level`                 | ❌      | `debug`, `info`, `warn`, `error` (Standard: `info`)              |
+| Option                      | Pflicht | Beschreibung                                                                             |
+| --------------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `openrouter_api_key`        | ✅      | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai))                         |
+| `openrouter_default_model`  | ❌      | LLM Model (Standard: `anthropic/claude-haiku-4.5`). Dieselbe Liste in Add-on und Web-UI. |
+| `openai_api_key`            | ❌      | Eigener OpenAI-Key, nur für Telegram-Sprachnachrichten nötig                             |
+| `telegram_bot_token`        | ❌      | Telegram Bot Token (von @BotFather)                                                      |
+| `telegram_allowed_user_ids` | ❌\*    | Telegram User-IDs die Zugriff haben (\*Pflicht wenn Bot aktiv)                           |
+| `log_level`                 | ❌      | `debug`, `info`, `warn`, `error` (Standard: `info`)                                      |
 
 ### Sprachnachrichten (Telegram)
 
@@ -71,14 +71,16 @@ Für regelmäßige Aufgaben:
 
 ## Systemzustand
 
-Unter _Einstellungen → Systemzustand_ siehst du drei Prüfungen mit ihrem
-aktuellen Stand, den betroffenen Entities und einem Hinweis, was zu tun ist:
+Unter _Status → System Health_ siehst du diese Prüfungen mit ihrem
+aktuellen Stand und einem Hinweis, was zu tun ist:
 
-- **Geräte nicht erreichbar** – Entities im Zustand `unavailable`
+- **Geräte nicht erreichbar** – physische Geräte, bei denen Entities auf `unavailable` stehen. Ein Fensterkontakt zählt **einmal**, auch wenn Batterie, Spannung, Firmware und Identifizieren-Button alle mit offline sind.
 - **Sensoren seit 48 h unverändert** – möglicher Batterie- oder Verbindungsausfall
 - **Batterie unter 20 %** – Batterien, die gewechselt werden sollten
+- **Backup** – Tage seit dem letzten Backup, das Home Assistant enthält. Gelb ab 7 Tagen, rot ab 14 Tagen oder wenn es gar keines gibt. Nur lokale Backups (SD-Karte) sind gelb, auch wenn sie frisch sind – die retten dich nicht bei Hardware-Tod.
+- **Speicherplatz** – freier Platz auf der HA-Datenpartition, ohne extra Sensor. Unter 128 GB (typisch SD/eMMC) gelb unter 5 GB frei, rot unter 3 GB. Grössere Platten (SSD) gelb unter 10 % frei, rot unter 5 %. Wenn das Laufwerk eine Lebensdauer meldet, warnt die Karte ab 90 % Verbrauch.
 
-Diese Prüfungen landen absichtlich **nicht** im Backlog. Ein Backlog-Eintrag ist
+Diese Prüfungen landen absichtlich **nicht** unter Tasks. Ein Task ist
 ein Vorhaben, das irgendwann erledigt ist – ein paar dauerhaft nicht
 erreichbare Geräte sind dagegen in vielen Installationen der Normalzustand und
 würden dort für immer stehen bleiben. Sie werden deshalb bei Bedarf berechnet
@@ -93,13 +95,13 @@ Solche Entities in Home Assistant zu löschen ist der einzige Weg, sie
 loszuwerden – HA-Claw kann nicht erkennen, ob ein Gerät nur gerade offline oder
 längst im Elektroschrott ist.
 
-### Backlog aufräumen
+### Tasks aufräumen
 
-Im selben Bereich findest du „Duplikate entfernen". Vor Version 0.9.3 legte die
+Unter _Status → Tasks_ findest du „Duplikate entfernen". Vor Version 0.9.3 legte die
 Analyse für denselben Befund bei jedem Durchlauf einen neuen Task an, weil der
 Abgleich über den Titel lief und der Titel eine wechselnde Anzahl enthält. Der
 Knopf räumt diese Altlasten auf: doppelte Analyse-Einträge und die alten
-Einträge der drei Prüfungen, die jetzt oben stehen. Deine eigenen Tasks und
+Einträge der drei Prüfungen, die jetzt unter System Health stehen. Deine eigenen Tasks und
 deine Entscheidungen (freigegeben, abgelehnt, zurückgestellt) bleiben erhalten.
 
 ## Daten & Backup

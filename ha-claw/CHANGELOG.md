@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.9.4
+
+System Health, Tasks und Logs lagen unter Settings bzw. als eigener Top-Punkt
+Logs. Beides sind Betrieb, keine Konfiguration – und Logs war als Name zu eng.
+Web und Telegram führten getrennte Gespräche; nicht erreichbare Zigbee-Geräte
+zählten jedes Child-Entity extra.
+
+### Added
+
+- **Backup Health** unter System Health: Alter des letzten Backups mit Home Assistant (gelb ab 7 Tagen, rot ab 14 / ohne Backup), Hinweis wenn nur lokal gespeichert. Liste der letzten Backups zum Aufklappen. Nutzt die Supervisor-API (`GET /backups/info`). Dafür braucht das Add-on `hassio_role: backup`.
+- **Speicherplatz** unter System Health: freier Platz auf der HA-Datenpartition (Supervisor `/host/info`, Fallback `fs.statfs`). SD/eMMC (&lt; 128 GB): Warnung unter 5 GB, kritisch unter 3 GB. SSD: Warnung unter 10 % frei, kritisch unter 5 %. Optional Laufwerk-Lebensdauer ab 90 %. Kein extra HA-Sensor noetig.
+
+### Changed
+
+- **Ein Gespräch für Web und Telegram**: Beide Kanäle schreiben in denselben Verlauf (bestehende Dashboard-History). Telegram hatte bisher eigene Dateien (`tg-<chatId>`) – die werden nicht übernommen.
+- **Nicht erreichbar zählt Geräte, nicht Entities**: Ein Zigbee-Fensterkontakt mit Batterie, Spannung und Identifizieren-Button ist eine Zeile. Entities liegen unter dem Gerätenamen. Neu-gepairte Reste (`_5` / `_12`) werden über den Namenstamm zusammengezogen.
+- **Wählbare LLM-Modelle aktualisiert**: Opus/Sonnet 5, Gemini 3.7 Flash / 3.5 Flash Lite, GPT-5.6 Luna/Sol, DeepSeek V4 Flash, Grok 4.6. Preview-Leichen und die 4.6er-Claude-/5.4er-GPT-Zeile sind raus. Default bleibt `anthropic/claude-haiku-4.5`.
+- **Dashboard-Navigation Chat | Status | Settings**: Status bündelt System Health, Tasks und Logs. Settings enthält nur noch Model Forge, Tool Vault und Profile.
+- **Untermenüs auf Englisch**: Systemzustand → System Health (nicht noch einmal „Status", das ist der Top-Punkt), Backlog → Tasks, Protokoll → Logs. Der Aktionen-Tab heisst Actions.
+- **Aufräumen liegt bei den Tasks**: „Duplikate entfernen" sitzt unter Status → Tasks, nicht mehr neben den Geräteprüfungen.
+
+### Fixed
+
+- **Telegram zerlegte Entity-IDs**: Markdown machte Unterstriche zu Kursivschrift. Antworten gehen als HTML raus.
+
 ## 0.9.3
 
 Das Backlog füllte sich stündlich mit demselben Befund. Ursache waren zwei

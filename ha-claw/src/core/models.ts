@@ -18,15 +18,15 @@
 export const AVAILABLE_MODELS: readonly string[] = [
   'openrouter/free',
   'openrouter/auto',
-  'anthropic/claude-opus-4.6',
-  'anthropic/claude-sonnet-4.6',
   'anthropic/claude-haiku-4.5',
-  'google/gemini-3.1-pro-preview',
-  'google/gemini-3-flash-preview',
-  'google/gemini-3.1-flash-lite-preview',
-  'openai/gpt-5.4',
-  'openai/gpt-5.4-mini',
-  'deepseek/deepseek-chat',
+  'anthropic/claude-sonnet-5',
+  'anthropic/claude-opus-5',
+  'google/gemini-3.7-flash',
+  'google/gemini-3.5-flash-lite',
+  'openai/gpt-5.6-luna',
+  'openai/gpt-5.6-sol',
+  'deepseek/deepseek-v4-flash',
+  'x-ai/grok-4.6',
 ];
 
 /** Default model used when the user has not chosen one. */

@@ -57,10 +57,11 @@ ha-claw/
 │   │   ├── openrouter.ts        # OpenRouter API client (OpenAI-compatible)
 │   │   ├── proactive-analysis.ts# Home analysis modules (energy, security, etc.)
 │   │   ├── profile.ts           # User profile (name, personality, model overrides)
-│   │   ├── system-health.ts     # Live health checks (reachability, stale, battery)
+│   │   ├── system-health.ts     # Live health checks, grouped by physical device
 │   │   └── types.ts             # Shared TypeScript types
 │   ├── storage/
 │   │   ├── json-store.ts        # Generic JSON file store (notes, conversations)
+│   │   ├── conversation.ts      # Shared Web+Telegram chat history
 │   │   ├── memory-cards.ts      # Long-term memory with hybrid retrieval
 │   │   ├── backlog.ts           # Improvement task CRUD (individual JSON files)
 │   │   ├── backlog-processor.ts # Automated task processing (approve → solve → execute)
@@ -132,7 +133,7 @@ Each tool is assigned a complexity rating:
 - **Level 3** (complex): Writing automation and script configurations
 
 Users can map a different LLM model to each level in Settings, e.g. Haiku for
-Level 1, Sonnet for Level 2, Opus for Level 3.
+Level 1, Sonnet 5 for Level 2, Opus 5 for Level 3.
 
 Routing works by **escalation**, because which tools a request needs is only
 known after the model has chosen them. The first LLM call of a loop uses the
@@ -181,7 +182,12 @@ applied *after* matching so known findings cannot starve new ones.
 
 **`core/system-health.ts`** evaluates *standing conditions* — device
 reachability, stale sensors, low batteries. These never reach "done": in many
-installations a handful of devices are permanently unreachable. They are
+installations a handful of devices are permanently unreachable. Counts are
+**devices**, not entities: a Zigbee window sensor that exposes battery, firmware
+and an identify button is one row, not twelve. Backup age is a fourth check
+(Supervisor `GET /backups/info`): warn after 7 days, critical after 14 or when
+there is no Home Assistant backup; local-only storage is a warning even when
+fresh. They are
 computed on demand, surfaced via `GET /api/system-health`, the dashboard and
 Telegram `/status`, and never written to the backlog. `findHealthRegressions()`
 compares against `store/system-health.json` and reports a check only when its
@@ -207,7 +213,7 @@ Four learning subsystems:
 ### Storage
 All data stored as JSON files in `/data/store/`:
 - `notes/` — User notes
-- `conversations/` — Chat history
+- `conversations/` — Shared chat history (Web UI and Telegram write the same `web` record)
 - `memory/` — Long-term memory cards
 - `backlog/` — Improvement tasks (individual files)
 - `actions.jsonl` — Action/tool execution log

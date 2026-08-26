@@ -80,6 +80,27 @@ document.querySelectorAll('.theme-btn').forEach(b => {
 });
 
 // ── Navigation ────────────────────────────────────────────
+function activateStatusSection(name) {
+  document.querySelectorAll('#page-status .settings-nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.status === name);
+  });
+  document.querySelectorAll('#page-status .settings-section').forEach(s => {
+    s.classList.remove('active');
+  });
+  const section = document.getElementById('status-' + name);
+  if (section) section.classList.add('active');
+
+  if (name === 'health') loadSystemHealth();
+  if (name === 'tasks') loadBacklog();
+  if (name === 'logs') {
+    startLogPolling();
+    const activeSub = document.querySelector('.logs-subnav-item.active');
+    if (activeSub && activeSub.dataset.logTab === 'actions') loadActions();
+  } else {
+    stopLogPolling();
+  }
+}
+
 document.querySelectorAll('.nav-item').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -87,19 +108,22 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + btn.dataset.page).classList.add('active');
 
-    // Page-specific initialization
-    if (btn.dataset.page === 'logs') {
-      startLogPolling();
-      const activeSub = document.querySelector('.logs-subnav-item.active');
-      if (activeSub && activeSub.dataset.logTab === 'actions') loadActions();
+    if (btn.dataset.page === 'status') {
+      const active = document.querySelector('#page-status .settings-nav-item.active');
+      activateStatusSection(active ? active.dataset.status : 'health');
     } else {
       stopLogPolling();
     }
 
     if (btn.dataset.page === 'settings') {
       loadSettings();
-      loadBacklog();
     }
+  });
+});
+
+document.querySelectorAll('#page-status .settings-nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activateStatusSection(btn.dataset.status);
   });
 });
 
@@ -565,16 +589,16 @@ function sendMsg(isRetry) {
 }
 
 // ── Settings ──────────────────────────────────────────────
-// Settings sub-navigation
-document.querySelectorAll('.settings-nav-item').forEach(btn => {
+document.querySelectorAll('#page-settings .settings-nav-item').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.settings-nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#page-settings .settings-nav-item').forEach(b => {
+      b.classList.remove('active');
+    });
     btn.classList.add('active');
-    document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('#page-settings .settings-section').forEach(s => {
+      s.classList.remove('active');
+    });
     document.getElementById('settings-' + btn.dataset.settings).classList.add('active');
-
-    // Health checks read every HA state, so only fetch them when actually shown.
-    if (btn.dataset.settings === 'health') loadSystemHealth();
   });
 });
 
@@ -1086,6 +1110,23 @@ async function loadSystemHealth() {
   }
 }
 
+function renderHealthItem(item) {
+  const entities = item.entities || [];
+  const label = item.label || entities[0] || '';
+  if (entities.length <= 1) {
+    return '<div class="health-device">' + esc(label) + '</div>';
+  }
+  return (
+    '<details class="health-device"><summary>' +
+    esc(label) +
+    ' <span class="health-device-count">' +
+    entities.length +
+    ' Entities</span></summary><div class="health-device-entities">' +
+    entities.map(e => esc(e)).join('<br>') +
+    '</div></details>'
+  );
+}
+
 function renderHealth(health) {
   const list = document.getElementById('health-list');
   if (!list) return;
@@ -1093,12 +1134,25 @@ function renderHealth(health) {
   const checkedAt = new Date(health.checkedAt).toLocaleTimeString('de-DE');
   const cards = health.checks
     .map(c => {
-      const entities =
-        c.entities.length > 0
+      const items =
+        Array.isArray(c.items) && c.items.length
+          ? c.items
+          : (c.entities || []).map(e => ({ label: e, entities: [e] }));
+      const summary =
+        c.key === 'backup'
+          ? items.length === 1
+            ? ' letztes Backup'
+            : ' letzte Backups'
+          : items.length === 1
+            ? ' Gerät anzeigen'
+            : ' Geräte anzeigen';
+      const nested =
+        items.length > 0
           ? '<details class="health-entities"><summary>' +
-            c.entities.length +
-            ' Entities anzeigen</summary><div class="health-entity-list">' +
-            c.entities.map(e => esc(e)).join('<br>') +
+            items.length +
+            summary +
+            '</summary><div class="health-entity-list">' +
+            items.map(renderHealthItem).join('') +
             '</div></details>'
           : '';
       return (
@@ -1109,12 +1163,16 @@ function renderHealth(health) {
         ' ' +
         esc(c.label) +
         '</span><span class="health-count">' +
-        c.count +
+        (c.short != null && c.short !== ''
+          ? esc(c.short)
+          : c.key === 'backup'
+            ? c.count + 'd'
+            : c.count) +
         '</span></div><div class="health-detail">' +
         esc(c.detail) +
         '</div>' +
         (c.severity === 'ok' ? '' : '<div class="health-hint">' + esc(c.hint) + '</div>') +
-        entities +
+        nested +
         '</div>'
       );
     })

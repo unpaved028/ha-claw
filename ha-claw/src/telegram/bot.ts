@@ -1,7 +1,8 @@
 /**
  * bot.ts – Telegram Bot with Agentic Loop integration.
  *
- * Messages from whitelisted users are routed through the agentic loop.
+ * Messages from whitelisted users are routed through the agentic loop,
+ * using the same conversation, prompt and cache as the Web UI.
  * Dangerous tool calls trigger an inline keyboard for confirmation.
  */
 
@@ -21,8 +22,13 @@ import {
 } from '../core/onboarding.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
-import type { ChatMessage } from '../core/types.js';
-import * as store from '../storage/json-store.js';
+import {
+  SHARED_CONVERSATION_ID,
+  loadConversation,
+  saveConversation,
+  appendUserMessage,
+  appendAssistantMessage,
+} from '../storage/conversation.js';
 import { getGlobalStats } from '../storage/usage-tracker.js';
 import { getSystemHealth, formatHealthSummary } from '../core/system-health.js';
 import { whitelistGuard } from './whitelist.js';
@@ -169,32 +175,19 @@ export function createBot(): Bot {
   bot.callbackQuery(/^room:(.+)$/, async ctx => {
     const room = ctx.match[1];
     await ctx.answerCallbackQuery();
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
 
-    // Inject a special system prompt into the loop to discuss the room
-    const agent = buildAgent();
-
-    await ctx.reply(`🔍 Rufe Status für *${room}* ab...`, { parse_mode: 'Markdown' });
+    // Same path as typing "Status von OG Bad" in the Web UI – shared history,
+    // shared cache lookup, no empty throwaway context.
     await ctx.replyWithChatAction('typing');
-
-    const result = await runAgenticLoop(
-      `[System: Der Nutzer hat den Raum "${room}" über das Menü ausgewählt. Gib eine kurze Zusammenfassung über den Status der Geräte in diesem Raum.]`,
-      agent,
-      createTelegramConfirmFn(bot, ctx.chat!.id, ctx.from?.id ?? null),
-      [], // New short-term context for point-and-click actions
-      undefined,
-      () => {
-        ctx.replyWithChatAction('typing').catch(console.error);
-      },
-    );
-
-    await sendTelegramResponse(ctx as any, result.response);
+    await handleAgenticLoop(ctx, chatId, ctx.from?.id ?? null, `Status von ${room}`);
   });
 
   // ── Agentic Loop Entry Point ────────────────────────────
   bot.on(['message:text', 'message:voice'], async ctx => {
     const chatId = ctx.chat.id;
     let text = ctx.message?.text;
-    const sessionId = `tg-${chatId}`;
 
     if (ctx.message?.voice) {
       await ctx.replyWithChatAction('typing');
@@ -225,15 +218,11 @@ export function createBot(): Bot {
 
     // ── Onboarding ──
     if (needsOnboarding()) {
-      if (!isOnboarding(sessionId)) startOnboarding(sessionId);
+      if (!isOnboarding(SHARED_CONVERSATION_ID)) startOnboarding(SHARED_CONVERSATION_ID);
       try {
         const agent = buildOnboardingAgent();
         const confirmFn = createTelegramConfirmFn(bot, chatId, ctx.from.id);
-        const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-          'conversations',
-          sessionId,
-        );
-        const history = record?.messages || [];
+        const history = await appendUserMessage(text);
         const result = await runAgenticLoop(
           text,
           agent,
@@ -245,15 +234,9 @@ export function createBot(): Bot {
           },
         );
 
-        // Persist history
-        const newMessages: ChatMessage[] = [
-          ...history,
-          { role: 'user', content: text },
-          { role: 'assistant', content: result.response },
-        ];
-        await store.upsert('conversations', sessionId, { messages: newMessages.slice(-20) });
+        await appendAssistantMessage(result.response);
 
-        if (!needsOnboarding()) endOnboarding(sessionId);
+        if (!needsOnboarding()) endOnboarding(SHARED_CONVERSATION_ID);
         await sendTelegramResponse(ctx as any, result.response);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -263,20 +246,15 @@ export function createBot(): Bot {
       return;
     }
 
-    await handleAgenticLoop(ctx, chatId, ctx.from.id, sessionId, text);
+    await handleAgenticLoop(ctx, chatId, ctx.from.id, text);
   });
 
   bot.callbackQuery('retry:loop', async ctx => {
     await ctx.answerCallbackQuery('Starte neu...');
     const chatId = ctx.chat?.id;
     if (!chatId) return;
-    const sessionId = `tg-${chatId}`;
 
-    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-      'conversations',
-      sessionId,
-    );
-    const history = record?.messages || [];
+    const history = await loadConversation();
     const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
 
     if (!lastUserMsg || typeof lastUserMsg.content !== 'string') {
@@ -285,21 +263,13 @@ export function createBot(): Bot {
     }
 
     await ctx.replyWithChatAction('typing');
-    await handleAgenticLoop(
-      ctx,
-      chatId,
-      ctx.from?.id ?? null,
-      sessionId,
-      lastUserMsg.content,
-      true,
-    );
+    await handleAgenticLoop(ctx, chatId, ctx.from?.id ?? null, lastUserMsg.content, true);
   });
 
   async function handleAgenticLoop(
     ctx: any,
     chatId: number,
     userId: number | null,
-    sessionId: string,
     text: string,
     isRetry = false,
   ) {
@@ -307,42 +277,19 @@ export function createBot(): Bot {
       const confirmFn = createTelegramConfirmFn(bot, chatId, userId);
       const agent = buildAgent();
 
-      // Daily greeting hint
-      let userMessage = text;
-      const today = new Date().toISOString().slice(0, 10);
-      const currentProfile = getProfile();
-      if (currentProfile.lastInteractionDate !== today) {
-        userMessage = `[System: Erste Nachricht des Nutzers heute. Begruesse ihn kurz passend zur Tageszeit, dann beantworte seine Frage.]\n\n${text}`;
-        await saveProfile({ lastInteractionDate: today });
-      }
-
-      // 1. Load context/history
-      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-        'conversations',
-        sessionId,
-      );
-      // If it's a retry, we need to remove the last user message from history
-      // so it doesn't get duplicated, or we can just pass the history as is but without the last message.
-      let history = record?.messages || [];
+      let history = await loadConversation();
       if (isRetry && history.length > 0 && history[history.length - 1].role === 'user') {
         history = history.slice(0, -1);
+        await saveConversation(history);
       }
 
-      // 2. Run loop (passing history)
-      const result = await runAgenticLoop(userMessage, agent, confirmFn, history, undefined, () => {
+      history = await appendUserMessage(text);
+
+      const result = await runAgenticLoop(text, agent, confirmFn, history, undefined, () => {
         ctx.replyWithChatAction('typing').catch(console.error);
       });
 
-      // 3. Persist history
-      const newMessages: ChatMessage[] = [
-        ...history,
-        { role: 'user', content: text },
-        { role: 'assistant', content: result.response },
-      ];
-      // Limit to 20 messages for performance
-      const limited = newMessages.slice(-20);
-      await store.upsert('conversations', sessionId, { messages: limited });
-
+      await appendAssistantMessage(result.response);
       await sendTelegramResponse(ctx as any, result.response);
 
       log.info('Response sent', {
@@ -364,17 +311,33 @@ export function createBot(): Bot {
   return bot;
 }
 
-/** Send a response via Telegram, handling markdown fallback and 4096 char limit. */
+/**
+ * Send a reply using HTML, not Telegram Markdown.
+ *
+ * Legacy Markdown treats `_` as italic, which silently mangles Home Assistant
+ * entity ids (`light.og_bad_spiegel`). HTML leaves underscores alone. A small
+ * markdown subset (**bold**, `code`, fenced blocks) is converted so formatting
+ * still roughly matches the Web UI.
+ */
+function toTelegramHtml(markdown: string): string {
+  const escaped = markdown.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escaped
+    .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+}
+
 async function sendTelegramResponse(
   ctx: { reply: (text: string, opts?: Record<string, unknown>) => Promise<unknown> },
   response: string,
 ): Promise<void> {
-  if (response.length <= 4096) {
-    await ctx.reply(response, { parse_mode: 'Markdown' }).catch(() => ctx.reply(response));
-  } else {
-    for (let i = 0; i < response.length; i += 4096) {
-      await ctx.reply(response.slice(i, i + 4096));
-    }
+  const html = toTelegramHtml(response);
+  if (html.length <= 4096) {
+    await ctx.reply(html, { parse_mode: 'HTML' }).catch(() => ctx.reply(response));
+    return;
+  }
+  for (let i = 0; i < response.length; i += 4096) {
+    await ctx.reply(response.slice(i, i + 4096));
   }
 }
 

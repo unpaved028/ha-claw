@@ -28,10 +28,16 @@ import { getSchedulerSummary } from '../storage/scheduler.js';
 import { buildEntityCache } from '../core/entity-cache.js';
 import { runAgenticLoop, type ConfirmationFn } from '../core/agentic-loop.js';
 import { getCircuitBreakerState } from '../core/openrouter.js';
-import type { ChatMessage, ProgressCallback } from '../core/types.js';
+import type { ProgressCallback } from '../core/types.js';
 import { dashboardHtml } from './dashboard.js';
 import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
+import {
+  SHARED_CONVERSATION_ID,
+  loadConversation,
+  appendUserMessage,
+  appendAssistantMessage,
+} from '../storage/conversation.js';
 import * as backlog from '../storage/backlog.js';
 import { getSystemHealth } from '../core/system-health.js';
 import { getToolDefinitions } from '../tools/registry.js';
@@ -134,8 +140,6 @@ function buildOnboardingAgent() {
 
 const ONBOARDING_TOOLS = ['save_onboarding_profile', 'get_current_time', 'schedule_create'];
 
-const WEB_SESSION = 'web';
-
 export async function startWebServer(): Promise<void> {
   const app = Fastify({ logger: false });
 
@@ -166,68 +170,26 @@ export async function startWebServer(): Promise<void> {
 
     // Onboarding: route through agentic loop with onboarding agent
     if (needsOnboarding()) {
-      if (!isOnboarding(WEB_SESSION)) startOnboarding(WEB_SESSION);
+      if (!isOnboarding(SHARED_CONVERSATION_ID)) startOnboarding(SHARED_CONVERSATION_ID);
       const agent = buildOnboardingAgent();
-      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-        'conversations',
-        WEB_SESSION,
-      );
-      const history = record?.messages || [];
-      const historyWithUser: ChatMessage[] = [...history, { role: 'user', content: message }];
-      await store.upsert('conversations', WEB_SESSION, { messages: historyWithUser.slice(-20) });
+      const history = await appendUserMessage(message);
 
       const result = await runAgenticLoop(message, agent, undefined, history, ONBOARDING_TOOLS);
 
-      // Persist assistant response
-      const recordAfter = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-        'conversations',
-        WEB_SESSION,
-      );
-      const historyAfter = recordAfter?.messages || historyWithUser;
-      await store.upsert('conversations', WEB_SESSION, {
-        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20),
-      });
+      await appendAssistantMessage(result.response);
 
-      if (!needsOnboarding()) endOnboarding(WEB_SESSION);
+      if (!needsOnboarding()) endOnboarding(SHARED_CONVERSATION_ID);
       return result;
     }
 
     // Normal: agentic loop with dynamic personality
     const agent = buildAgent();
+    const history = await appendUserMessage(message);
 
-    // Daily greeting hint
-    let userMessage = message;
-    const today = new Date().toISOString().slice(0, 10);
-    const currentProfile = getProfile();
-    if (currentProfile.lastInteractionDate !== today) {
-      userMessage = `[System: Erste Nachricht des Nutzers heute. Begruesse ihn kurz passend zur Tageszeit, dann beantworte seine Frage.]\n\n${message}`;
-      await saveProfile({ lastInteractionDate: today });
-    }
-
-    // 1. Load history
-    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-      'conversations',
-      WEB_SESSION,
-    );
-    const history = record?.messages || [];
-
-    // Persist user message immediately to avoid losing it on refresh
-    const historyWithUser: ChatMessage[] = [...history, { role: 'user', content: message }];
-    await store.upsert('conversations', WEB_SESSION, { messages: historyWithUser.slice(-20) });
-
-    // 2. Run loop (passing history) with web safety gate
     const webConfirmFn = createWebConfirmFn();
-    const result = await runAgenticLoop(userMessage, agent, webConfirmFn, history);
+    const result = await runAgenticLoop(message, agent, webConfirmFn, history);
 
-    // 3. Persist updated history
-    const recordAfter = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-      'conversations',
-      WEB_SESSION,
-    );
-    const historyAfter = recordAfter?.messages || historyWithUser;
-    await store.upsert('conversations', WEB_SESSION, {
-      messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20),
-    });
+    await appendAssistantMessage(result.response);
 
     return result;
   });
@@ -271,15 +233,7 @@ export async function startWebServer(): Promise<void> {
 
       const agent = buildAgent();
       const webConfirmFn = createWebConfirmFn();
-      const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-        'conversations',
-        WEB_SESSION,
-      );
-      const history = record?.messages || [];
-
-      // Persist user message immediately so it's not lost on refresh
-      const historyWithUser: ChatMessage[] = [...history, { role: 'user', content: message }];
-      await store.upsert('conversations', WEB_SESSION, { messages: historyWithUser.slice(-20) });
+      const history = await appendUserMessage(message);
 
       const result = await runAgenticLoop(
         message,
@@ -290,16 +244,7 @@ export async function startWebServer(): Promise<void> {
         onProgress,
       );
 
-      const recordAfter = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-        'conversations',
-        WEB_SESSION,
-      );
-      const historyAfter = recordAfter?.messages || historyWithUser;
-
-      // Persist history
-      await store.upsert('conversations', WEB_SESSION, {
-        messages: [...historyAfter, { role: 'assistant', content: result.response }].slice(-20),
-      });
+      await appendAssistantMessage(result.response);
 
       // Final event
       send({ type: 'done', response: result.response, toolCalls: result.toolCalls });
@@ -318,11 +263,7 @@ export async function startWebServer(): Promise<void> {
   });
 
   app.get('/api/chat/history', async () => {
-    const record = await store.read<{ messages: ChatMessage[] } & store.StoredRecord>(
-      'conversations',
-      WEB_SESSION,
-    );
-    return record?.messages || [];
+    return loadConversation();
   });
 
   // ── Web Safety Gate Endpoints ────────────────────────
