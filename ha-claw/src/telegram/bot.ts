@@ -24,6 +24,7 @@ import { runAgenticLoop } from '../core/agentic-loop.js';
 import type { ChatMessage } from '../core/types.js';
 import * as store from '../storage/json-store.js';
 import { getGlobalStats } from '../storage/usage-tracker.js';
+import { getSystemHealth, formatHealthSummary } from '../core/system-health.js';
 import { whitelistGuard } from './whitelist.js';
 import { setupConfirmationHandler, createTelegramConfirmFn } from './confirmation.js';
 import { processVoiceMessage } from './voice.js';
@@ -108,13 +109,22 @@ export function createBot(): Bot {
         `• Kosten: $${stats.totalCostUsd.toFixed(4)}\n`;
     }
 
+    let healthMsg;
+    try {
+      healthMsg = `\n🩺 *Systemzustand*\n${formatHealthSummary(await getSystemHealth())}`;
+    } catch (err) {
+      log.warn('Health check for /status failed', { error: String(err) });
+      healthMsg = '\n🩺 *Systemzustand*\nNicht abrufbar.';
+    }
+
     await ctx.reply(
       `📊 *HA-Claw Status*\n\n` +
         `• Uptime: ${Math.floor(process.uptime() / 60)}m\n` +
         `• Memory: ${(mem.heapUsed / 1024 / 1024).toFixed(1)} MB\n` +
         `• Mode: ${appConfig.isAddon ? 'HA Add-on' : 'Standalone'}\n` +
         `• Node: ${process.version}\n\n` +
-        `🌍 *LLM Nutzung (Global)*\n${usageMsg}`,
+        `🌍 *LLM Nutzung (Global)*\n${usageMsg}` +
+        healthMsg,
       { parse_mode: 'Markdown' },
     );
   });

@@ -572,6 +572,9 @@ document.querySelectorAll('.settings-nav-item').forEach(btn => {
     btn.classList.add('active');
     document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
     document.getElementById('settings-' + btn.dataset.settings).classList.add('active');
+
+    // Health checks read every HA state, so only fetch them when actually shown.
+    if (btn.dataset.settings === 'health') loadSystemHealth();
   });
 });
 
@@ -1061,6 +1064,94 @@ function renderBacklog() {
 
 function esc(s) {
   return escHtml(s);
+}
+
+// ── System Health ────────────────────────────────────────
+// Live checks rather than backlog tasks: these conditions never reach "done",
+// so persisting them as tasks produced a new entry on every analysis run.
+const HEALTH_ICONS = { ok: '&#9989;', warn: '&#9888;&#65039;', critical: '&#128308;' };
+
+async function loadSystemHealth() {
+  const list = document.getElementById('health-list');
+  if (!list) return;
+  list.innerHTML = '<div class="backlog-empty">Pruefe...</div>';
+  try {
+    const r = await fetch(base + '/api/system-health');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    renderHealth(await r.json());
+  } catch (e) {
+    console.error('Health load failed', e);
+    list.innerHTML =
+      '<div class="backlog-empty">Systemzustand nicht abrufbar. Ist Home Assistant erreichbar?</div>';
+  }
+}
+
+function renderHealth(health) {
+  const list = document.getElementById('health-list');
+  if (!list) return;
+
+  const checkedAt = new Date(health.checkedAt).toLocaleTimeString('de-DE');
+  const cards = health.checks
+    .map(c => {
+      const entities =
+        c.entities.length > 0
+          ? '<details class="health-entities"><summary>' +
+            c.entities.length +
+            ' Entities anzeigen</summary><div class="health-entity-list">' +
+            c.entities.map(e => esc(e)).join('<br>') +
+            '</div></details>'
+          : '';
+      return (
+        '<div class="health-card ' +
+        c.severity +
+        '"><div class="health-card-top"><span class="health-card-title">' +
+        (HEALTH_ICONS[c.severity] || '') +
+        ' ' +
+        esc(c.label) +
+        '</span><span class="health-count">' +
+        c.count +
+        '</span></div><div class="health-detail">' +
+        esc(c.detail) +
+        '</div>' +
+        (c.severity === 'ok' ? '' : '<div class="health-hint">' + esc(c.hint) + '</div>') +
+        entities +
+        '</div>'
+      );
+    })
+    .join('');
+
+  list.innerHTML =
+    cards +
+    '<div class="health-meta">Geprueft um ' +
+    checkedAt +
+    ' &middot; ' +
+    health.totalEntities +
+    ' Entities insgesamt</div>';
+}
+
+async function cleanupBacklog(btn) {
+  const out = document.getElementById('health-cleanup-result');
+  btn.disabled = true;
+  if (out) out.textContent = 'Raeume auf...';
+  try {
+    const r = await fetch(base + '/api/backlog/cleanup', { method: 'POST' });
+    const d = await r.json();
+    if (out) {
+      out.textContent =
+        d.duplicatesRemoved +
+        ' Duplikate und ' +
+        d.retiredRemoved +
+        ' alte Zustands-Eintraege entfernt, ' +
+        d.remaining +
+        ' Tasks verbleiben.';
+    }
+    await loadBacklog();
+  } catch (e) {
+    console.error('Backlog cleanup failed', e);
+    if (out) out.textContent = 'Aufraeumen fehlgeschlagen.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function buildBacklogActions(t) {

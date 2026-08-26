@@ -18,7 +18,8 @@ Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
 - **Cost Tracking** — Cumulative token usage and a per-model cost estimate in `/status`
 - **Circuit Breaker** — Pauses LLM calls after repeated provider failures instead of hammering the API
 - **Self-Improvement** — Learns from corrections, tracks usage patterns, records errors for smarter retries
-- **Proactive Analysis** — Scans your home for energy waste, security gaps, maintenance issues, and automation opportunities
+- **Proactive Analysis** — Scans your home for energy waste, security gaps, and automation opportunities, proposing them as backlog tasks
+- **System Health** — Device reachability, stale sensors and low batteries as live checks in the dashboard and in `/status`; these are standing conditions rather than tasks, so they stay out of the backlog and only push a message when they get worse
 - **Conversational Onboarding** — Natural LLM-powered setup instead of rigid forms, with feature introduction and weekly analysis suggestion
 - **Scheduler** — Recurring jobs (`every 5m`, `daily 07:00`, `weekdays 08:00`, `weekly mon 08:00`) executed through the agentic loop
 - **One-Shot Timers & Reminders** — "Remind me in 30min to take out the trash" or "Turn off the basement light in 10min"

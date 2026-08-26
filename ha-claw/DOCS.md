@@ -9,6 +9,7 @@ HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er v
 - **Notizen speichern** und **Gedächtnis aufbauen** kann
 - **Timer & Erinnerungen** setzen kann ("Erinnere mich in 30min an den Müll")
 - **Proaktive Benachrichtigungen** via Telegram senden kann
+- Den **Systemzustand** im Blick behält (nicht erreichbare Geräte, tote Sensoren, schwache Batterien)
 - Per **Telegram** oder **Web-Chat** erreichbar ist
 - Mit jeder Interaktion **dazulernt** und besser wird
 
@@ -68,6 +69,39 @@ Für regelmäßige Aufgaben:
 - `weekends 10:00` – Sa–So um 10:00
 - `weekly mon 08:00` – jeden Montag um 08:00
 
+## Systemzustand
+
+Unter _Einstellungen → Systemzustand_ siehst du drei Prüfungen mit ihrem
+aktuellen Stand, den betroffenen Entities und einem Hinweis, was zu tun ist:
+
+- **Geräte nicht erreichbar** – Entities im Zustand `unavailable`
+- **Sensoren seit 48 h unverändert** – möglicher Batterie- oder Verbindungsausfall
+- **Batterie unter 20 %** – Batterien, die gewechselt werden sollten
+
+Diese Prüfungen landen absichtlich **nicht** im Backlog. Ein Backlog-Eintrag ist
+ein Vorhaben, das irgendwann erledigt ist – ein paar dauerhaft nicht
+erreichbare Geräte sind dagegen in vielen Installationen der Normalzustand und
+würden dort für immer stehen bleiben. Sie werden deshalb bei Bedarf berechnet
+und live angezeigt; du findest sie auch in `/status` im Telegram-Bot.
+
+Telegram meldet sich nur, wenn sich etwas **verschlechtert**: wenn eine Prüfung
+ihre Stufe wechselt (grün → gelb → rot) oder sich der Wert seit der letzten
+Meldung mindestens verdoppelt hat. Eine Verbesserung wird still vermerkt.
+
+Bleiben Geräte dauerhaft in der Liste, sind es meist Reste entfernter Hardware.
+Solche Entities in Home Assistant zu löschen ist der einzige Weg, sie
+loszuwerden – HA-Claw kann nicht erkennen, ob ein Gerät nur gerade offline oder
+längst im Elektroschrott ist.
+
+### Backlog aufräumen
+
+Im selben Bereich findest du „Duplikate entfernen". Vor Version 0.9.3 legte die
+Analyse für denselben Befund bei jedem Durchlauf einen neuen Task an, weil der
+Abgleich über den Titel lief und der Titel eine wechselnde Anzahl enthält. Der
+Knopf räumt diese Altlasten auf: doppelte Analyse-Einträge und die alten
+Einträge der drei Prüfungen, die jetzt oben stehen. Deine eigenen Tasks und
+deine Entscheidungen (freigegeben, abgelehnt, zurückgestellt) bleiben erhalten.
+
 ## Daten & Backup
 
 Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Backups gesichert:
@@ -78,6 +112,7 @@ Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Ba
 - **scheduler** – Geplante Jobs und Timer
 - **backlog** – Verbesserungsvorschläge
 - **learning** – Gelernte Korrekturen und Regeln
+- **system-health.json** – Merkposten, welcher Zustand zuletzt gemeldet wurde
 
 ## Sicherheit bei Geraetesteuerung
 

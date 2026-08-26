@@ -17,7 +17,14 @@
 
 import * as ha from './ha-client.js';
 import { createLogger } from './logger.js';
-import { createTask, listTasks, type BacklogTask } from '../storage/backlog.js';
+import {
+  createTask,
+  listTasks,
+  updateTask,
+  sourceKeyFromTitle,
+  taskSourceKey,
+  type BacklogTask,
+} from '../storage/backlog.js';
 
 const log = createLogger('analysis');
 
@@ -58,26 +65,27 @@ export async function runAnalysis(): Promise<string> {
       ...analyzeSecurity(states, now),
       ...analyzeCovers(states, now),
       ...analyzeClimate(states),
-      ...analyzeMaintenance(states, now),
       ...analyzeNaming(states),
       ...analyzeAutomations(states, now),
     ];
 
-    // Sort by priority (high=3, medium=2, low=1), take top 3
+    // Sort by priority (high=3, medium=2, low=1) so the limited number of new
+    // tasks per run goes to the most important findings.
     const PRIORITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
     findings.sort(
       (a, b) => (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0),
     );
-    const top3 = findings.slice(0, 3);
 
-    // Write only top 3 to backlog, respecting existing items (including rejected/deferred)
-    const newCount = await writeFindings(top3, existingTasks);
+    // The full list is passed in on purpose: capping it beforehand meant that
+    // already-known findings occupied the slots and genuinely new ones with a
+    // lower priority could never enter the backlog.
+    const { created, refreshed } = await writeFindings(findings, existingTasks);
 
     const summary =
-      newCount > 0
-        ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten gefunden, Top ${top3.length} priorisiert, ${newCount} neue Vorschläge ins Backlog.`
+      created > 0
+        ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten gefunden, ${created} neue Vorschläge ins Backlog, ${refreshed} aktualisiert.`
         : findings.length > 0
-          ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten, alle bereits bekannt.`
+          ? `Analyse abgeschlossen: ${findings.length} Auffälligkeiten, alle bereits bekannt (${refreshed} aktualisiert).`
           : 'Analyse abgeschlossen: Keine Auffälligkeiten. Alles sieht gut aus.';
 
     log.info(summary);
@@ -585,78 +593,12 @@ function analyzeSecurity(states: HAState[], now: Date): Finding[] {
   return findings;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MAINTENANCE ANALYSIS
-// ═══════════════════════════════════════════════════════════════
-
-function analyzeMaintenance(states: HAState[], now: Date): Finding[] {
-  const findings: Finding[] = [];
-
-  // Unavailable entities
-  const unavailable = states.filter(s => s.state === 'unavailable');
-  if (unavailable.length >= 3) {
-    const examples = unavailable
-      .slice(0, 8)
-      .map(s => s.entity_id)
-      .join(', ');
-    findings.push({
-      title: `${unavailable.length} Geräte nicht erreichbar`,
-      asIs: `${unavailable.length} Entities "unavailable": ${examples}`,
-      toBe: 'Geräte prüfen: Strom, WLAN/Zigbee-Verbindung, Integration-Status. Nicht mehr vorhandene Geräte aus HA entfernen.',
-      impact: 'Zuverlässigkeit, Sicherheit',
-      category: 'maintenance',
-      priority: 'high',
-      tags: ['unavailable', 'netzwerk', 'wartung'],
-    });
-  }
-
-  // Stale sensors (no change > 48h, excluding unavailable)
-  const staleSensors = states.filter(s => {
-    if (!s.entity_id.startsWith('sensor.') && !s.entity_id.startsWith('binary_sensor.'))
-      return false;
-    if (s.state === 'unavailable' || s.state === 'unknown') return false;
-    const lastChanged = new Date(s.last_changed);
-    const hoursAgo = (now.getTime() - lastChanged.getTime()) / 3_600_000;
-    return hoursAgo > 48;
-  });
-  if (staleSensors.length >= 5) {
-    const examples = staleSensors
-      .slice(0, 5)
-      .map(
-        s =>
-          `${s.entity_id} (${Math.round((now.getTime() - new Date(s.last_changed).getTime()) / 3_600_000)}h)`,
-      )
-      .join(', ');
-    findings.push({
-      title: `${staleSensors.length} Sensoren seit 48h+ unverändert`,
-      asIs: `Sensoren ohne Statuswechsel: ${examples}`,
-      toBe: 'Prüfen: Batterie leer? Verbindung verloren? Wenn dauerhaft tot → aus HA entfernen.',
-      impact: 'Zuverlässigkeit, frühzeitige Fehlererkennung',
-      category: 'maintenance',
-      priority: 'low',
-      tags: ['sensor', 'wartung', 'batterie', 'diagnose'],
-    });
-  }
-
-  // Low battery devices
-  const lowBattery = states.filter(s => {
-    const battLevel = Number(s.attributes['battery_level'] ?? s.attributes['battery'] ?? -1);
-    return battLevel >= 0 && battLevel < 20;
-  });
-  if (lowBattery.length > 0) {
-    findings.push({
-      title: `${lowBattery.length} Geräte mit niedriger Batterie`,
-      asIs: `Geräte unter 20% Batterie: ${lowBattery.map(s => `${friendlyName(s)} (${s.attributes['battery_level'] ?? s.attributes['battery']}%)`).join(', ')}`,
-      toBe: 'Batterien zeitnah wechseln. Automatische Benachrichtigung bei <20% einrichten.',
-      impact: 'Vermeidet Geräteausfall, proaktive Wartung',
-      category: 'maintenance',
-      priority: 'medium',
-      tags: ['batterie', 'wartung', 'benachrichtigung'],
-    });
-  }
-
-  return findings;
-}
+// NOTE: The former analyzeMaintenance() lived here. Its three checks
+// (unavailable devices, stale sensors, low battery) described recurring
+// conditions rather than improvement proposals, so they never reached "done"
+// and their live counts in the task titles defeated deduplication. They now
+// live in core/system-health.ts and are surfaced in the dashboard, in the
+// Telegram /status command and via a push only when they deteriorate.
 
 // ═══════════════════════════════════════════════════════════════
 // NAMING & LABEL ANALYSIS
@@ -938,29 +880,64 @@ function detectNamingPatterns(names: string[]): { inconsistent: boolean; example
   };
 }
 
-/**
- * Write findings to backlog, skipping any that already exist
- * (matches by title, includes ALL statuses: proposed, approved, rejected, deferred, done).
- */
-async function writeFindings(findings: Finding[], existingTasks: BacklogTask[]): Promise<number> {
-  // Build set of ALL existing titles (including rejected, deferred, done)
-  // This prevents re-proposing items the user already decided on
-  const knownTitles = new Set(existingTasks.map(t => t.title));
+/** Upper bound on tasks created per run, so a fresh install is not flooded. */
+const MAX_NEW_TASKS_PER_RUN = 3;
 
-  let newCount = 0;
-  for (const f of findings) {
-    if (knownTitles.has(f.title)) continue;
-    await createTask({
-      title: f.title,
-      asIs: f.asIs,
-      toBe: f.toBe,
-      impact: f.impact,
-      category: f.category,
-      priority: f.priority,
-      tags: f.tags,
-      proposedBy: 'analysis',
-    });
-    newCount++;
+/**
+ * Write findings to the backlog.
+ *
+ * Matching happens on the source key rather than the title, because every
+ * title contains a live count and therefore changes between runs. A known
+ * finding refreshes the existing task instead of creating another one, and
+ * only tasks still in 'proposed' are touched – anything the user approved,
+ * rejected or deferred stays as they left it.
+ */
+async function writeFindings(
+  findings: Finding[],
+  existingTasks: BacklogTask[],
+): Promise<{ created: number; refreshed: number }> {
+  const byKey = new Map<string, BacklogTask>();
+  for (const task of existingTasks) {
+    // Keep the first match; listTasks sorts decided/recent tasks to the front.
+    const key = taskSourceKey(task);
+    if (!byKey.has(key)) byKey.set(key, task);
   }
-  return newCount;
+
+  let created = 0;
+  let refreshed = 0;
+
+  for (const finding of findings) {
+    const key = sourceKeyFromTitle(finding.title);
+    const existing = byKey.get(key);
+
+    if (existing) {
+      if (existing.status === 'proposed') {
+        await updateTask(existing.id, {
+          title: finding.title,
+          asIs: finding.asIs,
+          priority: finding.priority,
+        });
+        refreshed++;
+      }
+      continue;
+    }
+
+    if (created >= MAX_NEW_TASKS_PER_RUN) continue;
+
+    const task = await createTask({
+      title: finding.title,
+      asIs: finding.asIs,
+      toBe: finding.toBe,
+      impact: finding.impact,
+      category: finding.category,
+      priority: finding.priority,
+      tags: finding.tags,
+      proposedBy: 'analysis',
+      sourceKey: key,
+    });
+    byKey.set(key, task);
+    created++;
+  }
+
+  return { created, refreshed };
 }

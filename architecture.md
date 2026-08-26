@@ -57,6 +57,7 @@ ha-claw/
 │   │   ├── openrouter.ts        # OpenRouter API client (OpenAI-compatible)
 │   │   ├── proactive-analysis.ts# Home analysis modules (energy, security, etc.)
 │   │   ├── profile.ts           # User profile (name, personality, model overrides)
+│   │   ├── system-health.ts     # Live health checks (reachability, stale, battery)
 │   │   └── types.ts             # Shared TypeScript types
 │   ├── storage/
 │   │   ├── json-store.ts        # Generic JSON file store (notes, conversations)
@@ -161,6 +162,32 @@ produces no polling traffic.
 4. AI executes the solution using available tools → `done`
 5. On failure, reverts to `solution_approved` for retry
 
+### Proactive Analysis vs. System Health
+Two deliberately separate paths, because the two kinds of finding have
+different lifecycles.
+
+**`core/proactive-analysis.ts`** produces *improvement proposals* — things that
+can be built once and are then done (a daylight automation, a missing water leak
+sensor, entities without a friendly name). These become backlog tasks.
+
+Deduplication is keyed on `backlog.sourceKeyFromTitle()`, not the title itself.
+Every finding title embeds a live count ("59 Geräte nicht erreichbar"), so the
+original title comparison treated each fluctuation as a new finding and created
+a task per run. The key collapses digit runs, which also lets the cleanup group
+tasks written before the key was stored. A known finding refreshes its existing
+task when it is still `proposed`; approved, rejected and deferred tasks are left
+alone. At most `MAX_NEW_TASKS_PER_RUN` tasks are created per run, and that cap is
+applied *after* matching so known findings cannot starve new ones.
+
+**`core/system-health.ts`** evaluates *standing conditions* — device
+reachability, stale sensors, low batteries. These never reach "done": in many
+installations a handful of devices are permanently unreachable. They are
+computed on demand, surfaced via `GET /api/system-health`, the dashboard and
+Telegram `/status`, and never written to the backlog. `findHealthRegressions()`
+compares against `store/system-health.json` and reports a check only when its
+severity escalated or its count at least doubled since the last message, so a
+permanently broken installation does not generate hourly pushes.
+
 ### Device Control Verification (`tools/ha-tools.ts`)
 When `ha_call_service` is called:
 1. Captures entity state before the call
@@ -186,6 +213,7 @@ All data stored as JSON files in `/data/store/`:
 - `actions.jsonl` — Action/tool execution log
 - `learning.json` — Self-improvement data
 - `scheduler.json` — Job definitions (recurring + one-shot timers)
+- `system-health.json` — Last reported severity per health check (for change detection only)
 
 All storage is automatically included in HA backups.
 

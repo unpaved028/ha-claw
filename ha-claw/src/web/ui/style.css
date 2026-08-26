@@ -1797,6 +1797,107 @@ body {
   background: rgba(239, 68, 68, 0.1);
 }
 
+/* ── System Health Section ────────────────────────────────── */
+.health-intro {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.health-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.health-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+.health-card.ok {
+  border-left-color: #34d399;
+}
+.health-card.warn {
+  border-left-color: #fbbf24;
+}
+.health-card.critical {
+  border-left-color: var(--danger);
+}
+.health-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.health-card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.health-count {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.health-detail {
+  margin-top: 0.4rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+.health-hint {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  opacity: 0.85;
+  font-style: italic;
+}
+.health-entities {
+  margin-top: 0.6rem;
+}
+.health-entities summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+.health-entity-list {
+  margin-top: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-input);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.7rem;
+  line-height: 1.7;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+}
+.health-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.75;
+  text-align: right;
+}
+.health-maintenance {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+.health-maintenance-text {
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+.health-cleanup-result {
+  margin-left: 0.75rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 /* ── Actions List ────────────────────────────────────────── */
 .actions-list {
   display: flex;

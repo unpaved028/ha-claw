@@ -33,6 +33,7 @@ import { dashboardHtml } from './dashboard.js';
 import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
 import * as backlog from '../storage/backlog.js';
+import { getSystemHealth } from '../core/system-health.js';
 import { getToolDefinitions } from '../tools/registry.js';
 import * as actionLog from '../storage/action-log.js';
 
@@ -508,6 +509,24 @@ export async function startWebServer(): Promise<void> {
       return { error: 'not found' };
     }
     return { deleted: true };
+  });
+
+  // Repairs backlogs that filled up with one task per analysis run before the
+  // deduplication was keyed on something stable (see backlog.sourceKeyFromTitle).
+  app.post('/api/backlog/cleanup', async () => {
+    return backlog.cleanupAnalysisTasks();
+  });
+
+  // ── System Health ───────────────────────────────────────
+  // Live checks, deliberately not persisted as backlog tasks – see
+  // core/system-health.ts for the reasoning.
+  app.get('/api/system-health', async (_req, reply) => {
+    try {
+      return await getSystemHealth();
+    } catch (err) {
+      reply.status(503);
+      return { error: String(err) };
+    }
   });
 
   // ── Store CRUD ──────────────────────────────────────────

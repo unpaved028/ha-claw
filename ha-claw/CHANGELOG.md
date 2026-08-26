@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.3
+
+Das Backlog füllte sich stündlich mit demselben Befund. Ursache waren zwei
+Dinge: eine Deduplizierung, die auf etwas Veränderliches zeigte, und Prüfungen,
+die als Aufgabe geführt wurden, obwohl sie einen Dauerzustand beschreiben.
+
+### Fixed
+
+- **Analyse legte bei jedem Lauf neue Tasks für denselben Befund an**: Der Abgleich verglich exakte Titel – und jeder Titel enthält eine Live-Zahl („59 Geräte nicht erreichbar", eine Stunde später „47 Geräte nicht erreichbar"). Jede Schwankung sah damit wie ein neuer Befund aus. Betroffen waren alle Analyse-Module, nicht nur die Geräteprüfung; bei der Geräteprüfung fiel es zuerst auf, weil sie `high` priorisiert ist und deshalb zusätzlich stündlich eine Telegram-Nachricht auslöste. Der Abgleich läuft jetzt über einen stabilen Schlüssel, der von der Zahl unabhängig ist.
+- **Bekannte Befunde blockierten die Plätze für neue**: Die Top-3-Auswahl fand vor der Deduplizierung statt. Waren die drei höchstpriorisierten Befunde bereits bekannt, kam nichts Neues ins Backlog – auch nicht die tatsächlich neuen Befunde niedrigerer Priorität. Ausgewählt wird jetzt nach dem Abgleich.
+- **Zahlen in offenen Tasks veralteten**: Ein bekannter Befund wurde übersprungen, der Task behielt die Werte des ersten Fundes. Offene Tasks (`proposed`) werden nun aktualisiert; Tasks, die du freigegeben, abgelehnt oder zurückgestellt hast, bleiben unangetastet.
+
+### Changed
+
+- **Geräteprüfungen sind kein Backlog-Thema mehr**: Erreichbarkeit, seit 48 h unveränderte Sensoren und Batterien unter 20 % beschreiben einen Zustand, nicht ein Vorhaben – ein Backlog-Task endet in „done", ein Dauerzustand erreicht das nie. Sie werden jetzt in `src/core/system-health.ts` bei Bedarf berechnet und im Dashboard unter „Systemzustand" sowie in `/status` angezeigt. Das Backlog bleibt damit eine Liste echter Verbesserungsvorschläge.
+- **Telegram meldet Systemzustand nur bei Verschlechterung**: Push nur, wenn eine Prüfung ihre Stufe verschlechtert (ok → warn → kritisch) oder sich der Wert seit der letzten Meldung mindestens verdoppelt hat. Die zweite Regel fängt einen echten Ausfall auch dann, wenn die Installation dauerhaft auf „kritisch" steht. Erholung wird still vermerkt.
+
+### Added
+
+- **Dashboard-Bereich „Systemzustand"**: Eine Karte pro Prüfung mit Stufe, Anzahl, aufklappbarer Entity-Liste und Hinweis, was zu tun ist.
+- **Aufräum-Funktion für das Backlog** (`POST /api/backlog/cleanup`, Button im Systemzustand-Bereich): entfernt Duplikate desselben Befunds und die Altlasten der drei umgezogenen Prüfungen. Von dir oder dem Agenten angelegte Tasks bleiben unberührt; innerhalb einer Duplikat-Gruppe gewinnt ein Task, über den du schon entschieden hast, damit ein abgelehnter Vorschlag nicht erneut auftaucht.
+- **`GET /api/system-health`**: Stufe, Anzahl und betroffene Entities pro Prüfung.
+
 ## 0.9.2
 
 Fundament-Release. Keine neuen Endnutzer-Features, dafür ein reproduzierbarer

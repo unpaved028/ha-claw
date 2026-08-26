@@ -34,6 +34,7 @@ import { setupProactiveNotifications, sendProactiveMessage } from './telegram/no
 import { onNewHighPriorityTask } from './storage/backlog.js';
 import { onExecutionFinished } from './storage/backlog-processor.js';
 import { runAnalysis } from './core/proactive-analysis.js';
+import { getSystemHealth, findHealthRegressions } from './core/system-health.js';
 import { InlineKeyboard } from 'grammy';
 
 const log = createLogger('main');
@@ -194,11 +195,40 @@ async function main(): Promise<void> {
       } catch (err) {
         log.error('Periodic analysis failed', { error: String(err) });
       }
+
+      try {
+        await reportHealthRegressions(Boolean(telegramBot));
+      } catch (err) {
+        log.error('Health check failed', { error: String(err) });
+      }
     },
     60 * 60 * 1000,
   );
 
   log.info('=== HA-Claw ready ===');
+}
+
+/**
+ * Push a message only when the installation's health actually got worse.
+ *
+ * Unlike the backlog, health checks describe a standing condition – in many
+ * homes a handful of devices are permanently unreachable. Reporting that every
+ * hour is noise, so findHealthRegressions only returns checks that escalated
+ * in severity or at least doubled since the last message.
+ */
+async function reportHealthRegressions(hasTelegram: boolean): Promise<void> {
+  const health = await getSystemHealth();
+  const regressions = await findHealthRegressions(health);
+
+  if (regressions.length === 0 || !hasTelegram) return;
+
+  const body = regressions
+    .map(r => `*${r.label}: ${r.count}*\n${r.detail}\n_${r.hint}_`)
+    .join('\n\n');
+
+  await sendProactiveMessage(`🩺 *Systemzustand verschlechtert*\n\n${body}`).catch(err =>
+    log.error('Failed to send health push', { error: String(err) }),
+  );
 }
 
 main().catch(err => {

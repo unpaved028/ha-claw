@@ -50,6 +50,12 @@ export interface BacklogTask {
   tags: string[];
   /** Who proposed it */
   proposedBy: 'agent' | 'user' | 'analysis';
+  /**
+   * Stable identity of the underlying finding, independent of the live numbers
+   * in the title (see sourceKeyFromTitle). Absent on tasks created before
+   * v0.9.3 – derive it from the title in that case.
+   */
+  sourceKey?: string;
   /** Proposed solution (YAML, automation config, description) */
   solution?: string;
   /** When the solution was approved */
@@ -93,6 +99,32 @@ export function onNewHighPriorityTask(listener: NewTaskListener): void {
   onNewHighPriorityTaskListener = listener;
 }
 
+// ── Identity ──────────────────────────────────────────────
+
+/**
+ * Derive a stable key for a finding from its title.
+ *
+ * Analysis titles embed a live count ("59 Geräte nicht erreichbar"), which is
+ * precisely why the original title-based deduplication failed: any fluctuation
+ * in that number produced a title the dedup set had never seen, so every run
+ * created another task. Collapsing all digit runs to '#' yields a key that
+ * survives the count changing, and it can also be computed for tasks that were
+ * created before the key was stored – which is what makes the cleanup of
+ * existing duplicates possible.
+ */
+export function sourceKeyFromTitle(title: string): string {
+  return title
+    .replace(/\d+([.,]\d+)?/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/** The key a task should be grouped under, whether or not it has one stored. */
+export function taskSourceKey(task: BacklogTask): string {
+  return task.sourceKey ?? sourceKeyFromTitle(task.title);
+}
+
 // ── CRUD ──────────────────────────────────────────────────
 
 function taskPath(id: string): string {
@@ -109,6 +141,7 @@ export async function createTask(data: {
   category?: string;
   tags?: string[];
   proposedBy?: 'agent' | 'user' | 'analysis';
+  sourceKey?: string;
 }): Promise<BacklogTask> {
   const id = 'T-' + randomUUID().slice(0, 6).toUpperCase();
   const now = new Date().toISOString();
@@ -124,6 +157,7 @@ export async function createTask(data: {
     category: data.category ?? 'automation',
     tags: data.tags ?? [],
     proposedBy: data.proposedBy ?? 'agent',
+    sourceKey: data.sourceKey ?? sourceKeyFromTitle(data.title),
     createdAt: now,
     updatedAt: now,
   };
@@ -225,6 +259,88 @@ export async function listTasks(filter?: {
   } catch {
     return [];
   }
+}
+
+// ── Maintenance ───────────────────────────────────────────
+
+/**
+ * Findings that used to be written to the backlog but became live health checks
+ * in v0.9.3 (see core/system-health.ts). Their leftover tasks are obsolete.
+ * Derived from representative titles so they cannot drift from the key function.
+ */
+const RETIRED_CONDITION_KEYS = new Set(
+  [
+    '0 Geräte nicht erreichbar',
+    '0 Sensoren seit 48h+ unverändert',
+    '0 Geräte mit niedriger Batterie',
+  ].map(sourceKeyFromTitle),
+);
+
+export interface CleanupResult {
+  /** Duplicates of the same finding that were removed. */
+  duplicatesRemoved: number;
+  /** Tasks removed because their check moved to the health view. */
+  retiredRemoved: number;
+  /** Tasks left in the backlog afterwards. */
+  remaining: number;
+}
+
+/**
+ * Rank for deciding which task of a duplicate group to keep. A task the user
+ * already acted on must win over an untouched one – dropping a 'rejected' task
+ * would let the analysis propose it all over again.
+ */
+function keepRank(task: BacklogTask): number {
+  return task.status === 'proposed' ? 0 : 1;
+}
+
+/**
+ * Collapse duplicate analysis tasks and drop the retired condition checks.
+ *
+ * Before v0.9.3 the analysis deduplicated on the exact title, but every title
+ * carried a live count – so each run created a new task for the same finding.
+ * This repairs the backlogs that accumulated as a result.
+ */
+export async function cleanupAnalysisTasks(): Promise<CleanupResult> {
+  const tasks = await listTasks({});
+
+  const groups = new Map<string, BacklogTask[]>();
+  let retiredRemoved = 0;
+
+  for (const task of tasks) {
+    const key = taskSourceKey(task);
+
+    if (RETIRED_CONDITION_KEYS.has(key)) {
+      if (await deleteTask(task.id)) retiredRemoved++;
+      continue;
+    }
+
+    // Only analysis output is collapsed – tasks a human or the agent wrote
+    // deliberately may legitimately look similar.
+    if (task.proposedBy !== 'analysis') continue;
+
+    const group = groups.get(key);
+    if (group) group.push(task);
+    else groups.set(key, [task]);
+  }
+
+  let duplicatesRemoved = 0;
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+
+    const sorted = [...group].sort((a, b) => {
+      const byRank = keepRank(b) - keepRank(a);
+      return byRank !== 0 ? byRank : b.updatedAt.localeCompare(a.updatedAt);
+    });
+
+    for (const task of sorted.slice(1)) {
+      if (await deleteTask(task.id)) duplicatesRemoved++;
+    }
+  }
+
+  const remaining = (await listTasks({})).length;
+  log.info('Backlog cleanup finished', { duplicatesRemoved, retiredRemoved, remaining });
+  return { duplicatesRemoved, retiredRemoved, remaining };
 }
 
 // ── Helpers ───────────────────────────────────────────────
