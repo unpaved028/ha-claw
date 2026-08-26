@@ -1,0 +1,11 @@
+{
+  "name": "HA-Claw",
+  "install": "cd ha-claw && npm ci",
+  "terminals": [
+    {
+      "name": "dev-server",
+      "command": "cd ha-claw && OPENROUTER_API_KEY=\"${OPENROUTER_API_KEY:-sk-placeholder-add-a-real-openrouter-key}\" npm run dev"
+    }
+  ],
+  "ports": [3100]
+}
