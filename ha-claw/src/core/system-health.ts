@@ -22,9 +22,12 @@ import * as ha from './ha-client.js';
 import { checkBackup, isBackupStatusEntity } from './backup-health.js';
 import {
   findBrokenReferences,
+  findDisabledEntities,
   findFailedAutomations,
   findFailedIntegrations,
+  findStoppedAddons,
 } from './health-signals.js';
+import { HA_PATH, haFrontendBase, hrefForEntity } from './health-links.js';
 
 const log = createLogger('health');
 
@@ -44,6 +47,8 @@ export interface HealthItem {
   label: string;
   /** All unavailable/stale/low-battery entities that belong to this device. */
   entities: string[];
+  /** HA frontend path (opened with target=_top from Ingress). */
+  href?: string;
 }
 
 export interface HealthCheck {
@@ -58,10 +63,24 @@ export interface HealthCheck {
     | 'pending_updates'
     | 'failed_integrations'
     | 'radio_quiet'
+    | 'stopped_addons'
+    | 'recorder'
+    | 'restored'
+    | 'disabled_entities'
     | 'backup'
     | 'storage';
   /** Short German label for the UI. */
   label: string;
+  /** What this card measures — always shown, expandable. */
+  about?: string;
+  /** HA frontend path for the whole card (Backups, Updates, …). */
+  href?: string;
+  /** Last different reading, when the value actually moved. */
+  previous?: { severity: Severity; count: number; checkedAt: string };
+  /** True when severity rose or the count moved the wrong way. */
+  worse?: boolean;
+  /** Footnote, e.g. YAML automations the ref scan could not open. */
+  note?: string;
   severity: Severity;
   /**
    * Device checks: affected devices. Backup: days since last HA backup.
@@ -86,14 +105,21 @@ export interface SystemHealth {
   severity: Severity;
   /** Total number of entities in Home Assistant, for context. */
   totalEntities: number;
+  /** Empty in the add-on; HA origin in standalone so links resolve. */
+  haBase: string;
   checks: HealthCheck[];
 }
 
 interface SnapshotEntry {
   severity: Severity;
-  /** Count at the time the user was last notified about this check. */
-  notifiedCount: number;
-  notifiedAt: string;
+  count: number;
+  checkedAt: string;
+  priorSeverity?: Severity;
+  priorCount?: number;
+  priorCheckedAt?: string;
+  notifiedSeverity?: Severity;
+  notifiedCount?: number;
+  notifiedAt?: string;
 }
 
 type Snapshot = Record<string, SnapshotEntry>;
@@ -239,6 +265,7 @@ function groupByDevice(entityIds: string[], info: ha.EntityDeviceInfo[]): Health
       id,
       label: meta?.deviceName?.trim() || stem.replace(/_/g, ' '),
       entities: [entityId],
+      href: hrefForEntity(entityId, meta?.deviceId),
     });
   }
 
@@ -255,13 +282,21 @@ function mergeByStem(groups: HealthItem[]): HealthItem[] {
     const stem = entityDeviceStem(group.entities[0]!);
     const existing = byStem.get(stem);
     if (!existing) {
-      byStem.set(stem, { id: `stem:${stem}`, label: group.label, entities: [...group.entities] });
+      byStem.set(stem, {
+        id: `stem:${stem}`,
+        label: group.label,
+        entities: [...group.entities],
+        href: group.href,
+      });
       continue;
     }
     const named = /[A-ZÄÖÜ ]/.test(group.label);
     const alreadyNamed = /[A-ZÄÖÜ ]/.test(existing.label);
     if (named && !alreadyNamed) existing.label = group.label;
     existing.entities.push(...group.entities);
+    if (group.href?.includes('/devices/device/') && !existing.href?.includes('/devices/device/')) {
+      existing.href = group.href;
+    }
   }
   return [...byStem.values()];
 }
@@ -353,13 +388,56 @@ function checkBrokenRefs(items: HealthItem[]): HealthCheck {
 function checkFailedAutomations(items: HealthItem[]): HealthCheck {
   return buildCheck(
     'failed_automations',
-    'Automationen mit Fehler',
+    'Automationen und Skripte mit Fehler',
     items,
-    'Keine Automation mit einem Fehler im letzten Trace.',
-    'Letzten Trace unter Einstellungen → Automationen öffnen. Meist eine kaputte Bedingung oder eine Entity, die es nicht mehr gibt.',
+    'Kein Automation- oder Skript-Trace mit Fehler.',
+    'Letzten Trace öffnen. Meist eine kaputte Bedingung oder eine Entity, die es nicht mehr gibt.',
     1,
     5,
   );
+}
+
+function checkStoppedAddons(items: HealthItem[]): HealthCheck {
+  return buildCheck(
+    'stopped_addons',
+    'Add-ons laufen nicht',
+    items,
+    'Alle Add-ons mit Autostart laufen.',
+    'Add-on starten oder die Logs prüfen. Gestoppte Add-ons mit manuellem Boot werden nicht gezählt.',
+    1,
+    3,
+  );
+}
+
+function checkRestored(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  return buildCheck(
+    'restored',
+    'Nur wiederhergestellt',
+    groupByDevice(entityIds, info),
+    'Keine Entities, die nur aus einem Restore stammen und seit dem Start nicht gesehen wurden.',
+    'Nach einem Restore oder einem neuen Datenträger: Integration neu laden oder die Entity entfernen, wenn das Gerät nicht mehr existiert.',
+    1,
+    15,
+  );
+}
+
+const DISABLED_LIST_CAP = 40;
+
+function checkDisabled(items: HealthItem[]): HealthCheck {
+  const check = buildCheck(
+    'disabled_entities',
+    'Deaktivierte Entities',
+    items,
+    'Keine deaktivierten Entities in der Registry.',
+    'Einstellungen → Geräte & Dienste → Entities. Altlasten löschen oder wieder aktivieren.',
+    15,
+    60,
+  );
+  if (items.length > DISABLED_LIST_CAP) {
+    check.items = items.slice(0, DISABLED_LIST_CAP);
+    check.note = `Erste ${DISABLED_LIST_CAP} von ${items.length} angezeigt.`;
+  }
+  return check;
 }
 
 function checkPendingUpdates(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
@@ -558,6 +636,144 @@ function checkStorage(disk: ha.HostDiskInfo): HealthCheck {
   };
 }
 
+const RECORDER_BACKLOG_WARN = 1_000;
+const RECORDER_BACKLOG_CRITICAL = 10_000;
+
+function checkRecorder(info: ha.RecorderInfo): HealthCheck {
+  const dead = info.recording === false || info.threadRunning === false;
+  const backlog = info.backlog ?? 0;
+  let severity: Severity = 'ok';
+  if (dead) severity = 'critical';
+  else if (info.migration) severity = 'warn';
+  else if (backlog >= RECORDER_BACKLOG_CRITICAL) severity = 'critical';
+  else if (backlog >= RECORDER_BACKLOG_WARN) severity = 'warn';
+
+  const parts: string[] = [];
+  if (dead) parts.push('Der Recorder schreibt gerade nicht.');
+  else parts.push('Der Recorder läuft.');
+  if (info.migration) parts.push('Eine Migration ist offen.');
+  if (info.backlog != null) parts.push(`Rückstau: ${info.backlog}.`);
+
+  return {
+    key: 'recorder',
+    label: 'Recorder / Historie',
+    severity,
+    count: dead ? 1 : backlog,
+    short: dead ? 'aus' : info.backlog != null ? String(info.backlog) : 'ok',
+    detail: parts.join(' '),
+    entities: [],
+    items: [],
+    hint: dead
+      ? 'Einstellungen → System → Protokolle und die Recorder-Integration prüfen. Oft eine volle oder gesperrte Datenbank.'
+      : 'Historie unter Entwicklerwerkzeuge → Statistik. Rückstau baut sich nach einem Neustart oft von selbst ab.',
+  };
+}
+
+const CHECK_META: Record<HealthCheck['key'], { about: string; href?: string }> = {
+  unavailable: {
+    about:
+      'Geräte, die seit weniger als 30 Tagen auf unavailable stehen. Ein physisches Gerät zählt einmal, auch mit vielen Entities.',
+    href: HA_PATH.entities,
+  },
+  orphans: {
+    about:
+      'Geräte, die seit 30 Tagen oder länger unavailable sind. Meist Hardware, die es nicht mehr gibt.',
+    href: HA_PATH.entities,
+  },
+  stale_sensors: {
+    about:
+      'Nur Periodicsensoren (Temperatur, Luftfeuchte, Luftdruck, Luftqualität), die sich 48 Stunden nicht gemeldet haben. Ein geschlossenes Fenster ist kein Defekt.',
+    href: HA_PATH.entities,
+  },
+  low_battery: {
+    about: 'Geräte, deren Batterie unter 20 % gemeldet wird.',
+    href: HA_PATH.entities,
+  },
+  broken_refs: {
+    about:
+      'Automationen, Skripte und Szenen, die eine Entity oder ein Gerät nennen, das Home Assistant nicht mehr kennt. Klassiker nach dem Umbenennen.',
+    href: '/config/automation/dashboard',
+  },
+  failed_automations: {
+    about:
+      'Automationen und Skripte, deren letzter Trace einen Fehler hat, oder die selbst unavailable sind.',
+    href: '/config/automation/dashboard',
+  },
+  pending_updates: {
+    about: 'update.*-Entities mit verfügbarem Update. Core, OS und Supervisor zählen kritisch.',
+    href: HA_PATH.updates,
+  },
+  failed_integrations: {
+    about:
+      'Config Entries im Setup-Fehler oder Retry. Overlap mit Home Assistant Repairs — hier die Summe.',
+    href: '/config/integrations',
+  },
+  radio_quiet: {
+    about:
+      'Zigbee last_seen älter als 48 Stunden oder Linkqualität 20 oder weniger. Schon unavailable zählt hier nicht nochmal.',
+    href: HA_PATH.entities,
+  },
+  stopped_addons: {
+    about:
+      'Add-ons mit Autostart, die nicht laufen, oder im Fehlerzustand. Manuell gestoppte zählen nicht.',
+    href: HA_PATH.addons,
+  },
+  recorder: {
+    about:
+      'Ob der Recorder Historie schreibt und wie groß der Rückstau ist. Unabhängig vom freien Speicherplatz.',
+    href: HA_PATH.recorder,
+  },
+  restored: {
+    about:
+      'Entities mit restored=true — nach einem Restore gesehen, seit diesem Start aber nie wieder. Weder unavailable noch 30-Tage-Waise.',
+    href: HA_PATH.entities,
+  },
+  disabled_entities: {
+    about:
+      'Alle in der Registry deaktivierten Entities. Ein wachsender Haufen, kein einzelner Defekt.',
+    href: HA_PATH.entities,
+  },
+  backup: {
+    about:
+      'Alter des neuesten Backups, das Home Assistant enthält. Eine Offsite-Kopie reicht; nur lokal bleibt gelb.',
+    href: HA_PATH.backup,
+  },
+  storage: {
+    about:
+      'Freier Platz auf der HA-Datenpartition. SD/eMMC in Gigabyte, SSD in Prozent. Optional die gemeldete Laufwerk-Lebensdauer.',
+    href: HA_PATH.storage,
+  },
+};
+
+function isCountInverted(key: HealthCheck['key']): boolean {
+  return key === 'storage';
+}
+
+function checkGotWorse(check: HealthCheck, prev: { severity: Severity; count: number }): boolean {
+  if (SEVERITY_ORDER[check.severity] > SEVERITY_ORDER[prev.severity]) return true;
+  if (check.severity === 'ok') return false;
+  if (isCountInverted(check.key)) return check.count < prev.count;
+  return check.count > prev.count;
+}
+
+function sortChecks(checks: HealthCheck[]): HealthCheck[] {
+  return [...checks].sort((a, b) => {
+    const sd = SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity];
+    return sd !== 0 ? sd : a.label.localeCompare(b.label, 'de');
+  });
+}
+
+function decorateChecks(checks: HealthCheck[]): HealthCheck[] {
+  return checks.map(c => {
+    const meta = CHECK_META[c.key];
+    return {
+      ...c,
+      about: c.about ?? meta.about,
+      href: c.href ?? meta.href,
+    };
+  });
+}
+
 // ── Public API ────────────────────────────────────────────
 
 /** Run all health checks against the current Home Assistant state. */
@@ -575,8 +791,17 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     })
     .map(s => s.entity_id);
   const orphanSet = new Set(orphanIds);
+  const restoredIds = states
+    .filter(
+      s =>
+        s.attributes['restored'] === true &&
+        !isBackupStatusEntity(s.entity_id, s.attributes) &&
+        !orphanSet.has(s.entity_id),
+    )
+    .map(s => s.entity_id);
+  const restoredSet = new Set(restoredIds);
   const unavailable = unavailableStates
-    .filter(s => !orphanSet.has(s.entity_id))
+    .filter(s => !orphanSet.has(s.entity_id) && !restoredSet.has(s.entity_id))
     .map(s => s.entity_id);
 
   const stale = states
@@ -625,19 +850,30 @@ export async function getSystemHealth(): Promise<SystemHealth> {
       ...lowBattery,
       ...radioQuiet,
       ...pendingUpdateIds,
+      ...restoredIds,
     ]),
   ];
-  const [deviceInfo, backup, disk, snapshot] = await Promise.all([
+  const addonsPromise: Promise<ha.SupervisorAddon[] | null> = appConfig.isAddon
+    ? ha.getSupervisorAddons().catch(err => {
+        log.debug('Supervisor add-on list unavailable', { error: String(err) });
+        return null;
+      })
+    : Promise.resolve(null);
+
+  const [deviceInfo, backup, disk, snapshot, addons, recorder] = await Promise.all([
     involved.length > 0 ? ha.getEntityDeviceInfo(involved) : Promise.resolve([]),
     checkBackup(now, states),
     readDiskInfo(),
     ha.getRegistrySnapshot(),
+    addonsPromise,
+    ha.getRecorderInfo(),
   ]);
 
-  const [brokenRefs, failedAutos, failedIntegrations] = await Promise.all([
+  const [brokenRefs, failedAutos, failedIntegrations, disabled] = await Promise.all([
     findBrokenReferences(states, snapshot),
     Promise.resolve(findFailedAutomations(states, snapshot)),
     Promise.resolve(findFailedIntegrations(snapshot)),
+    Promise.resolve(findDisabledEntities(snapshot)),
   ]);
 
   const updates = checkPendingUpdates(pendingUpdateIds, deviceInfo);
@@ -648,31 +884,48 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     }
   }
 
+  const refs = checkBrokenRefs(brokenRefs.items);
+  if (brokenRefs.yamlOnly > 0 || brokenRefs.uiScanned > 0) {
+    refs.note = `${brokenRefs.uiScanned} UI-Automationen/Skripte vollständig, ${brokenRefs.yamlOnly} nur YAML (kein voller Scan).`;
+    if (refs.severity === 'ok' && brokenRefs.yamlOnly > 0) {
+      refs.detail = `Keine kaputten Referenzen in den UI-Einträgen. ${refs.note}`;
+    }
+  }
+
   const checks: HealthCheck[] = [
     checkUnavailable(unavailable, deviceInfo),
     checkOrphans(orphanIds, deviceInfo),
     checkStaleSensors(stale, deviceInfo),
     checkLowBattery(lowBattery, deviceInfo),
-    checkBrokenRefs(brokenRefs),
+    refs,
     checkFailedAutomations(failedAutos),
     updates,
     checkFailedIntegrations(failedIntegrations),
     checkRadioQuiet(radioQuiet, deviceInfo),
+    ...(addons ? [checkStoppedAddons(findStoppedAddons(addons))] : []),
+    checkRestored(restoredIds, deviceInfo),
+    checkDisabled(disabled),
     backup,
   ];
+  if (recorder.recording != null || recorder.threadRunning != null || recorder.backlog != null) {
+    checks.push(checkRecorder(recorder));
+  }
   if (disk) checks.push(checkStorage(disk));
 
-  const severity = checks.reduce<Severity>(
-    (worst, c) => (SEVERITY_ORDER[c.severity] > SEVERITY_ORDER[worst] ? c.severity : worst),
-    'ok',
-  );
-
-  return {
+  const decorated = decorateChecks(checks);
+  const health: SystemHealth = {
     checkedAt: now.toISOString(),
-    severity,
+    severity: decorated.reduce<Severity>(
+      (worst, c) => (SEVERITY_ORDER[c.severity] > SEVERITY_ORDER[worst] ? c.severity : worst),
+      'ok',
+    ),
     totalEntities: states.length,
-    checks,
+    haBase: haFrontendBase(),
+    checks: decorated,
   };
+  await rememberChecks(health);
+  health.checks = sortChecks(health.checks);
+  return health;
 }
 
 async function readSnapshot(): Promise<Snapshot> {
@@ -688,6 +941,74 @@ async function writeSnapshot(snapshot: Snapshot): Promise<void> {
   const tmp = `${SNAPSHOT_PATH}.tmp`;
   await writeFile(tmp, JSON.stringify(snapshot, null, 2), 'utf-8');
   await rename(tmp, SNAPSHOT_PATH);
+}
+
+function lastSeenOf(
+  prev?: SnapshotEntry,
+): { severity: Severity; count: number; checkedAt: string } | null {
+  if (!prev || typeof prev.count !== 'number' || !prev.checkedAt) return null;
+  return { severity: prev.severity, count: prev.count, checkedAt: prev.checkedAt };
+}
+
+/**
+ * Persist last-seen values so the UI can say "war 1" after a reload, and so
+ * the next change still has a prior to compare against. Notify fields stay
+ * untouched — findHealthRegressions owns those.
+ */
+async function rememberChecks(health: SystemHealth): Promise<void> {
+  const snapshot = await readSnapshot();
+  const next: Snapshot = { ...snapshot };
+
+  for (const check of health.checks) {
+    const prev = snapshot[check.key];
+    const last = lastSeenOf(prev);
+    const unchanged =
+      last != null && last.severity === check.severity && last.count === check.count;
+
+    if (
+      unchanged &&
+      prev?.priorSeverity != null &&
+      prev.priorCount != null &&
+      prev.priorCheckedAt
+    ) {
+      if (prev.priorSeverity !== check.severity || prev.priorCount !== check.count) {
+        check.previous = {
+          severity: prev.priorSeverity,
+          count: prev.priorCount,
+          checkedAt: prev.priorCheckedAt,
+        };
+        check.worse = checkGotWorse(check, {
+          severity: prev.priorSeverity,
+          count: prev.priorCount,
+        });
+      }
+    } else if (last && !unchanged) {
+      check.previous = {
+        severity: last.severity,
+        count: last.count,
+        checkedAt: last.checkedAt,
+      };
+      check.worse = checkGotWorse(check, last);
+    }
+
+    const migrating = Boolean(
+      prev?.notifiedAt && prev.notifiedSeverity == null && typeof prev.count !== 'number',
+    );
+
+    next[check.key] = {
+      severity: check.severity,
+      count: check.count,
+      checkedAt: health.checkedAt,
+      priorSeverity: unchanged ? prev?.priorSeverity : last?.severity,
+      priorCount: unchanged ? prev?.priorCount : last?.count,
+      priorCheckedAt: unchanged ? prev?.priorCheckedAt : last?.checkedAt,
+      notifiedSeverity: prev?.notifiedSeverity ?? (migrating ? prev?.severity : undefined),
+      notifiedCount: prev?.notifiedCount,
+      notifiedAt: prev?.notifiedAt,
+    };
+  }
+
+  await writeSnapshot(next);
 }
 
 /**
@@ -708,29 +1029,43 @@ export async function findHealthRegressions(health: SystemHealth): Promise<Healt
     const previous = snapshot[check.key];
 
     if (check.severity === 'ok') {
-      // Nothing wrong – reset so the next occurrence is reported again.
-      delete next[check.key];
+      if (previous) {
+        next[check.key] = {
+          ...previous,
+          notifiedSeverity: undefined,
+          notifiedCount: undefined,
+          notifiedAt: undefined,
+        };
+      }
       continue;
     }
 
+    const notifiedSev = previous?.notifiedSeverity;
+    const notifiedCount = previous?.notifiedCount;
+    const neverNotified = !previous?.notifiedAt;
     const worsenedSeverity =
-      !previous || SEVERITY_ORDER[check.severity] > SEVERITY_ORDER[previous.severity];
-    // Free disk space shrinks as the problem grows – doubling the count
-    // would never fire. Severity (ok → warn → critical) is the signal.
+      neverNotified ||
+      (notifiedSev != null && SEVERITY_ORDER[check.severity] > SEVERITY_ORDER[notifiedSev]);
+    // Free disk / recorder backlog shrink as the problem grows — doubling
+    // the count would never fire. Severity is the signal.
+    const skipDouble = check.key === 'storage' || check.key === 'recorder';
     const doubled =
-      check.key !== 'storage' && previous ? check.count >= previous.notifiedCount * 2 : false;
+      !skipDouble && notifiedCount != null && notifiedCount > 0
+        ? check.count >= notifiedCount * 2
+        : false;
 
     if (worsenedSeverity || doubled) {
       regressions.push(check);
       next[check.key] = {
-        severity: check.severity,
+        ...(previous ?? {
+          severity: check.severity,
+          count: check.count,
+          checkedAt: health.checkedAt,
+        }),
+        notifiedSeverity: check.severity,
         notifiedCount: check.count,
         notifiedAt: health.checkedAt,
       };
-    } else if (previous) {
-      // Track the current severity but keep the count we last notified about,
-      // so "doubled" stays anchored to the last message the user actually saw.
-      next[check.key] = { ...previous, severity: check.severity };
     }
   }
 

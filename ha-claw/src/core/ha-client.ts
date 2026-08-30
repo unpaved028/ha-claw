@@ -780,6 +780,8 @@ export interface EntityRegistryEntry {
   entity_id: string;
   device_id: string | null;
   disabled_by: string | null;
+  name?: string | null;
+  original_name?: string | null;
 }
 
 export interface DeviceRegistryEntry {
@@ -807,6 +809,7 @@ export interface HaRegistrySnapshot {
   devices: DeviceRegistryEntry[];
   entries: ConfigEntryInfo[];
   automationTraces: TraceSummary[];
+  scriptTraces: TraceSummary[];
 }
 
 /**
@@ -819,6 +822,7 @@ export async function getRegistrySnapshot(): Promise<HaRegistrySnapshot> {
     devices: [],
     entries: [],
     automationTraces: [],
+    scriptTraces: [],
   };
   try {
     const results = await haWebsocketBatch([
@@ -826,18 +830,22 @@ export async function getRegistrySnapshot(): Promise<HaRegistrySnapshot> {
       { type: 'config/device_registry/list' },
       { type: 'config_entries/get' },
       { type: 'trace/list', domain: 'automation' },
+      { type: 'trace/list', domain: 'script' },
     ]);
-    const [entities, devices, entries, traces] = results;
+    const [entities, devices, entries, traces, scriptTraces] = results;
     if (entities && !entities.ok)
       log.debug('entity_registry/list failed', { error: entities.error });
     if (devices && !devices.ok) log.debug('device_registry/list failed', { error: devices.error });
     if (entries && !entries.ok) log.debug('config_entries/get failed', { error: entries.error });
     if (traces && !traces.ok) log.debug('trace/list failed', { error: traces.error });
+    if (scriptTraces && !scriptTraces.ok)
+      log.debug('script trace/list failed', { error: scriptTraces.error });
     return {
       entities: asArray<EntityRegistryEntry>(entities),
       devices: asArray<DeviceRegistryEntry>(devices),
       entries: asArray<ConfigEntryInfo>(entries),
       automationTraces: asArray<TraceSummary>(traces),
+      scriptTraces: asArray<TraceSummary>(scriptTraces),
     };
   } catch (err) {
     log.warn('Registry snapshot unavailable', { error: String(err) });
@@ -861,6 +869,43 @@ function asArray<T>(outcome: WsOutcome<unknown> | undefined): T[] {
  * UI automation/script config, or null when it lives in YAML or is missing.
  * Health checks must not log a warning per YAML automation.
  */
+export interface SupervisorAddon {
+  slug: string;
+  name: string;
+  state: string;
+  boot?: string;
+}
+
+/** Installed add-ons and their run state. Add-on only. */
+export async function getSupervisorAddons(): Promise<SupervisorAddon[]> {
+  const raw = await supervisorFetch<{ addons?: SupervisorAddon[] }>('/addons');
+  return Array.isArray(raw.addons) ? raw.addons : [];
+}
+
+export interface RecorderInfo {
+  recording: boolean | null;
+  threadRunning: boolean | null;
+  backlog: number | null;
+  migration: boolean;
+}
+
+/** Recorder thread / backlog. Missing command → all-null, caller skips the card. */
+export async function getRecorderInfo(): Promise<RecorderInfo> {
+  try {
+    const raw = await haWebsocketCommand<Record<string, unknown>>('recorder/info');
+    const backlog = Number(raw['backlog']);
+    return {
+      recording: typeof raw['recording'] === 'boolean' ? raw['recording'] : null,
+      threadRunning: typeof raw['thread_running'] === 'boolean' ? raw['thread_running'] : null,
+      backlog: Number.isFinite(backlog) ? backlog : null,
+      migration: raw['migration_in_progress'] === true || raw['migration_in_queue'] === true,
+    };
+  } catch (err) {
+    log.debug('recorder/info unavailable', { error: String(err) });
+    return { recording: null, threadRunning: null, backlog: null, migration: false };
+  }
+}
+
 export async function getUiConfig(
   kind: 'automation' | 'script',
   id: string,

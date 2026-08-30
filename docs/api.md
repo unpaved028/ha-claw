@@ -39,7 +39,7 @@ Liveness probe. Also the endpoint a Supervisor `watchdog` would use.
 ```json
 {
   "status": "ok",
-  "version": "0.9.7",
+  "version": "0.10.0",
   "uptime": 87231,
   "startedAt": "2026-08-29T21:14:02.104Z",
   "mode": "addon",
@@ -242,25 +242,36 @@ spends no tokens.
   "checkedAt": "2026-08-29T21:40:00.000Z",
   "severity": "warn",
   "totalEntities": 812,
+  "haBase": "",
   "checks": [
     {
       "key": "low_battery",
       "label": "Batterie unter 20 %",
+      "about": "Geräte, deren Batterie unter 20 % gemeldet wird.",
+      "href": "/config/entities",
       "severity": "warn",
       "count": 3,
       "detail": "...",
       "entities": ["sensor.…"],
-      "items": [],
-      "hint": "..."
+      "items": [{ "id": "dev:…", "label": "Fenster EG", "entities": ["sensor.…"], "href": "/config/devices/device/…" }],
+      "hint": "...",
+      "previous": { "severity": "ok", "count": 0, "checkedAt": "2026-08-28T21:40:00.000Z" },
+      "worse": true,
+      "note": "12 UI-Automationen/Skripte vollständig, 3 nur YAML (kein voller Scan)."
     }
   ]
 }
 ```
 
 `severity` is `ok`, `warn` or `critical`, and the top-level value is the worst of the
-individual checks. `count` counts **devices**, not entities — a Zigbee window sensor that
-exposes battery, voltage, firmware and an identify button is one row, not four. Check
-`key` values are listed in [architecture.md § System health](architecture.md#proactive-analysis-vs-system-health).
+individual checks. Cards are sorted critical → warn → ok. `count` counts **devices**, not
+entities — a Zigbee window sensor that exposes battery, voltage, firmware and an identify
+button is one row, not four. `haBase` is empty in the add-on (relative paths, open with
+`target="_top"`) and the Home Assistant origin in standalone. `about` is always present.
+`href` on a check or item is a Home Assistant frontend path. `previous` / `worse` appear
+when the last different reading is known. `note` is a footnote (YAML coverage on
+`broken_refs`, list caps on `disabled_entities`). Check `key` values are listed in
+[architecture.md § System health](architecture.md#proactive-analysis-vs-system-health).
 
 Returns `503` when Home Assistant is unreachable. Checks are computed on demand, never
 cached, and never written to the backlog. Thresholds are documented in

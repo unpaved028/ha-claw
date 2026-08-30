@@ -217,22 +217,33 @@ Changes take effect on your next message. No restart.
 **Status → System Health** shows standing checks with their current state and what to do about
 them.
 
-| Check                         | What it means                                                                  | Yellow                        | Red                                  |
-| ----------------------------- | ------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------ |
-| **Devices unreachable**       | Physical devices whose entities are `unavailable` for less than 30 days        | 3 or more                     | 15 or more                           |
-| **Unreachable for 30 days**   | Same, but last heard from 30 days ago or more — likely hardware that is gone   | any                           | 8 or more                            |
-| **Sensors silent for 48 h**   | Temperature, humidity, pressure or air-quality sensor that has not reported    | 5 or more                     | 25 or more                           |
-| **Battery below 20 %**        | Batteries due for replacement                                                  | any                           | 8 or more                            |
-| **Broken references**         | Automations, scripts or scenes that still name an entity that no longer exists | any                           | 8 or more                            |
-| **Automations with an error** | Latest trace recorded an error, or the automation itself is `unavailable`      | any                           | 5 or more                            |
-| **Updates waiting**           | `update.*` entities that report an available update                            | any                           | 8 or more, or Core / OS / Supervisor |
-| **Integrations not loading**  | Config entries stuck in setup error or retry. Overlaps Home Assistant Repairs  | any                           | 3 or more                            |
-| **Radio going quiet**         | Zigbee `last_seen` older than 48 h, or link quality at 20 or below             | 3 or more                     | 10 or more                           |
-| **Backup**                    | Days since the newest backup containing Home Assistant                         | 7 days, or local-only storage | 14 days, or no backup at all         |
-| **Disk space**                | Free space on the Home Assistant data partition                                | See below                     | See below                            |
+| Check                                     | What it means                                                                      | Yellow                          | Red                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------ |
+| **Devices unreachable**                   | Physical devices whose entities are `unavailable` for less than 30 days            | 3 or more                       | 15 or more                           |
+| **Unreachable for 30 days**               | Same, but last heard from 30 days ago or more — likely hardware that is gone       | any                             | 8 or more                            |
+| **Sensors silent for 48 h**               | Temperature, humidity, pressure or air-quality sensor that has not reported        | 5 or more                       | 25 or more                           |
+| **Battery below 20 %**                    | Batteries due for replacement                                                      | any                             | 8 or more                            |
+| **Broken references**                     | Automations, scripts or scenes that still name an entity that no longer exists     | any                             | 8 or more                            |
+| **Automations and scripts with an error** | Latest trace recorded an error, or the automation/script itself is `unavailable`   | any                             | 5 or more                            |
+| **Updates waiting**                       | `update.*` entities that report an available update                                | any                             | 8 or more, or Core / OS / Supervisor |
+| **Integrations not loading**              | Config entries stuck in setup error or retry. Overlaps Home Assistant Repairs      | any                             | 3 or more                            |
+| **Radio going quiet**                     | Zigbee `last_seen` older than 48 h, or link quality at 20 or below                 | 3 or more                       | 10 or more                           |
+| **Add-ons not running**                   | Add-ons with autostart that are stopped, plus any add-on in an error state         | any                             | 3 or more                            |
+| **Recorder / history**                    | History is not being written, the recorder thread is down, or the backlog is large | backlog ≥ 1 000, or a migration | not recording, or backlog ≥ 10 000   |
+| **Restored only**                         | Entities seen only from a restore and not heard from since this boot               | any                             | 15 or more                           |
+| **Disabled entities**                     | Registry entries that are switched off                                             | 15 or more                      | 60 or more                           |
+| **Backup**                                | Days since the newest backup containing Home Assistant                             | 7 days, or local-only storage   | 14 days, or no backup at all         |
+| **Disk space**                            | Free space on the Home Assistant data partition                                    | See below                       | See below                            |
+
+Cards are sorted red, then yellow, then green. Each card has an expandable explanation —
+including the green ones — and a link into Home Assistant (device page, updates, backups,
+entity registry, automation or script editor, add-on, integration). If a value moved, the
+card says what it used to be.
 
 **Broken references.** UI automations and scripts are read in full. Automations that live
 only in YAML are checked for the `entity_id` attributes they expose, not the whole file.
+The card states how many were fully scanned and how many are YAML-only, so green never
+means "we did not look".
 
 Counts are **devices, not entities**. A Zigbee window sensor that also exposes battery,
 voltage, firmware and an identify button counts once, not twelve times. Expand a card to see
@@ -408,17 +419,17 @@ dashboard is authoritative.
 
 Everything lives in `/data/store/` and is included in Home Assistant backups automatically.
 
-| Folder               | Contents                                             |
-| -------------------- | ---------------------------------------------------- |
-| `conversations/`     | Chat history, shared between the Web UI and Telegram |
-| `memory/`            | Long-term memory cards                               |
-| `notes/`             | Notes                                                |
-| `backlog/`           | Tasks                                                |
-| `learning/`          | Corrections, rules, patterns, past errors            |
-| `scheduler.json`     | Reminders and recurring jobs                         |
-| `actions.jsonl`      | Action log with rollback data, kept for 7 days       |
-| `profile.json`       | Names, conversational style, model choices           |
-| `system-health.json` | Which state was last reported, for change detection  |
+| Folder               | Contents                                                                      |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `conversations/`     | Chat history, shared between the Web UI and Telegram                          |
+| `memory/`            | Long-term memory cards                                                        |
+| `notes/`             | Notes                                                                         |
+| `backlog/`           | Tasks                                                                         |
+| `learning/`          | Corrections, rules, patterns, past errors                                     |
+| `scheduler.json`     | Reminders and recurring jobs                                                  |
+| `actions.jsonl`      | Action log with rollback data, kept for 7 days                                |
+| `profile.json`       | Names, conversational style, model choices                                    |
+| `system-health.json` | Last-seen values (so the screen can say what changed) and last notified state |
 
 Restoring a Home Assistant backup restores all of it. To start over, uninstall the add-on
 (which clears `/data`) and reinstall.

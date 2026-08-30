@@ -1116,30 +1116,57 @@ function healthItemsSummary(key, n) {
   const one = {
     backup: ' letztes Backup',
     broken_refs: ' Eintrag anzeigen',
-    failed_automations: ' Automation anzeigen',
+    failed_automations: ' Automation oder Skript anzeigen',
     failed_integrations: ' Integration anzeigen',
     pending_updates: ' Update anzeigen',
+    stopped_addons: ' Add-on anzeigen',
+    disabled_entities: ' Entity anzeigen',
+    recorder: ' Hinweis anzeigen',
   };
   const many = {
     backup: ' letzte Backups',
-    broken_refs: ' Eintraege anzeigen',
-    failed_automations: ' Automationen anzeigen',
+    broken_refs: ' Einträge anzeigen',
+    failed_automations: ' Automationen und Skripte anzeigen',
     failed_integrations: ' Integrationen anzeigen',
     pending_updates: ' Updates anzeigen',
+    stopped_addons: ' Add-ons anzeigen',
+    disabled_entities: ' Entities anzeigen',
+    recorder: ' Hinweise anzeigen',
   };
   if (one[key]) return n === 1 ? one[key] : many[key];
   return n === 1 ? ' Gerät anzeigen' : ' Geräte anzeigen';
 }
 
-function renderHealthItem(item) {
+function healthHref(base, path) {
+  if (typeof path !== 'string' || path.charAt(0) !== '/') return '';
+  const origin = typeof base === 'string' ? base.replace(/\/$/, '') : '';
+  return origin + path;
+}
+
+function healthLink(href, label, extraClass) {
+  if (!href) return esc(label);
+  return (
+    '<a class="health-ha-link' +
+    (extraClass ? ' ' + extraClass : '') +
+    '" href="' +
+    esc(href) +
+    '" target="_top" rel="noopener">' +
+    esc(label) +
+    '</a>'
+  );
+}
+
+function renderHealthItem(item, haBase) {
   const entities = item.entities || [];
   const label = item.label || entities[0] || '';
+  const href = healthHref(haBase, item.href);
+  const title = healthLink(href, label);
   if (entities.length <= 1) {
-    return '<div class="health-device">' + esc(label) + '</div>';
+    return '<div class="health-device">' + title + '</div>';
   }
   return (
     '<details class="health-device"><summary>' +
-    esc(label) +
+    title +
     ' <span class="health-device-count">' +
     entities.length +
     ' Entities</span></summary><div class="health-device-entities">' +
@@ -1148,9 +1175,38 @@ function renderHealthItem(item) {
   );
 }
 
+function formatHealthWhen(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function renderHealthTrend(check) {
+  const prev = check.previous;
+  if (!prev) return '';
+  const when = formatHealthWhen(prev.checkedAt);
+  const sevLabel = { ok: 'ok', warn: 'gelb', critical: 'rot' }[prev.severity] || prev.severity;
+  const countLabel =
+    check.key === 'backup' ? prev.count + 'd' : check.key === 'storage' ? prev.count + ' GB' : String(prev.count);
+  return (
+    '<div class="health-trend' +
+    (check.worse ? ' worse' : '') +
+    '">' +
+    (check.worse ? 'Schlechter als zuvor' : 'Zuletzt anders') +
+    ': ' +
+    esc(sevLabel) +
+    ' / ' +
+    esc(countLabel) +
+    (when ? ' (' + esc(when) + ')' : '') +
+    '</div>'
+  );
+}
+
 function renderHealth(health) {
   const list = document.getElementById('health-list');
   if (!list) return;
+  const haBase = typeof health.haBase === 'string' ? health.haBase : '';
 
   const checkedAt = new Date(health.checkedAt).toLocaleTimeString('de-DE');
   const cards = health.checks
@@ -1166,9 +1222,23 @@ function renderHealth(health) {
             items.length +
             summary +
             '</summary><div class="health-entity-list">' +
-            items.map(renderHealthItem).join('') +
+            items.map(item => renderHealthItem(item, haBase)).join('') +
             '</div></details>'
           : '';
+      const cardHref = healthHref(haBase, c.href);
+      const openHa = cardHref
+        ? healthLink(cardHref, 'In Home Assistant öffnen', 'health-card-open')
+        : '';
+      const aboutBits = [c.about, c.hint, c.note].filter(Boolean);
+      const about =
+        aboutBits.length > 0
+          ? '<details class="health-about"><summary>Was bedeutet das?</summary><div class="health-about-body">' +
+            aboutBits.map(bit => '<p>' + esc(bit) + '</p>').join('') +
+            (openHa ? '<p>' + openHa + '</p>' : '') +
+            '</div></details>'
+          : openHa
+            ? '<div class="health-open">' + openHa + '</div>'
+            : '';
       return (
         '<div class="health-card ' +
         c.severity +
@@ -1185,7 +1255,9 @@ function renderHealth(health) {
         '</span></div><div class="health-detail">' +
         esc(c.detail) +
         '</div>' +
+        renderHealthTrend(c) +
         (c.severity === 'ok' ? '' : '<div class="health-hint">' + esc(c.hint) + '</div>') +
+        about +
         nested +
         '</div>'
       );
@@ -1194,7 +1266,7 @@ function renderHealth(health) {
 
   list.innerHTML =
     cards +
-    '<div class="health-meta">Geprueft um ' +
+    '<div class="health-meta">Geprüft um ' +
     checkedAt +
     ' &middot; ' +
     health.totalEntities +

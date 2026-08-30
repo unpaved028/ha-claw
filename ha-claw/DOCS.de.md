@@ -226,23 +226,33 @@ es gefunden hat, wann es fertig ist. Es gibt einen Mikrofon-Knopf für Sprachein
 **Status → System Health** zeigt Dauerprüfungen mit ihrem aktuellen Stand und einem Hinweis,
 was zu tun ist.
 
-| Prüfung                             | Was sie bedeutet                                                                  | Gelb                       | Rot                               |
-| ----------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | --------------------------------- |
-| **Geräte nicht erreichbar**         | Physische Geräte, deren Entities seit weniger als 30 Tagen `unavailable` sind     | ab 3                       | ab 15                             |
-| **Seit 30 Tagen nicht erreichbar**  | Dasselbe, aber die letzte Meldung ist 30 Tage her — vermutlich entsorgt           | ab 1                       | ab 8                              |
-| **Sensoren seit 48 h ohne Meldung** | Temperatur, Luftfeuchte, Luftdruck oder Luftqualität ohne neue Werte              | ab 5                       | ab 25                             |
-| **Batterie unter 20 %**             | Batterien, die gewechselt werden sollten                                          | ab 1                       | ab 8                              |
-| **Kaputte Referenzen**              | Automationen, Skripte oder Szenen, die eine Entity nennen, die es nicht mehr gibt | ab 1                       | ab 8                              |
-| **Automationen mit Fehler**         | Letzter Trace mit Fehler, oder die Automation selbst ist `unavailable`            | ab 1                       | ab 5                              |
-| **Updates liegen bereit**           | `update.*`-Entities mit verfügbarem Update                                        | ab 1                       | ab 8, oder Core / OS / Supervisor |
-| **Integrationen laden nicht**       | Config Entries im Setup-Fehler oder Retry. Overlap mit Home Assistant Repairs     | ab 1                       | ab 3                              |
-| **Funk wird leise**                 | Zigbee-`last_seen` älter als 48 h, oder Linkqualität 20 oder weniger              | ab 3                       | ab 10                             |
-| **Backup**                          | Tage seit dem letzten Backup, das Home Assistant enthält                          | ab 7 Tagen, oder nur lokal | ab 14 Tagen, oder gar kein Backup |
-| **Speicherplatz**                   | Freier Platz auf der HA-Datenpartition                                            | siehe unten                | siehe unten                       |
+| Prüfung                                 | Was sie bedeutet                                                                       | Gelb                             | Rot                                  |
+| --------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------ |
+| **Geräte nicht erreichbar**             | Physische Geräte, deren Entities seit weniger als 30 Tagen `unavailable` sind          | ab 3                             | ab 15                                |
+| **Seit 30 Tagen nicht erreichbar**      | Dasselbe, aber die letzte Meldung ist 30 Tage her — vermutlich entsorgt                | ab 1                             | ab 8                                 |
+| **Sensoren seit 48 h ohne Meldung**     | Temperatur, Luftfeuchte, Luftdruck oder Luftqualität ohne neue Werte                   | ab 5                             | ab 25                                |
+| **Batterie unter 20 %**                 | Batterien, die gewechselt werden sollten                                               | ab 1                             | ab 8                                 |
+| **Kaputte Referenzen**                  | Automationen, Skripte oder Szenen, die eine Entity nennen, die es nicht mehr gibt      | ab 1                             | ab 8                                 |
+| **Automationen und Skripte mit Fehler** | Letzter Trace mit Fehler, oder die Automation/das Skript selbst ist `unavailable`      | ab 1                             | ab 5                                 |
+| **Updates liegen bereit**               | `update.*`-Entities mit verfügbarem Update                                             | ab 1                             | ab 8, oder Core / OS / Supervisor    |
+| **Integrationen laden nicht**           | Config Entries im Setup-Fehler oder Retry. Overlap mit Home Assistant Repairs          | ab 1                             | ab 3                                 |
+| **Funk wird leise**                     | Zigbee-`last_seen` älter als 48 h, oder Linkqualität 20 oder weniger                   | ab 3                             | ab 10                                |
+| **Add-ons laufen nicht**                | Add-ons mit Autostart, die gestoppt sind, plus jedes Add-on im Fehlerzustand           | ab 1                             | ab 3                                 |
+| **Recorder / Historie**                 | Historie wird nicht geschrieben, der Recorder-Thread steht, oder der Rückstau ist groß | Rückstau ≥ 1 000, oder Migration | Recorder aus, oder Rückstau ≥ 10 000 |
+| **Nur wiederhergestellt**               | Entities, die nur aus einem Restore stammen und seit diesem Start nicht gesehen wurden | ab 1                             | ab 15                                |
+| **Deaktivierte Entities**               | Registry-Einträge, die abgeschaltet sind                                               | ab 15                            | ab 60                                |
+| **Backup**                              | Tage seit dem letzten Backup, das Home Assistant enthält                               | ab 7 Tagen, oder nur lokal       | ab 14 Tagen, oder gar kein Backup    |
+| **Speicherplatz**                       | Freier Platz auf der HA-Datenpartition                                                 | siehe unten                      | siehe unten                          |
+
+Karten sind nach Schwere sortiert: rot, dann gelb, dann grün. Jede Karte erklärt sich —
+auch die grünen — und verlinkt in Home Assistant (Geräteseite, Updates, Backups,
+Entity-Registry, Automations- oder Skript-Editor, Add-on, Integration). Wenn ein Wert sich
+bewegt hat, steht der vorherige dabei.
 
 **Kaputte Referenzen.** UI-Automationen und -Skripte werden vollständig gelesen. Automationen,
 die nur in YAML liegen, prüft HA-Claw nur auf die `entity_id`-Attribute, die sie nach aussen
-zeigen — nicht die ganze Datei.
+zeigen — nicht die ganze Datei. Die Karte sagt, wie viele vollständig gelesen wurden und wie
+viele nur YAML sind — Grün heisst also nicht „wir haben nicht hingesehen“.
 
 Gezählt werden **Geräte, nicht Entities**. Ein Zigbee-Fensterkontakt, der zusätzlich Batterie,
 Spannung, Firmware und einen Identifizieren-Button meldet, zählt einmal, nicht zwölfmal. Klapp
@@ -424,17 +434,17 @@ Massgeblich ist dein OpenRouter-Dashboard.
 
 Alles liegt in `/data/store/` und wird von Home-Assistant-Backups automatisch mitgesichert.
 
-| Ordner               | Inhalt                                                             |
-| -------------------- | ------------------------------------------------------------------ |
-| `conversations/`     | Chat-Verlauf, gemeinsam für Web-UI und Telegram                    |
-| `memory/`            | Langzeit-Gedächtniskarten                                          |
-| `notes/`             | Notizen                                                            |
-| `backlog/`           | Aufgaben                                                           |
-| `learning/`          | Korrekturen, Regeln, Muster, frühere Fehler                        |
-| `scheduler.json`     | Erinnerungen und wiederkehrende Jobs                               |
-| `actions.jsonl`      | Aktionsprotokoll mit Rückgängig-Daten, 7 Tage aufbewahrt           |
-| `profile.json`       | Namen, Gesprächsstil, Modellwahl                                   |
-| `system-health.json` | Welcher Zustand zuletzt gemeldet wurde, für die Änderungserkennung |
+| Ordner               | Inhalt                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `conversations/`     | Chat-Verlauf, gemeinsam für Web-UI und Telegram                                                   |
+| `memory/`            | Langzeit-Gedächtniskarten                                                                         |
+| `notes/`             | Notizen                                                                                           |
+| `backlog/`           | Aufgaben                                                                                          |
+| `learning/`          | Korrekturen, Regeln, Muster, frühere Fehler                                                       |
+| `scheduler.json`     | Erinnerungen und wiederkehrende Jobs                                                              |
+| `actions.jsonl`      | Aktionsprotokoll mit Rückgängig-Daten, 7 Tage aufbewahrt                                          |
+| `profile.json`       | Namen, Gesprächsstil, Modellwahl                                                                  |
+| `system-health.json` | Zuletzt gesehene Werte (die Oberfläche zeigt, was sich bewegt hat) und zuletzt gemeldeter Zustand |
 
 Ein wiederhergestelltes Home-Assistant-Backup stellt das alles mit wieder her. Für einen
 Neuanfang das Add-on deinstallieren (das leert `/data`) und neu installieren.

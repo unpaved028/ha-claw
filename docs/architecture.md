@@ -99,6 +99,7 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── profile.ts       # Bot/user profile and personality
         │   ├── system-health.ts # Live standing-condition checks
         │   ├── health-signals.ts # Broken refs, traces, failed entries
+        │   ├── health-links.ts  # HA frontend paths for Ingress deep links
         │   ├── backup-health.ts # Backup age and offsite detection
         │   └── types.ts
         ├── storage/
@@ -287,23 +288,33 @@ permanently unreachable — so they are computed on demand and never written to 
 
 | Check | Measures | Warn | Critical |
 | --- | --- | --- | --- |
-| `unavailable` | Devices with entities in `unavailable` for less than 30 days | ≥ 3 devices | ≥ 15 devices |
+| `unavailable` | Devices with entities in `unavailable` for less than 30 days. Restored-only entities are on `restored` instead. | ≥ 3 devices | ≥ 15 devices |
 | `orphans` | Devices whose entities have been `unavailable` for 30 days or more | ≥ 1 device | ≥ 8 devices |
 | `stale_sensors` | Periodic sensors (`temperature`, `humidity`, `atmospheric_pressure`, air-quality classes) with no `last_updated` in 48 h. Binary sensors and event-driven classes are ignored — a closed window is not a fault. Allowlist: `PERIODIC_SENSOR_CLASSES` in [`system-health.ts`](../ha-claw/src/core/system-health.ts). | ≥ 5 devices | ≥ 25 devices |
 | `low_battery` | Battery level below 20 % | ≥ 1 device | ≥ 8 devices |
-| `broken_refs` | Automations, scripts and scenes that name an `entity_id` or `device_id` Home Assistant no longer has. YAML-only automations are scanned for `entity_id` attributes only — the config API does not serve them. | ≥ 1 | ≥ 8 |
-| `failed_automations` | Automations whose latest trace recorded an error, or whose own state is `unavailable` | ≥ 1 | ≥ 5 |
+| `broken_refs` | Automations, scripts and scenes that name an `entity_id` or `device_id` Home Assistant no longer has. YAML-only automations are scanned for `entity_id` attributes only — the config API does not serve them. The card notes how many UI configs were opened versus YAML-only. | ≥ 1 | ≥ 8 |
+| `failed_automations` | Automations **and scripts** whose latest trace recorded an error, or whose own state is `unavailable` | ≥ 1 | ≥ 5 |
 | `pending_updates` | `update.*` entities in state `on` | ≥ 1 | ≥ 8, or any Core / OS / Supervisor update |
 | `failed_integrations` | Config entries in `setup_error`, `setup_retry`, `migration_error` or `failed_unload`. Overlaps Home Assistant Repairs; this card is the count. | ≥ 1 | ≥ 3 |
 | `radio_quiet` | `*_last_seen` older than 48 h, or `*_linkquality` / `*_lqi` ≤ 20. Skips entities already `unavailable`. | ≥ 3 devices | ≥ 10 devices |
+| `stopped_addons` | Add-ons with `boot: auto` that are not `started` / `startup`, plus any add-on in `error`. Skipped when the Supervisor list is unavailable (standalone). | ≥ 1 | ≥ 3 |
+| `recorder` | `recorder/info`: not recording, thread down, backlog, or a pending migration. Skipped when the command is missing. | backlog ≥ 1 000, or migration in progress | not recording / thread down, or backlog ≥ 10 000 |
+| `restored` | Entities with `attributes.restored === true` that are not already 30-day orphans. After a restore they can look fine and never appear as `unavailable`. | ≥ 1 device | ≥ 15 devices |
+| `disabled_entities` | Registry entries with `disabled_by` set. A standing pile, not a single fault. The payload lists the first 40. | ≥ 15 | ≥ 60 |
 | `backup` | Age of the newest backup containing Home Assistant | ≥ 7 days, or local-only storage | ≥ 14 days, or no backup at all |
 | `storage` | Free space on the HA data partition | Flash < 128 GB: under 5 GB free. SSD: under 10 % free. Drive lifetime ≥ 90 % | Flash: under 3 GB. SSD: under 5 %. Lifetime ≥ 95 % |
 
-`broken_refs`, `failed_automations` and `failed_integrations` share one websocket session
-(`getRegistrySnapshot` in [`ha-client.ts`](../ha-claw/src/core/ha-client.ts)): entity and
-device registries, config entries, and recent automation traces. UI automation/script
-configs are then fetched with a concurrency of 6. A command that the instance does not
-offer comes back empty — the card shows ok, not an error.
+The Status screen sorts cards critical → warn → ok. Each check carries an `about` text, an
+optional `previous` reading (last different count/severity) and `worse`, plus Home Assistant
+frontend paths (`href` on the card and on items). Ingress opens those with `target="_top"`.
+
+`broken_refs`, `failed_automations`, `failed_integrations`, `disabled_entities` and the
+script traces share one websocket session (`getRegistrySnapshot` in
+[`ha-client.ts`](../ha-claw/src/core/ha-client.ts)): entity and device registries, config
+entries, and recent automation **and script** traces. UI automation/script configs are then
+fetched with a concurrency of 6. A command that the instance does not offer comes back empty
+— the card shows ok, not an error. `stopped_addons` uses Supervisor `GET /addons`;
+`recorder` uses the `recorder/info` websocket command.
 
 Counts are **devices**, not entities. A Zigbee window sensor exposing battery, voltage,
 firmware and an identify button is one row, not twelve.
@@ -315,10 +326,12 @@ Cloud, Google Drive, OneDrive, Synology, WebDAV, NAS mounts), the Supervisor's o
 nagged about. Local-only storage stays a warning even when fresh, because an SD card does not
 survive the hardware it lives in.
 
-`findHealthRegressions()` compares against `store/system-health.json` and pushes to Telegram
-only when a check's severity escalated or its count at least doubled since the last message.
-A permanently broken installation therefore does not generate hourly notifications, while a
-genuine new outage still gets through. Recovery is recorded silently.
+`store/system-health.json` holds last-seen values (so the UI can show "was 1") and separate
+notify fields. `findHealthRegressions()` pushes to Telegram only when a check's severity
+escalated or its count at least doubled since the last message. `storage` and `recorder`
+skip the doubling rule — those counts shrink as the problem grows. A permanently broken
+installation therefore does not generate hourly notifications, while a genuine new outage
+still gets through. Recovery is recorded silently.
 
 ## Self-improvement
 

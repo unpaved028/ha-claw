@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **0.9.7**. Last reviewed: 2026-08-30.
+Current version: **0.10.0**. Last reviewed: 2026-08-31.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -81,10 +81,13 @@ contains no features at all.
 
 ## Now — 0.9.x
 
-The leftover correctness items (tool timeouts, backlog retry cap, cache invalidation,
-retryable LLM errors only, clamped `limit`, escaped area names, full action-log lookup,
-honest token-cost label) shipped in [v0.9.6](../ha-claw/CHANGELOG.md#096).
-Next scheduled work is [v1.0.0](#v100--trust-and-hardening).
+The leftover correctness items shipped in [v0.9.6](../ha-claw/CHANGELOG.md#096). Health
+cards shipped in [v0.9.7](../ha-claw/CHANGELOG.md#097). The rest of that screen — sort
+by severity, expandable explanations, last-seen trend, deep links into Home Assistant,
+stopped add-ons, recorder, restored-only entities, disabled-entity count, failed scripts,
+and a YAML coverage note on broken references — shipped in
+[v0.10.0](../ha-claw/CHANGELOG.md#0100). Next is
+[v1.0.0](#v100--trust-and-hardening).
 
 ## v1.0.0 — Trust and hardening
 

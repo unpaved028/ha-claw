@@ -9,6 +9,7 @@
 import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
 import type { HealthItem } from './system-health.js';
+import { HA_PATH, hrefForEntity } from './health-links.js';
 
 const log = createLogger('health-signals');
 
@@ -145,6 +146,12 @@ function knownDomains(states: HAState[]): Set<string> {
   return domains;
 }
 
+export interface BrokenRefResult {
+  items: HealthItem[];
+  uiScanned: number;
+  yamlOnly: number;
+}
+
 /**
  * Automations, scripts and scenes that still name an entity or device that
  * Home Assistant no longer has. YAML-only automations are scanned for
@@ -153,14 +160,19 @@ function knownDomains(states: HAState[]): Set<string> {
 export async function findBrokenReferences(
   states: HAState[],
   snapshot: ha.HaRegistrySnapshot,
-): Promise<HealthItem[]> {
+): Promise<BrokenRefResult> {
   const liveIds = new Set(states.map(s => s.entity_id));
   const registryIds = new Set(snapshot.entities.map(e => e.entity_id));
   const knownIds = new Set<string>([...liveIds, ...registryIds]);
   const knownDevices = new Set(snapshot.devices.map(d => d.id));
   const domains = knownDomains(states);
 
-  const owners: Array<{ entityId: string; label: string; config: Record<string, unknown> }> = [];
+  const owners: Array<{
+    entityId: string;
+    label: string;
+    config: Record<string, unknown>;
+    href: string;
+  }> = [];
 
   for (const s of states.filter(row => row.entity_id.startsWith('scene.'))) {
     const members = s.attributes['entity_id'];
@@ -168,6 +180,7 @@ export async function findBrokenReferences(
       entityId: s.entity_id,
       label: friendly(s),
       config: { entity_id: members },
+      href: HA_PATH.scene,
     });
   }
 
@@ -182,8 +195,9 @@ export async function findBrokenReferences(
 
   let yamlOnly = 0;
   for (const { s, config } of fetched) {
+    const href = hrefForEntity(s.entity_id, null, internalId(s));
     if (config && !config['error'] && !config['note']) {
-      owners.push({ entityId: s.entity_id, label: friendly(s), config });
+      owners.push({ entityId: s.entity_id, label: friendly(s), config, href });
     } else {
       yamlOnly += 1;
       const members = s.attributes['entity_id'];
@@ -192,6 +206,7 @@ export async function findBrokenReferences(
           entityId: s.entity_id,
           label: friendly(s),
           config: { entity_id: members },
+          href,
         });
       }
     }
@@ -219,22 +234,22 @@ export async function findBrokenReferences(
       id: owner.entityId,
       label: owner.label,
       entities: missing.sort(),
+      href: owner.href,
     });
   }
 
-  return items.sort((a, b) => a.label.localeCompare(b.label, 'de'));
+  return {
+    items: items.sort((a, b) => a.label.localeCompare(b.label, 'de')),
+    uiScanned: fetched.length - yamlOnly,
+    yamlOnly,
+  };
 }
 
-/**
- * Automations whose latest trace recorded an error, plus automations that
- * themselves are `unavailable` (config will not load).
- */
-export function findFailedAutomations(
-  states: HAState[],
-  snapshot: ha.HaRegistrySnapshot,
-): HealthItem[] {
-  const latest = new Map<string, { ts: string; error: string }>();
-  for (const trace of snapshot.automationTraces) {
+function ingestTraces(
+  latest: Map<string, { ts: string; error: string }>,
+  traces: ha.TraceSummary[],
+): void {
+  for (const trace of traces) {
     if (!trace.item_id || !trace.error) continue;
     const ts = trace.timestamp ?? '';
     const prev = latest.get(trace.item_id);
@@ -242,15 +257,31 @@ export function findFailedAutomations(
       latest.set(trace.item_id, { ts, error: String(trace.error).slice(0, 200) });
     }
   }
+}
+
+/**
+ * Automations and scripts whose latest trace recorded an error, plus those
+ * whose own state is `unavailable` (config will not load).
+ */
+export function findFailedAutomations(
+  states: HAState[],
+  snapshot: ha.HaRegistrySnapshot,
+): HealthItem[] {
+  const latest = new Map<string, { ts: string; error: string }>();
+  ingestTraces(latest, snapshot.automationTraces);
+  ingestTraces(latest, snapshot.scriptTraces);
 
   const items: HealthItem[] = [];
-  for (const s of states.filter(row => row.entity_id.startsWith('automation.'))) {
+  for (const s of states.filter(
+    row => row.entity_id.startsWith('automation.') || row.entity_id.startsWith('script.'),
+  )) {
     const id = internalId(s);
     const err = latest.get(id)?.error ?? latest.get(s.entity_id)?.error;
+    const href = hrefForEntity(s.entity_id, null, id);
     if (err) {
-      items.push({ id: s.entity_id, label: friendly(s), entities: [err] });
+      items.push({ id: s.entity_id, label: friendly(s), entities: [err], href });
     } else if (s.state === 'unavailable' || s.state === 'unknown') {
-      items.push({ id: s.entity_id, label: friendly(s), entities: [s.entity_id] });
+      items.push({ id: s.entity_id, label: friendly(s), entities: [s.entity_id], href });
     }
   }
 
@@ -264,6 +295,36 @@ export function findFailedIntegrations(snapshot: ha.HaRegistrySnapshot): HealthI
       id: e.entry_id,
       label: e.title || e.domain,
       entities: [`${e.domain} (${e.state})`],
+      href: HA_PATH.integration(e.domain),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+}
+
+export function findDisabledEntities(snapshot: ha.HaRegistrySnapshot): HealthItem[] {
+  return snapshot.entities
+    .filter(e => e.disabled_by)
+    .map(e => ({
+      id: e.entity_id,
+      label: (e.name || e.original_name || e.entity_id).trim(),
+      entities: [e.entity_id, e.disabled_by ? `disabled_by=${e.disabled_by}` : 'disabled'],
+      href: HA_PATH.entities,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+}
+
+export function findStoppedAddons(addons: ha.SupervisorAddon[]): HealthItem[] {
+  return addons
+    .filter(a => {
+      const state = (a.state || '').toLowerCase();
+      if (state === 'error') return true;
+      if (state === 'started' || state === 'startup') return false;
+      return (a.boot || 'auto') === 'auto';
+    })
+    .map(a => ({
+      id: a.slug,
+      label: a.name || a.slug,
+      entities: [a.state || 'stopped'],
+      href: HA_PATH.addon(a.slug),
     }))
     .sort((a, b) => a.label.localeCompare(b.label, 'de'));
 }

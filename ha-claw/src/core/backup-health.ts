@@ -13,6 +13,7 @@ import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
 import type { HealthCheck, HealthItem, Severity } from './system-health.js';
+import { HA_PATH } from './health-links.js';
 
 const log = createLogger('health');
 
@@ -531,6 +532,7 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
     id: b.slug,
     label: `${b.name} – ${formatUnifiedLabel(b)}`,
     entities: [],
+    href: HA_PATH.backup,
   }));
 
   if (items.length === 0 && drive && (drive.inDrive > 0 || drive.lastBackup || drive.lastUpload)) {
@@ -540,6 +542,7 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
       id: 'google-drive',
       label: `Google Drive – ${when ? formatBackupDate(when) : 'vorhanden'} · ${countLabel}${drive.sizeDrive ? ` · ${drive.sizeDrive}` : ''}`,
       entities: [],
+      href: HA_PATH.backup,
     });
   }
   if (items.length === 0 && samba && (samba.remote > 0 || samba.lastBackup)) {
@@ -548,6 +551,7 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
       id: 'samba',
       label: `Samba-Share – ${samba.lastBackup ? formatBackupDate(samba.lastBackup) : 'vorhanden'} · ${countLabel} remote`,
       entities: [],
+      href: HA_PATH.backup,
     });
   }
 

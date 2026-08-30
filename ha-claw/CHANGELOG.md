@@ -6,6 +6,30 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## 0.10.0
+
+The rest of the System Health screen: you can see what is worst, what it means, whether it
+got worse, and click through to the place in Home Assistant where you act.
+
+### Added
+
+- **Four more health cards.** Stopped or crashed add-ons with autostart, a recorder that is
+  not writing history, entities that exist only because of a restore, and the disabled-entity
+  graveyard.
+- **Failed scripts** on the failed-automation card. Script traces were already on the wire;
+  only `automation.*` was read.
+- **YAML coverage on broken references.** The card states how many UI automations/scripts
+  were fully opened and how many are YAML-only, so green cannot mean "we did not look".
+
+### Changed
+
+- **Cards sort by severity** (critical, then warn, then ok).
+- **Every card explains itself**, including the green ones, and links into Home Assistant
+  (device page, updates, backups, entity registry, automation/script editor, add-on,
+  integration). Ingress opens those with `target="_top"`.
+- **A card shows the last different reading** when the snapshot has one, and whether the
+  value got worse.
+
 ## 0.9.7
 
 System Health can now tell a renamed entity from a dead radio, and a device that vanished in

@@ -161,7 +161,7 @@ Everything is JSON or JSONL under `<dataPath>/store/`. In the add-on that is
 | `store/usage/` | Cumulative token counts and cost estimate | `storage/usage-tracker.ts` |
 | `store/actions.jsonl` | Append-only action log with rollback payloads, pruned after 7 days | `storage/action-log.ts` |
 | `store/disabled-tools.json` | Tools switched off in the Tool Vault | `tools/registry.ts` |
-| `store/system-health.json` | Last-reported severity per health check, for regression detection only | `core/system-health.ts` |
+| `store/system-health.json` | Last-seen count/severity per health check (UI trend) and last-notified values (Telegram regressions) | `core/system-health.ts` |
 
 ## Option translations
 

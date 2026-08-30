@@ -1860,6 +1860,42 @@ body {
   opacity: 0.85;
   font-style: italic;
 }
+.health-trend {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.health-trend.worse {
+  color: #fbbf24;
+}
+.health-about,
+.health-open {
+  margin-top: 0.5rem;
+}
+.health-about summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+.health-about-body {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.health-about-body p {
+  margin: 0 0 0.4rem;
+}
+.health-ha-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.health-ha-link:hover {
+  text-decoration: underline;
+}
+.health-card-open {
+  font-size: 0.72rem;
+}
 .health-entities {
   margin-top: 0.6rem;
 }
