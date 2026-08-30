@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest a capability or an improvement
+labels: ['enhancement', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read [docs/roadmap.md](https://github.com/unpaved028/ha-claw/blob/main/docs/roadmap.md)
+        first — it lists what is planned and, more usefully, what has been deliberately
+        deferred and why.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: |
+        Describe the situation, not the solution. "I have to open the HA app to check
+        whether the garage is still open" is more useful than "add a garage widget".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like HA-Claw to do?
+      description: If you have a concrete idea, describe it. If not, leave this empty.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of HA-Claw does this touch?
+      multiple: true
+      options:
+        - Chat / agent behaviour
+        - Home Assistant tools
+        - Web UI dashboard
+        - Telegram bot
+        - Scheduler and reminders
+        - Proactive analysis / tasks
+        - System health
+        - Memory and learning
+        - Configuration and setup
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+      description: A Home Assistant automation, a different add-on, or nothing at all.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and the roadmap, and this is not already covered.
+          required: true

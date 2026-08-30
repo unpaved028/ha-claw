@@ -1,30 +1,42 @@
-# Dependencies
-ha-claw/node_modules/
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
 
-# TypeScript output
-ha-claw/dist/
+# ── Build output ──────────────────────────────────────────────
+dist/
+*.tsbuildinfo
 
-# Local dev config (contains API keys!)
-ha-claw/dev-options.json
+# ── Secrets & local configuration ─────────────────────────────
+# dev-options.json mirrors the add-on options and holds real API keys.
+dev-options.json
+.env
+.env.*
+!.env.example
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# Local data (created during dev)
+# ── Local runtime data (created by `npm run dev`) ─────────────
+/data/
 ha-claw/data/
 
-# IDE
+# ── OS files ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editors & IDEs ────────────────────────────────────────────
 .vscode/
 .idea/
+*.swp
 
-# Local Dev/Test Scripts & Generated Files
+# ── Local agent/tool state ────────────────────────────────────
 .claude/settings.local.json
-ha-claw/lint-report.txt
-ha-claw/test-*.ts
+.cursor/rules/*.local.mdc
 
-# Agentic System & AI Context
-.agents/
-CLAUDE.md
-.gemini/
+# ── Scratch & report artifacts ────────────────────────────────
+coverage/
+lint-report.txt
+ha-claw/test-*.ts
 tmp_v*
+
+# ── Internal AI agent workspace (not part of the public repo) ─
+# Public agent instructions live in AGENTS.md instead.
+.agents/
+.gemini/

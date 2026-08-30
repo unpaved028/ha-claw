@@ -1,5 +1,47 @@
 # Changelog
 
+<!--
+New entries are written in English. Entries from 0.6.x to 0.9.5 are largely German and stay
+as written — rewriting shipped release notes destroys the record without helping anyone.
+Format follows https://keepachangelog.com.
+-->
+
+## Unreleased
+
+Documentation and repository housekeeping. No functional change to the add-on.
+
+### Added
+
+- **Documentation in English**, with German alongside where it reaches users. `DOCS.md` is now
+  the English user manual and Home Assistant renders it in the Documentation tab; `DOCS.de.md`
+  is the German mirror. The repository README exists as `README.md` and `README.de.md`.
+- **Localised option labels** (`translations/en.yaml`, `translations/de.yaml`). The add-on
+  Configuration tab now shows proper names and explanations instead of raw `snake_case` keys.
+- **Technical reference under `docs/`**: configuration, tool catalogue, HTTP API, architecture,
+  security model, development guide, release checklist and roadmap.
+- **Community files**: `LICENSE` (MIT), `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+  issue and pull request templates, and a Dependabot configuration.
+- **`AGENTS.md`** — instructions for AI coding agents, including a map of which documents must
+  be updated for which kind of code change.
+- **Documentation link checker** (`scripts/check-docs.mjs`), run by CI. A document that links
+  to a file or heading that does not exist now fails the build.
+
+### Changed
+
+- **Add-on store assets follow the Home Assistant guidelines**: `icon.png` is 128×128 (down
+  from 1024×1024 and 997 KB) and a proper 250×100 `logo.png` now ships with the add-on.
+- **`.gitignore` rewritten** — generic `node_modules/` and `dist/` patterns, `.env` files
+  excluded, and `CLAUDE.md` is tracked again as a pointer to `AGENTS.md`.
+- **`architecture.md` moved to `docs/`.**
+
+### Fixed
+
+- **The v0.7.0 entry below claims token counting uses `js-tiktoken`.** It does not, and never
+  did — `src/core/context-manager.ts` estimates at roughly four characters per token, and
+  `js-tiktoken` is not a dependency. The historical entry is left in place; this note is the
+  correction. Adopting a real tokeniser or labelling the figure as an estimate is on the
+  roadmap.
+
 ## 0.9.5
 
 Backup Health hat nur lokale Supervisor-Dateien gesehen. Cloud-Kopien (offizielle Backup-Agenten, Google-Drive-Add-on, Samba) fielen unter den Tisch, sobald die lokale Datei gelöscht war.

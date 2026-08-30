@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/unpaved028/ha-claw/security/advisories/new
+    about: Report privately. Do not open a public issue for anything with a security impact.
+  - name: Question or idea
+    url: https://github.com/unpaved028/ha-claw/discussions
+    about: Ask how something works or float an idea before it becomes a feature request.
+  - name: Documentation
+    url: https://github.com/unpaved028/ha-claw/blob/main/docs/README.md
+    about: Configuration, tools, HTTP API, architecture and security model.
+  - name: Home Assistant support
+    url: https://community.home-assistant.io/
+    about: Problems with Home Assistant itself, rather than with HA-Claw.

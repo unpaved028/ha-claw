@@ -1,87 +1,96 @@
 # HA-Claw
 
-Local AI-powered Smart Home Assistant for Home Assistant with Telegram & Web UI.
+**A conversational AI agent that helps you run, maintain and improve your Home Assistant
+installation.**
 
-## Features
+Ask it questions in plain language, from the sidebar or from Telegram. It knows your floors,
+areas and entities, calls Home Assistant services on your behalf, verifies that the action
+actually took effect, and asks before it touches anything that could lock you out or set off
+an alarm.
 
-- **AI Agent with Tool Calling** — Agentic loop with up to 10 iterations, calling HA services, querying entities, and managing data
-- **Web UI (Ingress)** — Embedded dashboard with Chat, Status (system health, tasks, logs), and Settings
-- **Telegram Bot** — Same conversation as the Web UI, with an inline-keyboard safety gate for dangerous actions
-- **Web Safety Gate** — Confirmation modal for dangerous actions (locks, alarms, automations) in the Web UI
-- **Home Assistant Integration** — Entity discovery, service calls with verification, Floor → Area → Entity spatial hierarchy, group resolution, automation inspection
-- **Sensor Awareness** — Window, door, motion, smoke, and moisture sensors displayed per room with type-icons (🪟🚪🏃🔥💧) and entity IDs for precise identification
-- **HA Best Practices** — Built-in knowledge base for automations, templates, helpers, device control, and safe refactoring
-- **Backlog Automation** — AI proposes, generates, and executes improvement tasks through an approval workflow
-- **Tool Complexity Levels** — Map a different LLM model to each tool complexity tier (1-3); the loop escalates to the higher tier once a complex tool has run
-- **Streaming Responses (SSE)** — The Web UI shows progress live instead of a spinner
-- **Voice Messages** — Telegram voice notes are transcribed via Whisper (needs `openai_api_key`)
-- **Cost Tracking** — Cumulative token usage and a per-model cost estimate in `/status`
-- **Circuit Breaker** — Pauses LLM calls after repeated provider failures instead of hammering the API
-- **Self-Improvement** — Learns from corrections, tracks usage patterns, records errors for smarter retries
-- **Proactive Analysis** — Scans your home for energy waste, security gaps, and automation opportunities, proposing them as backlog tasks
-- **System Health** — Device reachability, stale sensors, low batteries, backups and disk space as live checks under Status in the dashboard and in `/status`; these are standing conditions rather than tasks, so they stay out of the task list and only push a message when they get worse
-- **Conversational Onboarding** — Natural LLM-powered setup instead of rigid forms, with feature introduction and weekly analysis suggestion
-- **Scheduler** — Recurring jobs (`every 5m`, `daily 07:00`, `weekdays 08:00`, `weekly mon 08:00`) executed through the agentic loop
-- **One-Shot Timers & Reminders** — "Remind me in 30min to take out the trash" or "Turn off the basement light in 10min"
-- **Proactive Notifications** — Scheduler results sent via Telegram automatically (reminders, analysis reports, etc.)
-- **Daily Greeting** — Context-aware greeting on first interaction of the day
-- **Memory System** — Long-term memory cards with hybrid keyword/relevance retrieval
-- **Speech-to-Text** — Browser-based voice input in Web UI (German)
-- **Multi-LLM Support** — OpenRouter integration with model selection per complexity level
+Beyond answering questions, it watches the things nobody tracks: devices that went offline,
+sensors that stopped reporting, batteries running down, a backup that has not run in two
+weeks. It looks for improvements — energy waste, security gaps, missing automations — and
+proposes them for your approval instead of acting on its own.
 
-## Supported Models
+## Highlights
 
-| Model                          | Strength                       | Recommended Level |
-| ------------------------------ | ------------------------------ | ----------------- |
-| `anthropic/claude-haiku-4.5`   | Fast, affordable, strong tools | Level 1 (default) |
-| `anthropic/claude-sonnet-5`    | Everyday automations           | Level 2-3         |
-| `anthropic/claude-opus-5`      | Heavy reasoning                | Level 3           |
-| `google/gemini-3.7-flash`      | Strong value, agentic          | Level 1-2         |
-| `google/gemini-3.5-flash-lite` | Cheapest Google                | Level 1           |
-| `openai/gpt-5.6-luna`          | Cheap OpenAI                   | Level 1           |
-| `openai/gpt-5.6-sol`           | OpenAI coding / agentic        | Level 2-3         |
-| `deepseek/deepseek-v4-flash`   | Very cheap, huge context       | Level 1           |
-| `x-ai/grok-4.6`                | Strong reasoning               | Level 2-3         |
+- **Multi-step reasoning.** Up to ten search-act-verify steps per request, so it can answer
+  "the living room feels cold, is a window open somewhere?" and not just "turn on the light".
+- **Acts, then checks.** Every service call compares the entity state before and after. If the
+  device did not react, it says so.
+- **Asks before it does damage.** Locks, alarms, scripts, buttons, garage doors and automation
+  edits require your confirmation every time.
+- **One conversation, two surfaces.** The sidebar dashboard and the Telegram bot share the
+  same chat history.
+- **System health at a glance.** Unreachable devices, stale sensors, low batteries, backup age
+  and free disk space — with a notification only when something gets _worse_.
+- **Improvement proposals.** Seven analysis modules look for energy waste, security gaps,
+  missing cover automations and naming drift.
+- **Automations and scripts.** Reads them, explains them in plain language, and — with your
+  approval — writes them, guided by a built-in Home Assistant best-practice knowledge base.
+- **Reminders and schedules.** "Remind me in 30 minutes to take the bins out" or a weekly
+  home analysis every Monday at 08:00.
+- **Learns.** Corrections, recurring habits and past failures are fed back into its behaviour.
 
-Meta-models `openrouter/free` and `openrouter/auto` are also available.
+## Before you install
 
-## Installation
+- **It is not local inference.** Your messages, the entity list and the tool results are sent
+  to an LLM provider through [OpenRouter](https://openrouter.ai). Actions run locally on your
+  Home Assistant; the reasoning does not.
+- **It costs money per message.** You bring your own API key. With the default model a normal
+  request is a fraction of a cent. Usage and an estimated total are shown under Status.
+- **It can control your home.** The confirmation gate covers the dangerous domains, but this
+  is a risk worth accepting deliberately rather than by default.
 
-1. Add the repository to Home Assistant Add-on Store
-2. Install the **HA-Claw** add-on
-3. Set your `openrouter_api_key` in the add-on configuration
-4. (Optional) Configure Telegram bot token and allowed user IDs
-5. Start the add-on and open the Web UI from the sidebar
+## Setup
+
+1. Set `openrouter_api_key` in the Configuration tab. Get one at
+   [openrouter.ai](https://openrouter.ai).
+2. Optionally add `telegram_bot_token` and `telegram_allowed_user_ids`.
+3. Start the add-on and open **HA-Claw** from the sidebar.
+4. Answer a few questions in the setup conversation — what to call the bot, what to call you,
+   and how it should talk to you.
+
+Full instructions, day-to-day usage, system health explanations and troubleshooting are in the
+**Documentation** tab — [DOCS.md](DOCS.md), or [auf Deutsch](DOCS.de.md).
 
 ## Configuration
 
-| Option                      | Required | Description                                                      |
-| --------------------------- | -------- | ---------------------------------------------------------------- |
-| `openrouter_api_key`        | Yes      | Your OpenRouter API key ([openrouter.ai](https://openrouter.ai)) |
-| `openrouter_default_model`  | No       | Default LLM model (default: `anthropic/claude-haiku-4.5`)        |
-| `openai_api_key`            | No       | Separate OpenAI key, only needed for Telegram voice messages     |
-| `telegram_bot_token`        | No       | Telegram Bot Token (from @BotFather)                             |
-| `telegram_allowed_user_ids` | No\*     | Comma-separated Telegram User IDs (\*required if bot is active)  |
-| `log_level`                 | No       | `debug`, `info`, `warn`, `error` (default: `info`)               |
+| Option                      | Required    | Description                                                |
+| --------------------------- | ----------- | ---------------------------------------------------------- |
+| `openrouter_api_key`        | yes         | API key from [openrouter.ai](https://openrouter.ai)        |
+| `openrouter_default_model`  | no          | Default `anthropic/claude-haiku-4.5`                       |
+| `openai_api_key`            | no          | Separate OpenAI key, only for Telegram voice transcription |
+| `telegram_bot_token`        | no          | Token from [@BotFather](https://t.me/BotFather)            |
+| `telegram_allowed_user_ids` | conditional | Comma-separated user IDs; required with a bot token        |
+| `log_level`                 | no          | `debug`, `info`, `warn`, `error`                           |
 
 ## Security
 
-- **Whitelist-Only**: Only configured Telegram User IDs can interact with the bot
-- **Safety Gate**: Dangerous actions require explicit confirmation via Telegram inline buttons or a Web UI modal. A confirmation is bound to the user who triggered it, so another whitelisted member cannot approve someone else's action.
-- **Domain Allowlist**: Only everyday domains can be controlled without confirmation. Locks, alarms, automations, scripts and buttons always require it — as do covers with `device_class` `garage`, `gate` or `door`, and scenes that touch a lock or alarm.
-- **Secret Redaction**: API keys and tokens are masked in logs
-- **No Open Ports**: Web UI runs exclusively through HA Ingress (no external access)
-- **Cloud LLM**: Chat messages are sent to the configured LLM provider. All actions (device control, storage) execute locally on your Home Assistant.
+- **Ingress only.** No port is published. The Web UI is reachable through Home Assistant,
+  which authenticates you first.
+- **Whitelist only.** The Telegram bot ignores anyone not in `telegram_allowed_user_ids`, and
+  a confirmation can only be answered by the person who triggered it.
+- **Domain allowlist.** Only everyday domains act without asking. Locks, alarms, scripts and
+  buttons always require confirmation — as do covers with `device_class` `garage`, `gate` or
+  `door`, and scenes that include a lock or alarm.
+- **Secret redaction.** API keys and tokens are masked in logs.
+- **Full audit trail.** Every service call is logged with a one-click rollback.
 
-## Architecture
+Details and known limitations: [docs/security.md](../docs/security.md).
 
-See [architecture.md](../architecture.md) for the full system architecture and component overview.
+## Supported architectures
 
-## Supported Architectures
+`aarch64` (HA Green, Raspberry Pi 4) and `amd64`. The image is built on your machine at
+install time.
 
-- `aarch64` (HA Green, Raspberry Pi 4)
-- `amd64`
+## Links
 
-## License
+[Repository](https://github.com/unpaved028/ha-claw) ·
+[Documentation](../docs/README.md) ·
+[Roadmap](../docs/roadmap.md) ·
+[Changelog](CHANGELOG.md) ·
+[Report an issue](https://github.com/unpaved028/ha-claw/issues)
 
-See repository for license details.
+MIT licensed. A community project, not affiliated with Home Assistant or Nabu Casa.

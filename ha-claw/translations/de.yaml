@@ -1,0 +1,38 @@
+# Beschriftungen der Optionen im Konfigurations-Reiter des Add-ons.
+# Jeder Schlüssel unter `configuration` muss einem Schlüssel im `schema`-Block
+# von config.yaml entsprechen.
+configuration:
+  openrouter_api_key:
+    name: OpenRouter API-Key
+    description: >-
+      Pflicht. Dein API-Key von openrouter.ai. HA-Claw schickt deine Nachrichten, eine
+      komprimierte Liste deiner Entities und die Werkzeug-Ergebnisse über OpenRouter an das
+      gewählte Modell. Setz ein Ausgabenlimit auf den Key.
+  openrouter_default_model:
+    name: Standardmodell
+    description: >-
+      Das Sprachmodell, solange in der Web-UI keine Stufe überschrieben ist. Claude Haiku 4.5
+      ist ein guter Kompromiss aus Kosten und zuverlässigem Tool Calling. Kostenlose Modelle
+      tun sich mit Tool Calling oft schwer.
+  openai_api_key:
+    name: OpenAI API-Key (nur für Sprachnachrichten)
+    description: >-
+      Optional. Wird nur gebraucht, um Telegram-Sprachnachrichten per Whisper zu
+      transkribieren. Das läuft nicht über OpenRouter. Leer lassen, wenn du keine
+      Sprachnachrichten nutzt.
+  telegram_bot_token:
+    name: Telegram Bot-Token
+    description: >-
+      Optional. Token von @BotFather. Aktiviert den Telegram-Bot, der dasselbe Gespräch führt
+      wie die Web-UI und Erinnerungen sowie Hinweise zum Systemzustand zustellt.
+  telegram_allowed_user_ids:
+    name: Erlaubte Telegram User-IDs
+    description: >-
+      Pflicht, sobald ein Bot-Token gesetzt ist — sonst startet das Add-on nicht. Numerische
+      User-IDs mit Komma getrennt, zum Beispiel 123456789,987654321. Deine eigene findest du
+      mit @userinfobot. Alle auf dieser Liste sind vollwertige Bediener.
+  log_level:
+    name: Protokollstufe
+    description: >-
+      Wie ausführlich das Add-on protokolliert. Für eine Fehlermeldung auf debug stellen;
+      dann stehen auch alle Werkzeug-Parameter und -Ergebnisse im Protokoll.

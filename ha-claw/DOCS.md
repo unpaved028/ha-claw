@@ -1,154 +1,461 @@
-# HA-Claw Add-on Documentation
+# HA-Claw — User Manual
 
-## Was ist HA-Claw?
+_Deutsche Fassung: [DOCS.de.md](DOCS.de.md)_
 
-HA-Claw ist ein lokaler KI-Assistent, der als Home Assistant Add-on läuft. Er verbindet dein Smart Home mit einem KI-Agenten, der:
+- [What HA-Claw does](#what-ha-claw-does)
+- [What you should know first](#what-you-should-know-first)
+- [Installation](#installation)
+- [Configuration options](#configuration-options)
+- [Setting up Telegram](#setting-up-telegram)
+- [First run](#first-run)
+- [Talking to it](#talking-to-it)
+- [The dashboard](#the-dashboard)
+- [System health](#system-health)
+- [Tasks](#tasks)
+- [Reminders and schedules](#reminders-and-schedules)
+- [Memory and learning](#memory-and-learning)
+- [Telegram commands](#telegram-commands)
+- [Safety and confirmations](#safety-and-confirmations)
+- [Costs](#costs)
+- [Data and backups](#data-and-backups)
+- [Troubleshooting](#troubleshooting)
+- [Getting help](#getting-help)
 
-- **Geräte steuern** kann (Licht, Thermostat, Schalter – mit Bestätigung!)
-- **Zustände abfragen** kann (Temperatur, Fensterstatus, etc.)
-- **Notizen speichern** und **Gedächtnis aufbauen** kann
-- **Timer & Erinnerungen** setzen kann ("Erinnere mich in 30min an den Müll")
-- **Proaktive Benachrichtigungen** via Telegram senden kann
-- Den **Systemzustand** im Blick behält (nicht erreichbare Geräte, tote Sensoren, schwache Batterien)
-- Per **Telegram** oder **Web-Chat** erreichbar ist – beides ist dasselbe Gespräch
-- Mit jeder Interaktion **dazulernt** und besser wird
+## What HA-Claw does
 
-## Konfiguration
+HA-Claw is an AI assistant that lives in your Home Assistant sidebar. You talk to it in
+ordinary language and it does three kinds of thing:
 
-| Option                      | Pflicht | Beschreibung                                                                             |
-| --------------------------- | ------- | ---------------------------------------------------------------------------------------- |
-| `openrouter_api_key`        | ✅      | Dein OpenRouter API-Key ([openrouter.ai](https://openrouter.ai))                         |
-| `openrouter_default_model`  | ❌      | LLM Model (Standard: `anthropic/claude-haiku-4.5`). Dieselbe Liste in Add-on und Web-UI. |
-| `openai_api_key`            | ❌      | Eigener OpenAI-Key, nur für Telegram-Sprachnachrichten nötig                             |
-| `telegram_bot_token`        | ❌      | Telegram Bot Token (von @BotFather)                                                      |
-| `telegram_allowed_user_ids` | ❌\*    | Telegram User-IDs die Zugriff haben (\*Pflicht wenn Bot aktiv)                           |
-| `log_level`                 | ❌      | `debug`, `info`, `warn`, `error` (Standard: `info`)                                      |
+**It answers questions about your home.** Not just "what is the temperature" but "is a window
+open upstairs", "what does the hallway motion automation actually do", "which devices are in
+the living room group". It knows your floors, areas, entities and their current states.
 
-### Sprachnachrichten (Telegram)
+**It controls devices, and checks that it worked.** After every service call it reads the
+entity state again. If the light did not turn on, it tells you instead of claiming success.
 
-Sprachnachrichten werden per OpenAI Whisper transkribiert. Das läuft **nicht**
-über OpenRouter, sondern braucht einen eigenen OpenAI-API-Key in
-`openai_api_key`. Ohne diesen Key antwortet der Bot auf Sprachnachrichten mit
-einem Hinweis; Textnachrichten funktionieren unabhängig davon.
+**It looks after your installation.** In the background it checks for devices that went
+offline, sensors that stopped reporting, batteries running down, backups that have not run,
+and disk space running out. Separately, it looks for improvements — a room with motion sensors
+but no motion-light automation, a thermostat set to 24 °C in July, windows open while the
+heating runs — and proposes them for your approval.
 
-## Sicherheit & Datenfluss
+It can also write automations and scripts. That always requires your explicit confirmation.
 
-- **Whitelist-Only**: Nur eingetragene Telegram User-IDs können mit dem Bot interagieren
-- **Safety Gate**: Gefährliche Aktionen (Gerät steuern, Daten löschen) erfordern per Telegram Inline-Button eine Bestätigung
-- **Secret Redaction**: API-Keys und Tokens werden in Logs automatisch unkenntlich gemacht
-- **Kein offener Port**: Web-UI läuft nur über HA Ingress (kein externer Zugriff)
-- **Cloud-LLM**: Chat-Nachrichten werden an den gewählten LLM-Provider (z.B. OpenRouter) gesendet. Alle Aktionen (Gerätesteuerung, Speicherung) werden lokal auf deinem Home Assistant ausgeführt.
+## What you should know first
 
-## Ersteinrichtung (Onboarding)
+Three things, stated plainly, so there are no surprises.
 
-Beim ersten Start führt der Bot ein natürliches Gespräch, um dich kennenzulernen:
+**Your data goes to an LLM provider.** Every message you send, plus a compressed list of your
+areas and entities with their current states, plus the results of anything the assistant
+looked up, is sent to a language model through [OpenRouter](https://openrouter.ai). The
+_actions_ happen locally on your Home Assistant. The _thinking_ does not. If that is not
+acceptable in your household, no setting fixes it — this add-on is the wrong tool for you.
 
-- Wie soll der Bot heißen?
-- Wie heißt du?
-- Welchen Kommunikationsstil bevorzugst du? (Direktheit, Formalität, Humor, Ausführlichkeit)
+**It costs money.** You bring your own OpenRouter key and pay per request. With the default
+model, `anthropic/claude-haiku-4.5`, a normal question costs a fraction of a cent. Background
+analysis and task processing also spend tokens. Set a spending limit on your OpenRouter key.
 
-Nach der Einrichtung stellt sich der Bot vor und bietet an, eine wöchentliche automatische Hausanalyse einzurichten.
+**It can control your home.** The confirmation gate covers locks, alarms, scripts, buttons,
+garage doors and automation edits. Everything else — lights, switches, climate, blinds, media
+players — it does without asking. That is a deliberate trade-off you should agree with before
+you start.
 
-## Timer & Erinnerungen
+## Installation
 
-Du kannst einmalige Timer und Erinnerungen erstellen:
+1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**.
+2. Add `https://github.com/unpaved028/ha-claw`.
+3. Install **HA-Claw** from the listing that appears.
 
-- "Erinnere mich in 30 Minuten an den Müll"
-- "Schalte in 10 Minuten das Licht im Keller aus"
-- "Um 14:30 Bescheid sagen, dass der Kuchen fertig ist"
+The image is compiled on your machine at install time. On a Raspberry Pi that takes a few
+minutes; this is normal and only happens on install and update.
 
-Die Erinnerungen werden automatisch per Telegram zugestellt.
+Requires Home Assistant OS or Supervised on `aarch64` or `amd64`.
 
-## Wiederkehrende Jobs
+## Configuration options
 
-Für regelmäßige Aufgaben:
+Open the **Configuration** tab of the add-on.
 
-- `every 5m` – alle 5 Minuten
-- `daily 07:00` – täglich um 07:00
-- `weekdays 08:00` – Mo–Fr um 08:00
-- `weekends 10:00` – Sa–So um 10:00
-- `weekly mon 08:00` – jeden Montag um 08:00
+| Option                      | Required | Default                      | What it does                                                                                            |
+| --------------------------- | -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `openrouter_api_key`        | **yes**  | —                            | Your key from [openrouter.ai](https://openrouter.ai). The add-on will not start without it.             |
+| `openrouter_default_model`  | no       | `anthropic/claude-haiku-4.5` | Which language model to use. Changeable later in the Web UI without a restart.                          |
+| `openai_api_key`            | no       | —                            | A separate OpenAI key. **Only** needed for transcribing Telegram voice messages. Leave empty otherwise. |
+| `telegram_bot_token`        | no       | —                            | Enables the Telegram bot.                                                                               |
+| `telegram_allowed_user_ids` | see note | —                            | Who may use the bot. **Required** once a token is set — the add-on refuses to start otherwise.          |
+| `log_level`                 | no       | `info`                       | Set to `debug` when reporting a problem.                                                                |
 
-## Systemzustand
+### Choosing a model
 
-Unter _Status → System Health_ siehst du diese Prüfungen mit ihrem
-aktuellen Stand und einem Hinweis, was zu tun ist:
+| Model                          | Good for                                                       |
+| ------------------------------ | -------------------------------------------------------------- |
+| `anthropic/claude-haiku-4.5`   | The default. Fast, cheap, reliable at picking the right tool.  |
+| `anthropic/claude-sonnet-5`    | Better reasoning for automations. Noticeably more expensive.   |
+| `anthropic/claude-opus-5`      | Heaviest reasoning. Only worth it for complex automation work. |
+| `google/gemini-3.7-flash`      | Good value, handles multi-step loops well.                     |
+| `google/gemini-3.5-flash-lite` | Cheapest Google option.                                        |
+| `openai/gpt-5.6-luna`          | Cheap OpenAI option.                                           |
+| `openai/gpt-5.6-sol`           | Stronger OpenAI option for automation work.                    |
+| `deepseek/deepseek-v4-flash`   | Very cheap, very large context.                                |
+| `x-ai/grok-4.6`                | Strong reasoning.                                              |
+| `openrouter/auto`              | Lets OpenRouter pick per request.                              |
+| `openrouter/free`              | Free models. Quality and tool support vary a lot.              |
 
-- **Geräte nicht erreichbar** – physische Geräte, bei denen Entities auf `unavailable` stehen. Ein Fensterkontakt zählt **einmal**, auch wenn Batterie, Spannung, Firmware und Identifizieren-Button alle mit offline sind.
-- **Sensoren seit 48 h unverändert** – möglicher Batterie- oder Verbindungsausfall
-- **Batterie unter 20 %** – Batterien, die gewechselt werden sollten
-- **Backup** – Tage seit dem letzten Backup, das Home Assistant enthält. Gelb ab 7 Tagen, rot ab 14 Tagen oder wenn es gar keines gibt. Nur lokale Backups (SD-Karte) sind gelb, auch wenn sie frisch sind – die retten dich nicht bei Hardware-Tod. Eine Kopie ausserhalb des Geräts reicht: offizielle Backup-Orte (Home Assistant Cloud, Google Drive, OneDrive, NAS/WebDAV), das Add-on _Home Assistant Google Drive Backup_ oder _Samba Backup_. Du musst nicht mehrere davon einrichten.
-- **Speicherplatz** – freier Platz auf der HA-Datenpartition, ohne extra Sensor. Unter 128 GB (typisch SD/eMMC) gelb unter 5 GB frei, rot unter 3 GB. Grössere Platten (SSD) gelb unter 10 % frei, rot unter 5 %. Wenn das Laufwerk eine Lebensdauer meldet, warnt die Karte ab 90 % Verbrauch.
+If the assistant behaves strangely — inventing entity IDs, printing odd tool syntax into its
+answers — try a stronger model first. Weak models struggle with tool calling.
 
-Diese Prüfungen landen absichtlich **nicht** unter Tasks. Ein Task ist
-ein Vorhaben, das irgendwann erledigt ist – ein paar dauerhaft nicht
-erreichbare Geräte sind dagegen in vielen Installationen der Normalzustand und
-würden dort für immer stehen bleiben. Sie werden deshalb bei Bedarf berechnet
-und live angezeigt; du findest sie auch in `/status` im Telegram-Bot.
+You can also assign a different model to each complexity tier under **Settings → Model
+Forge**: a cheap model for looking things up, a stronger one for writing automations.
 
-Telegram meldet sich nur, wenn sich etwas **verschlechtert**: wenn eine Prüfung
-ihre Stufe wechselt (grün → gelb → rot) oder sich der Wert seit der letzten
-Meldung mindestens verdoppelt hat. Eine Verbesserung wird still vermerkt.
+## Setting up Telegram
 
-Bleiben Geräte dauerhaft in der Liste, sind es meist Reste entfernter Hardware.
-Solche Entities in Home Assistant zu löschen ist der einzige Weg, sie
-loszuwerden – HA-Claw kann nicht erkennen, ob ein Gerät nur gerade offline oder
-längst im Elektroschrott ist.
+Optional, but it is how you get notifications and how you reach your home from outside.
 
-### Tasks aufräumen
+**1. Create the bot.** Open [@BotFather](https://t.me/BotFather) in Telegram, send
+`/newbot`, follow the prompts. Copy the token it gives you into `telegram_bot_token`.
 
-Unter _Status → Tasks_ findest du „Duplikate entfernen". Vor Version 0.9.3 legte die
-Analyse für denselben Befund bei jedem Durchlauf einen neuen Task an, weil der
-Abgleich über den Titel lief und der Titel eine wechselnde Anzahl enthält. Der
-Knopf räumt diese Altlasten auf: doppelte Analyse-Einträge und die alten
-Einträge der drei Prüfungen, die jetzt unter System Health stehen. Deine eigenen Tasks und
-deine Entscheidungen (freigegeben, abgelehnt, zurückgestellt) bleiben erhalten.
+**2. Find your user ID.** Open [@userinfobot](https://t.me/userinfobot) and send it any
+message. It replies with your numeric ID. Put that into `telegram_allowed_user_ids`.
 
-## Daten & Backup
+For several people, separate the IDs with commas: `123456789,987654321`.
 
-Alle Daten liegen in `/data/store/` und werden automatisch von Home Assistant Backups gesichert:
+**3. Restart the add-on** and send your bot a message.
 
-- **notes** – Notizen und Wissen
-- **conversations** – Chat-Verlauf
-- **memory** – Agent-Langzeitgedächtnis
-- **scheduler** – Geplante Jobs und Timer
-- **backlog** – Verbesserungsvorschläge
-- **learning** – Gelernte Korrekturen und Regeln
-- **system-health.json** – Merkposten, welcher Zustand zuletzt gemeldet wurde
+Nobody outside that list can use the bot — messages from other accounts are ignored without a
+reply. Everyone on the list is a fully trusted operator: there are no per-user restrictions.
+Prefer a private chat unless you want everyone in a group chat to be able to unlock your door.
 
-## Sicherheit bei Geraetesteuerung
+### Voice messages
 
-Alltaegliche Geraete (Licht, Schalter, Klima, Rollos, Medienplayer) steuert
-HA-Claw direkt. Eine Bestaetigung ist immer erforderlich bei:
+Telegram voice notes are transcribed with OpenAI Whisper. That needs its own key in
+`openai_api_key` — it does **not** go through OpenRouter. Without the key, the bot replies to
+voice notes with a note explaining that; text messages are unaffected.
 
-- Schloessern, Alarmanlagen, Automationen und Loeschungen
-- Skripten und Buttons — ihre Wirkung laesst sich vorab nicht pruefen
-- Rollos/Toren mit `device_class` `garage`, `gate` oder `door`
-- Szenen, die ein Schloss oder eine Alarmanlage mitschalten
+## First run
 
-So bestaetigst du:
+Start the add-on and open **HA-Claw** from the sidebar. It greets you with a short setup
+conversation rather than a form:
 
-- **Telegram**: Inline-Buttons (Ja/Nein) direkt im Chat. Nur wer die Aktion
-  ausgeloest hat, kann sie bestaetigen.
-- **Web UI**: Bestaetigungs-Modal mit Details zur geplanten Aktion. Automatische
-  Ablehnung nach 60 Sekunden. Mehrere gleichzeitige Anfragen werden als Warteschlange
-  abgearbeitet.
+- What should the assistant be called?
+- What should it call you?
+- How should it talk to you — direct or gentle, formal or casual, humorous or dry, brief or
+  thorough?
 
-## Raumstruktur & Automationen
+Answer in normal language; it extracts what it needs. Afterwards it introduces its
+capabilities and offers to set up a weekly automated home analysis.
 
-HA-Claw versteht die räumliche Struktur deines Zuhauses:
+You can change all of it later under **Settings → Profile**.
 
-- **Stockwerke → Bereiche → Geräte**: Der Bot kennt die Zuordnung von Geräten zu Räumen und Räumen zu Stockwerken
-- **Gruppen**: Der Bot kann `group.*` Entities auflösen und die einzelnen Mitglieder anzeigen
-- **Automationen**: Der Bot kann Automations-Konfigurationen lesen (Trigger, Bedingungen, Aktionen) und in einfacher Sprache erklären
+## Talking to it
 
-Beispiele:
+Some things worth trying, so you get a feel for what it is capable of:
 
-- "Welche Geräte sind im Wohnzimmer?"
-- "Zeig mir alle Räume im Obergeschoss"
-- "Was macht die Automation Bewegungslicht Flur?"
-- "Welche Geräte sind in der Gruppe Wohnzimmer?"
+**Questions about state**
 
-## Support
+> Is a window still open upstairs?
+> Which devices are in the living room?
+> Show me every room on the upper floor.
+> What is the temperature in the bathroom?
 
-Issues & Feature Requests: [GitHub Repository](https://github.com/unpaved028/ha-claw)
+**Control**
+
+> Turn off the lights in the basement.
+> Set the living room to 21 degrees.
+> Close all the blinds on the south side.
+
+**Understanding your setup**
+
+> What does the "hallway motion light" automation actually do?
+> Which devices are in the living room group?
+> Why did the heating turn on this morning?
+
+**Improvement**
+
+> Analyse my home.
+> Is there anything I should fix?
+> Set up an automation that closes the blinds at sunset.
+
+**Reminders**
+
+> Remind me in 30 minutes to take the bins out.
+> Turn off the basement light in 10 minutes.
+> Tell me at 14:30 that the cake is done.
+
+### When it cannot find something
+
+If it says it cannot find a device you know exists, the entity cache is probably stale — it
+rebuilds every 30 minutes. Press **Refresh cache** under Settings, or just ask it to look
+again.
+
+Devices only appear with the right room if they are assigned to an area in Home Assistant.
+Assigning areas is the single biggest improvement you can make to how well HA-Claw
+understands your home.
+
+## The dashboard
+
+Three sections in the top navigation.
+
+**Chat** — the conversation. Progress is shown live: which tool is running, what it found,
+when it is done. There is a microphone button for voice input (browser-based, German).
+
+**Status** — three tabs:
+
+- _System Health_ — the standing checks described below.
+- _Tasks_ — improvement proposals awaiting your decision.
+- _Logs_ — the add-on log and, under Actions, every service call with a rollback button.
+
+**Settings** — three sections:
+
+- _Model Forge_ — the default model and one model per complexity tier.
+- _Tool Vault_ — switch individual capabilities on and off. A disabled tool is not offered to
+  the assistant at all. Turning off the dangerous ones makes HA-Claw read-only.
+- _Profile_ — names and conversational style.
+
+Changes take effect on your next message. No restart.
+
+## System health
+
+**Status → System Health** shows standing checks with their current state and what to do about
+them.
+
+| Check                          | What it means                                          | Yellow                        | Red                          |
+| ------------------------------ | ------------------------------------------------------ | ----------------------------- | ---------------------------- |
+| **Devices unreachable**        | Physical devices whose entities are `unavailable`      | 3 or more                     | 15 or more                   |
+| **Sensors unchanged for 48 h** | Possible dead battery or lost connection               | 5 or more                     | 25 or more                   |
+| **Battery below 20 %**         | Batteries due for replacement                          | any                           | 8 or more                    |
+| **Backup**                     | Days since the newest backup containing Home Assistant | 7 days, or local-only storage | 14 days, or no backup at all |
+| **Disk space**                 | Free space on the Home Assistant data partition        | See below                     | See below                    |
+
+Counts are **devices, not entities**. A Zigbee window sensor that also exposes battery,
+voltage, firmware and an identify button counts once, not twelve times. Expand a card to see
+the individual entities beneath the device name.
+
+**Backups.** One copy away from the device is enough. HA-Claw accepts any of: an official
+backup location (Home Assistant Cloud, Google Drive, OneDrive, Synology, WebDAV, a NAS mount),
+the _Home Assistant Google Drive Backup_ add-on, or _Samba Backup_. It does not nag you to set
+up the others. Local-only storage stays yellow even when the backup is fresh — an SD card does
+not survive the device it lives in.
+
+**Disk space.** Read from the Supervisor, no extra sensor needed. On flash storage (under
+128 GB, so SD card or eMMC) it warns below 5 GB free and turns red below 3 GB. On larger
+drives it uses percentages: yellow below 10 % free, red below 5 %. If the drive reports a
+lifetime figure, the card also warns from 90 % consumed.
+
+### Why these are not tasks
+
+A task is something that gets finished. A handful of permanently unreachable devices is the
+normal state of many installations, and as a task it would sit in the list forever. So these
+are computed live and displayed as conditions instead. They are also in `/status` in Telegram.
+
+Telegram only messages you when something gets **worse** — when a check changes level
+(green → yellow → red) or when its count has at least doubled since the last message. That
+second rule is what catches a genuine new outage in an installation that is permanently red.
+Improvements are recorded silently.
+
+If devices stay in the list forever, they are usually leftovers from hardware you removed.
+Deleting those entities in Home Assistant is the only way to clear them — HA-Claw cannot tell
+the difference between "offline right now" and "thrown away last year".
+
+## Tasks
+
+**Status → Tasks** holds improvement proposals. They come from the periodic analysis or from
+asking the assistant directly ("analyse my home"). Each one names the current situation, the
+proposed target state, and the expected benefit.
+
+The workflow deliberately asks twice:
+
+1. **Proposed** — you approve, reject or defer it.
+2. **Approved** — the assistant works out a concrete solution.
+3. **Solution proposed** — you review the actual plan and approve it.
+4. **Executing** — the assistant carries it out and reports the result.
+
+The second approval matters: approving the _idea_ of an automation is not the same as
+approving the _automation it wrote_. Read the solution before approving it, because at that
+point the assistant runs with its full tool set.
+
+Nothing happens while you do not approve anything. An idle system spends no tokens.
+
+### Removing duplicates
+
+Under Tasks there is a **Remove duplicates** button. Before version 0.9.3, the analysis
+created a fresh task for the same finding on every run — the comparison used the title, and
+titles contain a live number that changes. The button clears those leftovers, along with the
+old entries for the three checks that moved to System Health. Your own tasks and your
+decisions (approved, rejected, deferred) are left untouched.
+
+## Reminders and schedules
+
+**One-off reminders** — just ask:
+
+> Remind me in 30 minutes to take the bins out.
+> Turn off the basement light in 10 minutes.
+> At 14:30, tell me the cake is done.
+
+Delivered through Telegram. Relative delays (`5m`, `2h`, `1h30m`) and absolute times
+(`14:30`, today or tomorrow) both work.
+
+**Recurring jobs** run through the assistant, so they can do anything a message can:
+
+| Format             | Meaning                      |
+| ------------------ | ---------------------------- |
+| `every 5m`         | Every 5 minutes              |
+| `every 2h`         | Every 2 hours                |
+| `daily 07:00`      | Every day at 07:00           |
+| `weekdays 08:00`   | Monday to Friday at 08:00    |
+| `weekends 10:00`   | Saturday and Sunday at 10:00 |
+| `weekly mon 08:00` | Every Monday at 08:00        |
+
+A useful one to start with is a weekly analysis: _"Every Monday at 8, analyse my home and send
+me the result."_ Manage jobs under Status, or ask the assistant to list them.
+
+## Memory and learning
+
+**Memory cards** are things worth keeping: "the guest room is the small room on the upper
+floor", "the plants get watered on Sundays". Tell it to remember something and it will bring
+it back when relevant.
+
+**Corrections** — when you tell it that it got something wrong, it stores that and applies it
+next time. "No, the bathroom light is the ceiling one, not the mirror."
+
+**Rules** are permanent instructions: "never turn on the bedroom light after 22:00".
+
+**Patterns** — recurring actions it noticed, which can turn into automation suggestions.
+
+Everything it has learned is visible by asking, and it all lives in your Home Assistant backup.
+
+## Telegram commands
+
+| Command   | Does                                                        |
+| --------- | ----------------------------------------------------------- |
+| `/help`   | What the bot can do                                         |
+| `/status` | Uptime, memory, token usage and cost, system health summary |
+| `/rooms`  | Buttons for every area — tap one for its status             |
+| `/ping`   | Quick liveness check                                        |
+| `/start`  | Welcome message                                             |
+
+Everything else is just conversation. Voice notes work if `openai_api_key` is set. When
+something fails there is a **Try again** button.
+
+## Safety and confirmations
+
+Everyday devices — lights, switches, climate, blinds, media players, helpers — are controlled
+directly.
+
+**Confirmation is always required for:**
+
+- Locks and alarm panels
+- Automations and scripts, including editing them
+- Buttons — their effect cannot be checked in advance
+- Covers with `device_class` `garage`, `gate` or `door`
+- Scenes that include a lock or an alarm panel
+- Deleting anything stored
+
+**How you confirm:**
+
+- **Telegram** — Yes/No buttons in the chat. Only the person who triggered the action can
+  answer. Automatically denied after 60 seconds.
+- **Web UI** — a dialog showing the tool and its exact arguments. Also 60 seconds. Several
+  pending requests queue up rather than overwriting each other.
+
+The dialog shows the raw entity ID rather than a friendly description on purpose. The
+description would be written by the same assistant whose decision you are checking. Read the
+entity ID.
+
+**Everything is logged.** Status → Logs → Actions lists every service call with its result and
+a rollback button. After anything unexpected, that is the record of what actually happened.
+
+## Costs
+
+Under **Status** you can see cumulative token usage and an estimated total in US dollars, also
+available through `/status` in Telegram.
+
+What costs tokens:
+
+- Every message you send.
+- Every background analysis run.
+- Every task the assistant works on after you approve it.
+- Scheduled jobs, each time they run.
+
+What does not:
+
+- Idling. There is no polling.
+- The dashboard, system health checks, and reading the logs.
+
+Keeping it cheap: stay on `anthropic/claude-haiku-4.5` for everyday use, run the analysis
+weekly rather than hourly, and assign areas to your entities so it finds things in one step
+instead of three.
+
+The figure shown is an estimate from a model price table, not billed usage. Your OpenRouter
+dashboard is authoritative.
+
+## Data and backups
+
+Everything lives in `/data/store/` and is included in Home Assistant backups automatically.
+
+| Folder               | Contents                                             |
+| -------------------- | ---------------------------------------------------- |
+| `conversations/`     | Chat history, shared between the Web UI and Telegram |
+| `memory/`            | Long-term memory cards                               |
+| `notes/`             | Notes                                                |
+| `backlog/`           | Tasks                                                |
+| `learning/`          | Corrections, rules, patterns, past errors            |
+| `scheduler.json`     | Reminders and recurring jobs                         |
+| `actions.jsonl`      | Action log with rollback data, kept for 7 days       |
+| `profile.json`       | Names, conversational style, model choices           |
+| `system-health.json` | Which state was last reported, for change detection  |
+
+Restoring a Home Assistant backup restores all of it. To start over, uninstall the add-on
+(which clears `/data`) and reinstall.
+
+## Troubleshooting
+
+**The add-on will not start.**
+Check the log. The usual cause is a missing `openrouter_api_key`, or a `telegram_bot_token`
+without `telegram_allowed_user_ids` — that combination is refused deliberately, because a bot
+without a whitelist answers anyone.
+
+**It cannot find a device that definitely exists.**
+Assign the entity to an area in Home Assistant, then press **Refresh cache** under Settings.
+Only controllable domains and the important sensor classes (window, door, motion, smoke,
+moisture) are in the cache; an obscure diagnostic sensor may need to be searched for by name.
+
+**It says it turned something on but nothing happened.**
+That is the verification working — it compares the state before and after. Check the entity in
+Home Assistant directly. Usually the device is unreachable, which System Health will confirm.
+
+**Answers contain strange text like `[TOOL_CALLS]` or `tool_code`.**
+The model is leaking its internal syntax. Switch to a stronger model; this happens mostly with
+free and very small models.
+
+**The Telegram bot does not answer.**
+Your user ID is probably not in `telegram_allowed_user_ids`, or has a typo. Non-whitelisted
+messages are ignored silently by design. Confirm your ID with
+[@userinfobot](https://t.me/userinfobot).
+
+**It stopped responding mid-request.**
+Something is waiting for a confirmation. Check the Web UI for an open dialog, or Telegram for
+unanswered buttons. Unanswered requests are denied after 60 seconds.
+
+**"Service temporarily unavailable".**
+The circuit breaker opened after repeated failures from the LLM provider and is pausing calls
+rather than hammering the API. It recovers on its own. Check
+[OpenRouter's status](https://status.openrouter.ai) and that your key still has credit.
+
+**The tasks list keeps filling with the same finding.**
+That was fixed in 0.9.3. Update, then use **Remove duplicates** under Status → Tasks.
+
+**Something else.**
+Set `log_level: debug`, reproduce it, and read the log. Check for API keys before pasting it
+anywhere.
+
+## Getting help
+
+- **Bugs and feature requests**: [GitHub Issues](https://github.com/unpaved028/ha-claw/issues)
+- **Questions and ideas**: [Discussions](https://github.com/unpaved028/ha-claw/discussions)
+- **Security problems**: [report privately](https://github.com/unpaved028/ha-claw/security/advisories/new),
+  not as a public issue
+- **How it works internally**: [technical documentation](../docs/README.md)
+- **What is coming**: [roadmap](../docs/roadmap.md)
+
+When reporting a bug, include the HA-Claw version, your Home Assistant version, the model you
+were using, and the relevant log with `log_level: debug`. And check for secrets first — the
+logger redacts what it recognises, which is not a guarantee.

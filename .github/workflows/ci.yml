@@ -39,6 +39,25 @@ jobs:
       - name: Prettier
         run: npm run format
 
+  docs:
+    name: Documentation links
+    runs-on: ubuntu-latest
+    # Runs from the repository root, not from ha-claw/.
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Fails when a document links to a file or heading that does not exist. Without this,
+      # "no doc names a file that isn't there" is a promise nothing enforces.
+      - name: Check relative links in Markdown
+        run: node scripts/check-docs.mjs
+
   docker:
     name: Docker build
     runs-on: ubuntu-latest
@@ -54,13 +73,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # package.json, config.yaml and the newest CHANGELOG heading must agree,
+      # package.json, config.yaml and the newest released CHANGELOG heading must agree,
       # otherwise the HA add-on store shows a different version than the code.
+      # A leading "## Unreleased" section is skipped — that is where pending entries collect
+      # between releases.
       - name: Compare package.json, config.yaml and CHANGELOG
         run: |
           pkg=$(node -p "require('./package.json').version")
           cfg=$(sed -n "s/^version: *'\(.*\)'$/\1/p" config.yaml)
-          log=$(grep -m1 '^## ' CHANGELOG.md | sed 's/^## *//')
+          log=$(grep '^## ' CHANGELOG.md | grep -iv '^##[[:space:]]*unreleased' \
+            | head -1 | sed 's/^## *//')
           echo "package.json=$pkg config.yaml=$cfg changelog=$log"
           if [ "$pkg" != "$cfg" ] || [ "$pkg" != "$log" ]; then
             echo "::error::Version mismatch between package.json, config.yaml and CHANGELOG.md"

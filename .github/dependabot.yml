@@ -1,0 +1,36 @@
+version: 2
+
+updates:
+  # The add-on's npm dependencies. Runtime deps are deliberately few (fastify, grammy),
+  # so patch/minor bumps are grouped to keep the PR count low.
+  - package-ecosystem: npm
+    directory: /ha-claw
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore'
+      include: scope
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: ['minor', 'patch']
+      production-patches:
+        dependency-type: production
+        update-types: ['patch']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'chore'
+
+  # The Docker base image is pinned in ha-claw/Dockerfile.
+  - package-ecosystem: docker
+    directory: /ha-claw
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'chore'

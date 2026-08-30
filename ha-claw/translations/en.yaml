@@ -1,0 +1,36 @@
+# Option labels shown in the add-on Configuration tab.
+# Every key under `configuration` must match a key in the `schema` block of config.yaml.
+configuration:
+  openrouter_api_key:
+    name: OpenRouter API key
+    description: >-
+      Required. Your API key from openrouter.ai. HA-Claw sends your messages, a compressed
+      list of your entities, and tool results to the selected model through OpenRouter. Set a
+      spending limit on the key.
+  openrouter_default_model:
+    name: Default model
+    description: >-
+      The language model used when no per-tier override is set in the Web UI. Claude Haiku 4.5
+      is a good balance of cost and reliable tool calling. Free models often struggle with
+      tool calling.
+  openai_api_key:
+    name: OpenAI API key (voice messages only)
+    description: >-
+      Optional. Only needed to transcribe Telegram voice messages with Whisper. This does not
+      go through OpenRouter. Leave empty if you do not use voice messages.
+  telegram_bot_token:
+    name: Telegram bot token
+    description: >-
+      Optional. Token from @BotFather. Enables the Telegram bot, which shares the same
+      conversation as the Web UI and delivers reminders and health notifications.
+  telegram_allowed_user_ids:
+    name: Allowed Telegram user IDs
+    description: >-
+      Required once a bot token is set — the add-on will not start otherwise. Comma-separated
+      numeric user IDs, for example 123456789,987654321. Find yours with @userinfobot.
+      Everyone on this list is a fully trusted operator.
+  log_level:
+    name: Log level
+    description: >-
+      How much detail to write to the add-on log. Set to debug when reporting a problem;
+      this includes full tool arguments and results.

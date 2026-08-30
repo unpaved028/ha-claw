@@ -1,0 +1,115 @@
+name: Bug report
+description: Something in HA-Claw does not work as documented
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do **not** paste API keys, tokens or Telegram user IDs.
+
+        If this has a security impact — for example the agent controlled a lock without
+        asking — stop here and follow [SECURITY.md](https://github.com/unpaved028/ha-claw/blob/main/SECURITY.md) instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what did HA-Claw do instead?
+      placeholder: |
+        I asked "close all the blinds upstairs" and it reported success, but nothing moved.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the exact message you sent, if a chat message triggered it.
+      placeholder: |
+        1. Open the dashboard from the sidebar
+        2. Send "..."
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: HA-Claw version
+      description: Shown in the dashboard footer and in the add-on info page.
+      placeholder: '0.9.5'
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      placeholder: '2026.8.2'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-type
+    attributes:
+      label: Installation type
+      options:
+        - Home Assistant OS
+        - Home Assistant Supervised
+        - Standalone / local development
+    validations:
+      required: true
+
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: Architecture
+      options:
+        - aarch64
+        - amd64
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Selected model
+      description: The model in use when this happened (Settings → Model Forge, or `openrouter_default_model`).
+      placeholder: 'anthropic/claude-haiku-4.5'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did this happen?
+      multiple: true
+      options:
+        - Web UI (Ingress dashboard)
+        - Telegram
+        - Scheduler / proactive analysis
+        - Add-on startup
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Add-on log
+      description: |
+        Set `log_level: debug`, reproduce, then copy the relevant part of the add-on log.
+        Check for secrets before pasting.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I am on the latest released version, or I checked that the newest CHANGELOG entry does not already fix this.
+          required: true
+        - label: This report contains no API keys, tokens or other secrets.
+          required: true

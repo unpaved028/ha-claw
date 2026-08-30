@@ -1,8 +1,31 @@
+# The Dockerfile copies only package files, tsconfig.json, scripts/, src/ and agents/.
+# These entries keep the build context small and make sure a stray secret or a local
+# build artefact can never end up in the image by accident.
+
 node_modules/
 dist/
-*.log
+data/
+
+# Local configuration — dev-options.json holds a real API key.
+dev-options.json
 .env
+.env.*
+
 .git/
 .gitignore
-*.md
-!DOCS.md
+.gitattributes
+.claude/
+.vscode/
+.idea/
+
+*.log
+coverage/
+
+# Documentation is published on GitHub and rendered by the Home Assistant add-on UI from
+# the repository, not from the image. Listed individually rather than as *.md on purpose:
+# agents/skills/ha-best-practices/*.md is a runtime knowledge base the ha_best_practices
+# tool reads, and a recursive glob here would silently break it.
+README.md
+DOCS.md
+DOCS.de.md
+CHANGELOG.md
