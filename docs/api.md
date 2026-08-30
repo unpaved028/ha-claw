@@ -39,7 +39,7 @@ Liveness probe. Also the endpoint a Supervisor `watchdog` would use.
 ```json
 {
   "status": "ok",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "uptime": 87231,
   "startedAt": "2026-08-29T21:14:02.104Z",
   "mode": "addon",

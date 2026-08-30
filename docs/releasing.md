@@ -16,8 +16,8 @@ Semantic-ish, pre-1.0:
 
 | Bump | When |
 | --- | --- |
-| **Patch** (`0.9.5` → `0.9.6`) | Bug fixes, documentation, dependency updates |
-| **Minor** (`0.9.5` → `0.10.0`) | New features, new options, behaviour changes users will notice |
+| **Patch** (`0.9.6` → `0.9.7`) | Bug fixes, documentation, dependency updates |
+| **Minor** (`0.9.6` → `0.10.0`) | New features, new options, behaviour changes users will notice |
 | **Major** | Reserved for `1.0.0` — see the [roadmap](roadmap.md#v100--trust-and-hardening) |
 
 The version appears in exactly three places, and CI fails if they disagree:

@@ -6,10 +6,11 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
-## Unreleased
+## 0.9.6
 
-Documentation and repository housekeeping, the stale-sensor correction, and the leftover
-0.9.x correctness items.
+Public documentation, store assets that Home Assistant can actually display, and the leftover
+0.9.x correctness items: a hung tool no longer stalls the loop, a failing backlog task stops
+after three attempts, and a quiet sensor is not treated as dead.
 
 ### Added
 
@@ -41,6 +42,9 @@ Documentation and repository housekeeping, the stale-sensor correction, and the 
 
 ### Fixed
 
+- **Add-on icon corners are transparent again.** The 128×128 resize flattened the rounded
+  corners onto white. `icon.png` is rebuilt from the original artwork with a real alpha
+  channel; the 250×100 wordmark no longer has white triangles around the mark.
 - **Tool executions time out after 15 seconds** instead of stalling the agentic loop and the
   HTTP request. The model sees the timeout as a tool error.
 - **Backlog tasks stop retrying after three failures.** Generation or execution increments
