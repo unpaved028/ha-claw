@@ -6,6 +6,19 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## 0.9.7
+
+System Health can now tell a renamed entity from a dead radio, and a device that vanished in
+March from one that dropped off last night.
+
+### Added
+
+- **Six new System Health cards.** Broken references (automations, scripts and scenes that
+  still name a deleted entity), devices unreachable for 30 days, automations whose last
+  trace failed, pending `update.*` entities, integrations that did not finish setup, and
+  Zigbee radios going quiet (`last_seen` / link quality). Unreachable for under 30 days
+  stays on its own card.
+
 ## 0.9.6
 
 Public documentation, store assets that Home Assistant can actually display, and the leftover

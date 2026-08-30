@@ -20,6 +20,11 @@ import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
 import { checkBackup, isBackupStatusEntity } from './backup-health.js';
+import {
+  findBrokenReferences,
+  findFailedAutomations,
+  findFailedIntegrations,
+} from './health-signals.js';
 
 const log = createLogger('health');
 
@@ -43,7 +48,18 @@ export interface HealthItem {
 
 export interface HealthCheck {
   /** Stable identifier – safe to persist and compare across runs. */
-  key: 'unavailable' | 'stale_sensors' | 'low_battery' | 'backup' | 'storage';
+  key:
+    | 'unavailable'
+    | 'orphans'
+    | 'stale_sensors'
+    | 'low_battery'
+    | 'broken_refs'
+    | 'failed_automations'
+    | 'pending_updates'
+    | 'failed_integrations'
+    | 'radio_quiet'
+    | 'backup'
+    | 'storage';
   /** Short German label for the UI. */
   label: string;
   severity: Severity;
@@ -134,6 +150,13 @@ function isPeriodicSensor(s: HAState): boolean {
 
 /** Battery percentage below which a device counts as low. */
 const LOW_BATTERY_PCT = 20;
+
+/** Unavailable this long is "gone", not "offline today". */
+const ORPHAN_DAYS = 30;
+
+/** Zigbee last_seen older than this, or LQI at or below LQI_WEAK, counts as quiet radio. */
+const RADIO_QUIET_HOURS = 48;
+const LQI_WEAK = 20;
 
 /**
  * Disks under 128 GiB are treated as SD/eMMC (Pi, HA Green, HA Yellow).
@@ -303,6 +326,123 @@ function checkLowBattery(entityIds: string[], info: ha.EntityDeviceInfo[]): Heal
   );
 }
 
+function checkOrphans(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  return buildCheck(
+    'orphans',
+    `Seit ${ORPHAN_DAYS} Tagen nicht erreichbar`,
+    groupByDevice(entityIds, info),
+    'Keine Altlasten – nichts hängt seit Wochen auf unavailable.',
+    'Das Gerät gibt es vermutlich nicht mehr. In Home Assistant entfernen, sonst bleibt es für immer in der Liste der Unerreichbaren.',
+    1,
+    8,
+  );
+}
+
+function checkBrokenRefs(items: HealthItem[]): HealthCheck {
+  return buildCheck(
+    'broken_refs',
+    'Kaputte Referenzen',
+    items,
+    'Automationen, Skripte und Szenen zeigen auf Entities, die es noch gibt.',
+    'Entity umbenannt oder gelöscht. Die Automation, das Skript oder die Szene auf die neue ID umstellen, oder den Eintrag entfernen.',
+    1,
+    8,
+  );
+}
+
+function checkFailedAutomations(items: HealthItem[]): HealthCheck {
+  return buildCheck(
+    'failed_automations',
+    'Automationen mit Fehler',
+    items,
+    'Keine Automation mit einem Fehler im letzten Trace.',
+    'Letzten Trace unter Einstellungen → Automationen öffnen. Meist eine kaputte Bedingung oder eine Entity, die es nicht mehr gibt.',
+    1,
+    5,
+  );
+}
+
+function checkPendingUpdates(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  return buildCheck(
+    'pending_updates',
+    'Updates liegen bereit',
+    groupByDevice(entityIds, info),
+    'Keine ausstehenden Updates.',
+    'Core, OS und Add-ons zuerst. Firmware an Geräten, die du noch benutzt.',
+    1,
+    8,
+  );
+}
+
+function checkFailedIntegrations(items: HealthItem[]): HealthCheck {
+  return buildCheck(
+    'failed_integrations',
+    'Integrationen laden nicht',
+    items,
+    'Alle Integrationen sind geladen.',
+    'Unter Einstellungen → Geräte & Dienste die Integration neu laden oder die Anmeldung prüfen. Home Assistant Repairs zeigt oft denselben Fehler einzeln.',
+    1,
+    3,
+  );
+}
+
+function checkRadioQuiet(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  return buildCheck(
+    'radio_quiet',
+    'Funk wird leise',
+    groupByDevice(entityIds, info),
+    'Keine Zigbee-Geräte mit altem last_seen oder sehr schwachem LQI.',
+    'Nur last_seen / Linkquality. Gerät näher an einen Router, Batterie prüfen, oder Mesh aufräumen. Nicht dasselbe wie „unerreichbar“.',
+    3,
+    10,
+  );
+}
+
+function hoursSince(iso: string, now: Date): number | null {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return (now.getTime() - t) / 3_600_000;
+}
+
+function parseLastSeenAgeHours(s: HAState, now: Date): number | null {
+  const raw = s.state;
+  if (raw === 'unavailable' || raw === 'unknown' || raw === '') return null;
+  const num = Number(raw);
+  if (Number.isFinite(num) && num > 1e12) return (now.getTime() - num) / 3_600_000;
+  if (Number.isFinite(num) && num > 1e9) return (now.getTime() - num * 1000) / 3_600_000;
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) return (now.getTime() - parsed.getTime()) / 3_600_000;
+  return hoursSince(s.last_updated || s.last_changed, now);
+}
+
+function isLinkQualityEntity(s: HAState): boolean {
+  const id = s.entity_id.toLowerCase();
+  return id.endsWith('_linkquality') || id.endsWith('_lqi') || id.endsWith('_link_quality');
+}
+
+function isLastSeenEntity(s: HAState): boolean {
+  const id = s.entity_id.toLowerCase();
+  return id.endsWith('_last_seen') || id.endsWith('_lastseen');
+}
+
+function isPendingUpdate(s: HAState): boolean {
+  return s.entity_id.startsWith('update.') && s.state === 'on';
+}
+
+function isHaStackUpdate(s: HAState): boolean {
+  const id = s.entity_id.toLowerCase();
+  const title = String(s.attributes['title'] ?? '').toLowerCase();
+  return (
+    id.includes('core_update') ||
+    id.includes('supervisor_update') ||
+    id.includes('os_update') ||
+    id.includes('operating_system') ||
+    title.includes('operating system') ||
+    title.includes('supervisor') ||
+    title === 'home assistant core'
+  );
+}
+
 type StorageKind = 'flash' | 'ssd';
 
 function classifyStorage(totalGb: number): StorageKind {
@@ -425,9 +565,20 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   const states = (await ha.getStates()) as HAState[];
   const now = new Date();
 
-  const unavailable = states
-    .filter(s => s.state === 'unavailable' && !isBackupStatusEntity(s.entity_id, s.attributes))
+  const unavailableStates = states.filter(
+    s => s.state === 'unavailable' && !isBackupStatusEntity(s.entity_id, s.attributes),
+  );
+  const orphanIds = unavailableStates
+    .filter(s => {
+      const hours = hoursSince(s.last_updated || s.last_changed, now);
+      return hours != null && hours >= ORPHAN_DAYS * 24;
+    })
     .map(s => s.entity_id);
+  const orphanSet = new Set(orphanIds);
+  const unavailable = unavailableStates
+    .filter(s => !orphanSet.has(s.entity_id))
+    .map(s => s.entity_id);
+
   const stale = states
     .filter(s => {
       if (!isPeriodicSensor(s)) return false;
@@ -445,17 +596,68 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     })
     .map(s => s.entity_id);
 
-  const involved = [...new Set([...unavailable, ...stale, ...lowBattery])];
-  const [deviceInfo, backup, disk] = await Promise.all([
+  const unavailableSet = new Set(unavailableStates.map(s => s.entity_id));
+  const radioQuiet = states
+    .filter(s => {
+      if (unavailableSet.has(s.entity_id)) return false;
+      if (isLastSeenEntity(s)) {
+        const age = parseLastSeenAgeHours(s, now);
+        return age != null && age > RADIO_QUIET_HOURS;
+      }
+      if (isLinkQualityEntity(s)) {
+        if (s.state === 'unavailable' || s.state === 'unknown') return false;
+        const n = Number(s.state);
+        return Number.isFinite(n) && n >= 0 && n <= LQI_WEAK;
+      }
+      return false;
+    })
+    .map(s => s.entity_id);
+
+  const pendingUpdates = states.filter(isPendingUpdate);
+  const pendingUpdateIds = pendingUpdates.map(s => s.entity_id);
+  const stackUpdateWaiting = pendingUpdates.some(isHaStackUpdate);
+
+  const involved = [
+    ...new Set([
+      ...unavailable,
+      ...orphanIds,
+      ...stale,
+      ...lowBattery,
+      ...radioQuiet,
+      ...pendingUpdateIds,
+    ]),
+  ];
+  const [deviceInfo, backup, disk, snapshot] = await Promise.all([
     involved.length > 0 ? ha.getEntityDeviceInfo(involved) : Promise.resolve([]),
     checkBackup(now, states),
     readDiskInfo(),
+    ha.getRegistrySnapshot(),
   ]);
+
+  const [brokenRefs, failedAutos, failedIntegrations] = await Promise.all([
+    findBrokenReferences(states, snapshot),
+    Promise.resolve(findFailedAutomations(states, snapshot)),
+    Promise.resolve(findFailedIntegrations(snapshot)),
+  ]);
+
+  const updates = checkPendingUpdates(pendingUpdateIds, deviceInfo);
+  if (stackUpdateWaiting && updates.severity !== 'critical') {
+    updates.severity = updates.count > 0 ? 'critical' : updates.severity;
+    if (updates.count > 0) {
+      updates.hint = 'Home Assistant Core, OS oder Supervisor wartet. Das zuerst, dann Geräte.';
+    }
+  }
 
   const checks: HealthCheck[] = [
     checkUnavailable(unavailable, deviceInfo),
+    checkOrphans(orphanIds, deviceInfo),
     checkStaleSensors(stale, deviceInfo),
     checkLowBattery(lowBattery, deviceInfo),
+    checkBrokenRefs(brokenRefs),
+    checkFailedAutomations(failedAutos),
+    updates,
+    checkFailedIntegrations(failedIntegrations),
+    checkRadioQuiet(radioQuiet, deviceInfo),
     backup,
   ];
   if (disk) checks.push(checkStorage(disk));

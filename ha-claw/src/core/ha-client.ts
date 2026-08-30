@@ -180,33 +180,45 @@ function haWebsocketUrl(): string {
 }
 
 interface HaWsMessage<T> {
+  id?: number;
   type: string;
   success?: boolean;
   result?: T;
   error?: { code?: string; message?: string };
 }
 
+export type WsOutcome<T> = { ok: true; value: T } | { ok: false; error: string };
+
 /**
- * One-shot authenticated HA websocket command. Used for Core backup/info
- * (REST has no equivalent). Supervisor token is an admin token in the add-on.
+ * Several authenticated HA websocket commands on one connection.
+ * Each command is independent — one failure does not abort the others.
  */
-function haWebsocketCommand<T>(commandType: string, timeoutMs = 10_000): Promise<T> {
+export function haWebsocketBatch(
+  commands: Array<{ type: string } & Record<string, unknown>>,
+  timeoutMs = 15_000,
+): Promise<WsOutcome<unknown>[]> {
   if (!appConfig.supervisorToken) {
-    throw new Error('No SUPERVISOR_TOKEN – HA API unavailable');
+    return Promise.reject(new Error('No SUPERVISOR_TOKEN – HA API unavailable'));
   }
+  if (commands.length === 0) return Promise.resolve([]);
+
   const url = haWebsocketUrl();
   const token = appConfig.supervisorToken;
 
-  return new Promise<T>((resolve, reject) => {
+  return new Promise(resolve => {
+    const outcomes: Array<WsOutcome<unknown> | undefined> = Array.from({
+      length: commands.length,
+    });
     let settled = false;
     let authed = false;
     const ws = new WebSocket(url);
-    const timer = setTimeout(
-      () => finish(new Error(`HA websocket timeout (${commandType})`)),
-      timeoutMs,
-    );
+    const timer = setTimeout(() => finish(new Error('HA websocket timeout (batch)')), timeoutMs);
 
-    function finish(err: Error | null, value?: T): void {
+    function doneCount(): number {
+      return outcomes.filter(o => o !== undefined).length;
+    }
+
+    function finish(err: Error | null): void {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -215,20 +227,25 @@ function haWebsocketCommand<T>(commandType: string, timeoutMs = 10_000): Promise
       } catch {
         /* already closed */
       }
-      if (err) reject(err);
-      else resolve(value as T);
+      resolve(
+        outcomes.map(
+          (o, i) =>
+            o ?? {
+              ok: false,
+              error: err?.message || `No result for ${commands[i]?.type ?? i}`,
+            },
+        ),
+      );
     }
 
-    ws.addEventListener('error', () => {
-      finish(new Error(`HA websocket error (${commandType})`));
-    });
+    ws.addEventListener('error', () => finish(new Error('HA websocket error (batch)')));
     ws.addEventListener('close', () => {
-      if (!settled) finish(new Error(`HA websocket closed (${commandType})`));
+      if (!settled) finish(new Error('HA websocket closed (batch)'));
     });
     ws.addEventListener('message', event => {
-      let msg: HaWsMessage<T>;
+      let msg: HaWsMessage<unknown>;
       try {
-        msg = JSON.parse(String(event.data)) as HaWsMessage<T>;
+        msg = JSON.parse(String(event.data)) as HaWsMessage<unknown>;
       } catch {
         finish(new Error('HA websocket: invalid JSON'));
         return;
@@ -243,16 +260,36 @@ function haWebsocketCommand<T>(commandType: string, timeoutMs = 10_000): Promise
       }
       if (msg.type === 'auth_ok') {
         authed = true;
-        ws.send(JSON.stringify({ id: 1, type: commandType }));
+        commands.forEach((cmd, i) => {
+          ws.send(JSON.stringify({ id: i + 1, ...cmd }));
+        });
         return;
       }
-      if (!authed || msg.type !== 'result') return;
-      if (msg.success === false) {
-        finish(new Error(msg.error?.message || `HA websocket ${commandType} failed`));
-        return;
-      }
-      finish(null, msg.result);
+      if (!authed || msg.type !== 'result' || msg.id == null) return;
+      const idx = msg.id - 1;
+      if (idx < 0 || idx >= commands.length || outcomes[idx]) return;
+      outcomes[idx] =
+        msg.success === false
+          ? { ok: false, error: msg.error?.message || `HA websocket ${commands[idx]!.type} failed` }
+          : { ok: true, value: msg.result };
+      if (doneCount() === commands.length) finish(null);
     });
+  });
+}
+
+/**
+ * One-shot authenticated HA websocket command. Used for Core backup/info
+ * (REST has no equivalent). Supervisor token is an admin token in the add-on.
+ */
+function haWebsocketCommand<T>(
+  commandType: string,
+  extra: Record<string, unknown> = {},
+  timeoutMs = 10_000,
+): Promise<T> {
+  return haWebsocketBatch([{ type: commandType, ...extra }], timeoutMs).then(results => {
+    const r = results[0];
+    if (!r || !r.ok) throw new Error(r?.error || `HA websocket ${commandType} failed`);
+    return r.value as T;
   });
 }
 
@@ -737,6 +774,102 @@ async function fetchDeviceInfoChunk(entityIds: string[]): Promise<EntityDeviceIn
     deviceId: row.device,
     deviceName: row.name,
   }));
+}
+
+export interface EntityRegistryEntry {
+  entity_id: string;
+  device_id: string | null;
+  disabled_by: string | null;
+}
+
+export interface DeviceRegistryEntry {
+  id: string;
+  name: string | null;
+  name_by_user: string | null;
+}
+
+export interface ConfigEntryInfo {
+  entry_id: string;
+  domain: string;
+  title: string;
+  state: string;
+}
+
+export interface TraceSummary {
+  item_id: string;
+  timestamp?: string;
+  error?: string | null;
+  state?: string;
+}
+
+export interface HaRegistrySnapshot {
+  entities: EntityRegistryEntry[];
+  devices: DeviceRegistryEntry[];
+  entries: ConfigEntryInfo[];
+  automationTraces: TraceSummary[];
+}
+
+/**
+ * Entity/device registry, config entries and recent automation traces in one
+ * websocket session. Missing commands come back as empty lists.
+ */
+export async function getRegistrySnapshot(): Promise<HaRegistrySnapshot> {
+  const empty: HaRegistrySnapshot = {
+    entities: [],
+    devices: [],
+    entries: [],
+    automationTraces: [],
+  };
+  try {
+    const results = await haWebsocketBatch([
+      { type: 'config/entity_registry/list' },
+      { type: 'config/device_registry/list' },
+      { type: 'config_entries/get' },
+      { type: 'trace/list', domain: 'automation' },
+    ]);
+    const [entities, devices, entries, traces] = results;
+    if (entities && !entities.ok)
+      log.debug('entity_registry/list failed', { error: entities.error });
+    if (devices && !devices.ok) log.debug('device_registry/list failed', { error: devices.error });
+    if (entries && !entries.ok) log.debug('config_entries/get failed', { error: entries.error });
+    if (traces && !traces.ok) log.debug('trace/list failed', { error: traces.error });
+    return {
+      entities: asArray<EntityRegistryEntry>(entities),
+      devices: asArray<DeviceRegistryEntry>(devices),
+      entries: asArray<ConfigEntryInfo>(entries),
+      automationTraces: asArray<TraceSummary>(traces),
+    };
+  } catch (err) {
+    log.warn('Registry snapshot unavailable', { error: String(err) });
+    return empty;
+  }
+}
+
+function asArray<T>(outcome: WsOutcome<unknown> | undefined): T[] {
+  if (!outcome || !outcome.ok) return [];
+  const v = outcome.value;
+  if (Array.isArray(v)) return v as T[];
+  if (v && typeof v === 'object') {
+    const inner =
+      (v as { entries?: unknown; traces?: unknown }).entries ?? (v as { traces?: unknown }).traces;
+    if (Array.isArray(inner)) return inner as T[];
+  }
+  return [];
+}
+
+/**
+ * UI automation/script config, or null when it lives in YAML or is missing.
+ * Health checks must not log a warning per YAML automation.
+ */
+export async function getUiConfig(
+  kind: 'automation' | 'script',
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    return await haFetch<Record<string, unknown>>(`/config/${kind}/config/${id}`);
+  } catch {
+    return null;
+  }
 }
 
 export type { HAState, HAServiceResponse };

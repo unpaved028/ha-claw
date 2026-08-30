@@ -39,7 +39,7 @@ Liveness probe. Also the endpoint a Supervisor `watchdog` would use.
 ```json
 {
   "status": "ok",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "uptime": 87231,
   "startedAt": "2026-08-29T21:14:02.104Z",
   "mode": "addon",
@@ -259,7 +259,8 @@ spends no tokens.
 
 `severity` is `ok`, `warn` or `critical`, and the top-level value is the worst of the
 individual checks. `count` counts **devices**, not entities — a Zigbee window sensor that
-exposes battery, voltage, firmware and an identify button is one row, not four.
+exposes battery, voltage, firmware and an identify button is one row, not four. Check
+`key` values are listed in [architecture.md § System health](architecture.md#proactive-analysis-vs-system-health).
 
 Returns `503` when Home Assistant is unreachable. Checks are computed on demand, never
 cached, and never written to the backlog. Thresholds are documented in

@@ -1112,6 +1112,25 @@ async function loadSystemHealth() {
   }
 }
 
+function healthItemsSummary(key, n) {
+  const one = {
+    backup: ' letztes Backup',
+    broken_refs: ' Eintrag anzeigen',
+    failed_automations: ' Automation anzeigen',
+    failed_integrations: ' Integration anzeigen',
+    pending_updates: ' Update anzeigen',
+  };
+  const many = {
+    backup: ' letzte Backups',
+    broken_refs: ' Eintraege anzeigen',
+    failed_automations: ' Automationen anzeigen',
+    failed_integrations: ' Integrationen anzeigen',
+    pending_updates: ' Updates anzeigen',
+  };
+  if (one[key]) return n === 1 ? one[key] : many[key];
+  return n === 1 ? ' Gerät anzeigen' : ' Geräte anzeigen';
+}
+
 function renderHealthItem(item) {
   const entities = item.entities || [];
   const label = item.label || entities[0] || '';
@@ -1140,14 +1159,7 @@ function renderHealth(health) {
         Array.isArray(c.items) && c.items.length
           ? c.items
           : (c.entities || []).map(e => ({ label: e, entities: [e] }));
-      const summary =
-        c.key === 'backup'
-          ? items.length === 1
-            ? ' letztes Backup'
-            : ' letzte Backups'
-          : items.length === 1
-            ? ' Gerät anzeigen'
-            : ' Geräte anzeigen';
+      const summary = healthItemsSummary(c.key, items.length);
       const nested =
         items.length > 0
           ? '<details class="health-entities"><summary>' +

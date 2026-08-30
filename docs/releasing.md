@@ -16,8 +16,8 @@ Semantic-ish, pre-1.0:
 
 | Bump | When |
 | --- | --- |
-| **Patch** (`0.9.6` → `0.9.7`) | Bug fixes, documentation, dependency updates |
-| **Minor** (`0.9.6` → `0.10.0`) | New features, new options, behaviour changes users will notice |
+| **Patch** (`0.9.7` → `0.9.8`) | Bug fixes, documentation, dependency updates |
+| **Minor** (`0.9.7` → `0.10.0`) | New features, new options, behaviour changes users will notice |
 | **Major** | Reserved for `1.0.0` — see the [roadmap](roadmap.md#v100--trust-and-hardening) |
 
 The version appears in exactly three places, and CI fails if they disagree:
@@ -80,8 +80,8 @@ docker build -t ha-claw:local .
 
 ```bash
 git add .
-git commit -m "chore: release v0.9.6"
-git tag v0.9.6
+git commit -m "chore: release v0.9.7"
+git tag v0.9.7
 git push origin main
 git push origin --tags
 ```
@@ -89,7 +89,7 @@ git push origin --tags
 **9. Create the GitHub release**
 
 ```bash
-gh release create v0.9.6 --title "v0.9.6" --notes-file <(...)
+gh release create v0.9.7 --title "v0.9.7" --notes-file <(...)
 ```
 
 Use the CHANGELOG section as the release notes rather than `--generate-notes`; the curated

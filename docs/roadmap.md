@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **0.9.6**. Last reviewed: 2026-08-30.
+Current version: **0.9.7**. Last reviewed: 2026-08-30.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -164,14 +164,8 @@ JSON. That is not enough to earn the permission it asks for.
 Where the project is heading. Each item is a question a Home Assistant user cannot answer
 today without manual work.
 
-- [ ] **Broken references.** Which automations, scripts and scenes reference entities that no
-      longer exist? Renaming an entity silently breaks every automation using it, and Home
-      Assistant does not tell you. This is the single most common way a working smart home
-      degrades, and detecting it is straightforward.
-- [ ] **Orphan cleanup.** Entities and devices belonging to hardware that is gone. Currently
-      these sit in "unreachable" forever and the documentation has to tell users the agent
-      cannot distinguish "offline" from "in the bin". Track how long an entity has been
-      unavailable and offer removal after a threshold.
+- [ ] **Orphan cleanup.** System Health already lists devices `unavailable` for 30 days.
+      Offering a one-click remove from that card is still open.
 - [ ] **Automation coverage report.** Rooms with motion sensors and no light automation. Covers
       with no sun automation. Leak sensors with no notification. The analysis modules already
       find some of these; make it a coherent report rather than three tasks in a backlog.

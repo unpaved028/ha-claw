@@ -98,6 +98,7 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── proactive-analysis.ts # 7 analysis modules → backlog
         │   ├── profile.ts       # Bot/user profile and personality
         │   ├── system-health.ts # Live standing-condition checks
+        │   ├── health-signals.ts # Broken refs, traces, failed entries
         │   ├── backup-health.ts # Backup age and offsite detection
         │   └── types.ts
         ├── storage/
@@ -286,11 +287,23 @@ permanently unreachable — so they are computed on demand and never written to 
 
 | Check | Measures | Warn | Critical |
 | --- | --- | --- | --- |
-| `unavailable` | Devices with entities in `unavailable` | ≥ 3 devices | ≥ 15 devices |
+| `unavailable` | Devices with entities in `unavailable` for less than 30 days | ≥ 3 devices | ≥ 15 devices |
+| `orphans` | Devices whose entities have been `unavailable` for 30 days or more | ≥ 1 device | ≥ 8 devices |
 | `stale_sensors` | Periodic sensors (`temperature`, `humidity`, `atmospheric_pressure`, air-quality classes) with no `last_updated` in 48 h. Binary sensors and event-driven classes are ignored — a closed window is not a fault. Allowlist: `PERIODIC_SENSOR_CLASSES` in [`system-health.ts`](../ha-claw/src/core/system-health.ts). | ≥ 5 devices | ≥ 25 devices |
 | `low_battery` | Battery level below 20 % | ≥ 1 device | ≥ 8 devices |
+| `broken_refs` | Automations, scripts and scenes that name an `entity_id` or `device_id` Home Assistant no longer has. YAML-only automations are scanned for `entity_id` attributes only — the config API does not serve them. | ≥ 1 | ≥ 8 |
+| `failed_automations` | Automations whose latest trace recorded an error, or whose own state is `unavailable` | ≥ 1 | ≥ 5 |
+| `pending_updates` | `update.*` entities in state `on` | ≥ 1 | ≥ 8, or any Core / OS / Supervisor update |
+| `failed_integrations` | Config entries in `setup_error`, `setup_retry`, `migration_error` or `failed_unload`. Overlaps Home Assistant Repairs; this card is the count. | ≥ 1 | ≥ 3 |
+| `radio_quiet` | `*_last_seen` older than 48 h, or `*_linkquality` / `*_lqi` ≤ 20. Skips entities already `unavailable`. | ≥ 3 devices | ≥ 10 devices |
 | `backup` | Age of the newest backup containing Home Assistant | ≥ 7 days, or local-only storage | ≥ 14 days, or no backup at all |
 | `storage` | Free space on the HA data partition | Flash < 128 GB: under 5 GB free. SSD: under 10 % free. Drive lifetime ≥ 90 % | Flash: under 3 GB. SSD: under 5 %. Lifetime ≥ 95 % |
+
+`broken_refs`, `failed_automations` and `failed_integrations` share one websocket session
+(`getRegistrySnapshot` in [`ha-client.ts`](../ha-claw/src/core/ha-client.ts)): entity and
+device registries, config entries, and recent automation traces. UI automation/script
+configs are then fetched with a concurrency of 6. A command that the instance does not
+offer comes back empty — the card shows ok, not an error.
 
 Counts are **devices**, not entities. A Zigbee window sensor exposing battery, voltage,
 firmware and an identify button is one row, not twelve.
