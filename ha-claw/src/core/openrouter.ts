@@ -103,7 +103,12 @@ export async function callLLM(
 
       if (!res.ok) {
         const errorBody = await res.text();
-        throw new Error(`OpenRouter ${res.status}: ${errorBody}`);
+        const err = new Error(`OpenRouter ${res.status}: ${errorBody}`);
+        // A wrong key or unknown model will not succeed on attempt three.
+        if (!isRetryableStatus(res.status)) {
+          throw Object.assign(err, { fatal: true });
+        }
+        throw err;
       }
 
       let data: OpenRouterResponse;
@@ -137,19 +142,27 @@ export async function callLLM(
       return data;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      const fatal = Boolean(err && typeof err === 'object' && 'fatal' in err && err.fatal);
       log.warn(`LLM call failed (attempt ${attempt}/${MAX_RETRIES})`, {
         error: lastError.message,
+        retryable: !fatal,
       });
 
+      if (fatal) break;
+
       if (attempt < MAX_RETRIES) {
-        // Exponential backoff: 1s, 2s, 4s
         await sleep(1000 * Math.pow(2, attempt - 1));
       }
     }
   }
 
-  // ❌ All retries exhausted: update circuit breaker
-  consecutiveFailures++;
+  // ❌ All retries exhausted: update circuit breaker (not for 4xx like a bad key)
+  const lastFatal = Boolean(
+    lastError && typeof lastError === 'object' && 'fatal' in lastError && lastError.fatal,
+  );
+  if (!lastFatal) {
+    consecutiveFailures++;
+  }
   if (consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
     circuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS;
     log.error('Circuit breaker OPENED', {
@@ -159,6 +172,10 @@ export async function callLLM(
   }
 
   throw new Error(`OpenRouter failed after ${MAX_RETRIES} attempts: ${lastError?.message}`);
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
 }
 
 function sleep(ms: number): Promise<void> {

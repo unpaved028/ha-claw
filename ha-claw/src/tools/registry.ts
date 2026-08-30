@@ -19,6 +19,25 @@ import { join } from 'node:path';
 
 const log = createLogger('tools');
 
+/** A hung tool must not stall the agentic loop or the HTTP request. */
+const TOOL_TIMEOUT_MS = 15_000;
+
+export function clampLimit(value: unknown, fallback: number, min = 1, max = 200): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(n)));
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 // ── Types ────────────────────────────────────────────────────
 
 export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
@@ -146,7 +165,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
   }
 
   log.debug(`Executing tool: ${name}`, { args });
-  const result = await tool.handler(args);
+  const result = await withTimeout(tool.handler(args), TOOL_TIMEOUT_MS, `Tool "${name}"`);
   log.debug(`Tool result: ${name}`, { resultPreview: String(result).slice(0, 200) });
   return result;
 }

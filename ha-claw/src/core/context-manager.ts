@@ -12,8 +12,8 @@ const log = createLogger('context-manager');
 
 /**
  * Approximate token count for a message list.
- * Rule of thumb: ~4 characters per token for English/German text.
- * JSON structures (tool calls) are slightly more dense.
+ * This is a heuristic (~4 characters per token), not tiktoken. Displayed
+ * costs elsewhere are also estimates — billed usage lives on OpenRouter.
  */
 export function countTokens(messages: ChatMessage[]): number {
   let totalChars = 0;

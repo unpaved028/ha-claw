@@ -163,7 +163,8 @@ export function getDynamicPrunedCache(query: string): string {
   const mentionedAreas = allAreas.filter(area => {
     if (area === 'Ohne Bereich') return false;
     // Check for exact word match to avoid false positives (e.g. "Bad" in "Badezimmer")
-    const regex = new RegExp(`\\b${area.toLowerCase()}\\b`, 'i');
+    const escaped = area.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
     return regex.test(queryLower);
   });
 

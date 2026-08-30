@@ -217,17 +217,22 @@ Changes take effect on your next message. No restart.
 **Status → System Health** shows standing checks with their current state and what to do about
 them.
 
-| Check                          | What it means                                          | Yellow                        | Red                          |
-| ------------------------------ | ------------------------------------------------------ | ----------------------------- | ---------------------------- |
-| **Devices unreachable**        | Physical devices whose entities are `unavailable`      | 3 or more                     | 15 or more                   |
-| **Sensors unchanged for 48 h** | Possible dead battery or lost connection               | 5 or more                     | 25 or more                   |
-| **Battery below 20 %**         | Batteries due for replacement                          | any                           | 8 or more                    |
-| **Backup**                     | Days since the newest backup containing Home Assistant | 7 days, or local-only storage | 14 days, or no backup at all |
-| **Disk space**                 | Free space on the Home Assistant data partition        | See below                     | See below                    |
+| Check                       | What it means                                                               | Yellow                        | Red                          |
+| --------------------------- | --------------------------------------------------------------------------- | ----------------------------- | ---------------------------- |
+| **Devices unreachable**     | Physical devices whose entities are `unavailable`                           | 3 or more                     | 15 or more                   |
+| **Sensors silent for 48 h** | Temperature, humidity, pressure or air-quality sensor that has not reported | 5 or more                     | 25 or more                   |
+| **Battery below 20 %**      | Batteries due for replacement                                               | any                           | 8 or more                    |
+| **Backup**                  | Days since the newest backup containing Home Assistant                      | 7 days, or local-only storage | 14 days, or no backup at all |
+| **Disk space**              | Free space on the Home Assistant data partition                             | See below                     | See below                    |
 
 Counts are **devices, not entities**. A Zigbee window sensor that also exposes battery,
 voltage, firmware and an identify button counts once, not twelve times. Expand a card to see
 the individual entities beneath the device name.
+
+**Silent sensors.** A closed window, a dry leak sensor or a rain gauge that has not seen rain
+is not a fault. This check only looks at sensors that should keep reporting even when the
+reading stays the same — temperature, humidity, atmospheric pressure and air quality — and it
+uses the last time Home Assistant heard from them, not the last time the value changed.
 
 **Backups.** One copy away from the device is enough. HA-Claw accepts any of: an official
 backup location (Home Assistant Cloud, Google Drive, OneDrive, Synology, WebDAV, a NAS mount),
@@ -267,6 +272,9 @@ The workflow deliberately asks twice:
 2. **Approved** — the assistant works out a concrete solution.
 3. **Solution proposed** — you review the actual plan and approve it.
 4. **Executing** — the assistant carries it out and reports the result.
+
+If generation or execution fails three times, the task is marked **Failed** instead of
+retrying forever. You can try again from Status → Tasks.
 
 The second approval matters: approving the _idea_ of an automation is not the same as
 approving the _automation it wrote_. Read the solution before approving it, because at that
@@ -327,7 +335,7 @@ Everything it has learned is visible by asking, and it all lives in your Home As
 | Command   | Does                                                        |
 | --------- | ----------------------------------------------------------- |
 | `/help`   | What the bot can do                                         |
-| `/status` | Uptime, memory, token usage and cost, system health summary |
+| `/status` | Uptime, memory, estimated token cost, system health summary |
 | `/rooms`  | Buttons for every area — tap one for its status             |
 | `/ping`   | Quick liveness check                                        |
 | `/start`  | Welcome message                                             |

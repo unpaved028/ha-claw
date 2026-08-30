@@ -1030,7 +1030,9 @@ function renderBacklog() {
             ? 'status-rejected'
             : t.status === 'deferred'
               ? 'status-deferred'
-              : 'status';
+              : t.status === 'failed'
+                ? 'status-rejected'
+                : 'status';
       const actions = buildBacklogActions(t);
       return (
         '<div class="backlog-item" data-id="' +
@@ -1292,6 +1294,16 @@ function buildBacklogActions(t) {
       '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
         t.id +
         "','proposed')\">Reaktivieren</button>",
+    );
+  }
+  if (t.status === 'failed') {
+    const retry = t.solution ? 'solution_approved' : 'approved';
+    btns.push(
+      '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
+        t.id +
+        "','" +
+        retry +
+        "')\">Erneut versuchen</button>",
     );
   }
   btns.push(

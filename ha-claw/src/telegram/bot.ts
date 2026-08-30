@@ -112,7 +112,7 @@ export function createBot(): Bot {
       usageMsg =
         `• Anfragen: ${stats.numRequests}\n` +
         `• Tokens: ${stats.totalTokens.toLocaleString()}\n` +
-        `• Kosten: $${stats.totalCostUsd.toFixed(4)}\n`;
+        `• Kosten (Schätzung): $${stats.totalCostUsd.toFixed(4)}\n`;
     }
 
     let healthMsg;

@@ -27,7 +27,8 @@ import { registerTool, getToolNames } from './registry.js';
 import * as ha from '../core/ha-client.js';
 import { createLogger } from '../core/logger.js';
 import { logAction, getActionById } from '../storage/action-log.js';
-import { getCachedResult, setCachedResult } from './tool-cache.js';
+import { getCachedResult, setCachedResult, invalidateCachedResult } from './tool-cache.js';
+import { clampLimit } from './registry.js';
 
 const log = createLogger('ha-tools');
 
@@ -249,7 +250,7 @@ export function registerHATools(): void {
       const areaInput = args['area'] as string | string[] | undefined;
       const floorInput = args['floor'] as string | string[] | undefined;
       const deviceClassFilter = ((args['device_class'] as string) ?? '').toLowerCase();
-      const limit = (args['limit'] as number) ?? 50;
+      const limit = clampLimit(args['limit'], 50);
 
       const areaFilters = areaInput
         ? Array.isArray(areaInput)
@@ -369,7 +370,7 @@ export function registerHATools(): void {
 
       // Clear cache for these entities
       for (const eid of entityIds) {
-        setCachedResult(`state:${eid}`, undefined, 0);
+        invalidateCachedResult(`state:${eid}`);
       }
 
       const rollback = getRollback(
@@ -494,7 +495,7 @@ export function registerHATools(): void {
       const res = await ha.callService('light', 'turn_on', data);
 
       // Clear cache
-      for (const eid of ids) setCachedResult(`state:${eid}`, undefined, 0);
+      for (const eid of ids) invalidateCachedResult(`state:${eid}`);
 
       await logAction(
         'switch',
@@ -590,9 +591,9 @@ export function registerHATools(): void {
 
       // Clear cache
       if (Array.isArray(entityId)) {
-        for (const eid of entityId) setCachedResult(`state:${eid}`, undefined, 0);
+        for (const eid of entityId) invalidateCachedResult(`state:${eid}`);
       } else if (entityId) {
-        setCachedResult(`state:${entityId}`, undefined, 0);
+        invalidateCachedResult(`state:${entityId}`);
       }
 
       const rollback = entityId ? getRollback(domain, service, entityId, extraData) : undefined;

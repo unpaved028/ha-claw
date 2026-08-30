@@ -226,17 +226,23 @@ es gefunden hat, wann es fertig ist. Es gibt einen Mikrofon-Knopf für Sprachein
 **Status → System Health** zeigt Dauerprüfungen mit ihrem aktuellen Stand und einem Hinweis,
 was zu tun ist.
 
-| Prüfung                            | Was sie bedeutet                                          | Gelb                                   | Rot                               |
-| ---------------------------------- | --------------------------------------------------------- | -------------------------------------- | --------------------------------- |
-| **Geräte nicht erreichbar**        | Physische Geräte, deren Entities auf `unavailable` stehen | ab 3                                   | ab 15                             |
-| **Sensoren seit 48 h unverändert** | Möglicher Batterie- oder Verbindungsausfall               | ab 5                                   | ab 25                             |
-| **Batterie unter 20 %**            | Batterien, die gewechselt werden sollten                  | ab 1                                   | ab 8                              |
-| **Backup**                         | Tage seit dem letzten Backup, das Home Assistant enthält  | ab 7 Tagen, oder nur lokal gespeichert | ab 14 Tagen, oder gar kein Backup |
-| **Speicherplatz**                  | Freier Platz auf der HA-Datenpartition                    | siehe unten                            | siehe unten                       |
+| Prüfung                             | Was sie bedeutet                                                     | Gelb                                   | Rot                               |
+| ----------------------------------- | -------------------------------------------------------------------- | -------------------------------------- | --------------------------------- |
+| **Geräte nicht erreichbar**         | Physische Geräte, deren Entities auf `unavailable` stehen            | ab 3                                   | ab 15                             |
+| **Sensoren seit 48 h ohne Meldung** | Temperatur, Luftfeuchte, Luftdruck oder Luftqualität ohne neue Werte | ab 5                                   | ab 25                             |
+| **Batterie unter 20 %**             | Batterien, die gewechselt werden sollten                             | ab 1                                   | ab 8                              |
+| **Backup**                          | Tage seit dem letzten Backup, das Home Assistant enthält             | ab 7 Tagen, oder nur lokal gespeichert | ab 14 Tagen, oder gar kein Backup |
+| **Speicherplatz**                   | Freier Platz auf der HA-Datenpartition                               | siehe unten                            | siehe unten                       |
 
 Gezählt werden **Geräte, nicht Entities**. Ein Zigbee-Fensterkontakt, der zusätzlich Batterie,
 Spannung, Firmware und einen Identifizieren-Button meldet, zählt einmal, nicht zwölfmal. Klapp
 eine Karte auf, um die einzelnen Entities unter dem Gerätenamen zu sehen.
+
+**Stille Sensoren.** Ein geschlossenes Fenster, ein trockener Wassermelder oder ein
+Regensensor ohne Regen ist kein Defekt. Diese Prüfung gilt nur für Sensoren, die sich auch
+dann weiter melden sollten, wenn der Messwert gleich bleibt — Temperatur, Luftfeuchte,
+Luftdruck und Luftqualität — und sie zählt die letzte Meldung an Home Assistant, nicht die
+letzte Wertänderung.
 
 **Backups.** Eine Kopie ausserhalb des Geräts reicht. HA-Claw akzeptiert jedes davon: einen
 offiziellen Backup-Ort (Home Assistant Cloud, Google Drive, OneDrive, Synology, WebDAV, ein
@@ -277,6 +283,9 @@ Der Ablauf fragt bewusst zweimal:
 2. **Freigegeben** — der Assistent erarbeitet eine konkrete Lösung.
 3. **Lösung vorgeschlagen** — du prüfst den tatsächlichen Plan und gibst ihn frei.
 4. **Ausführung** — der Assistent setzt ihn um und meldet das Ergebnis.
+
+Scheitert die Ausarbeitung oder die Ausführung dreimal, wird die Aufgabe als **Failed**
+markiert statt endlos neu versucht. Unter Status → Tasks kannst du sie erneut anstoßen.
 
 Die zweite Freigabe ist wichtig: Die _Idee_ einer Automation freizugeben ist etwas anderes, als
 die _Automation freizugeben, die er geschrieben hat_. Lies die Lösung, bevor du sie freigibst —
@@ -338,13 +347,13 @@ Alles Gelernte kannst du dir zeigen lassen, und alles liegt in deinem Home-Assis
 
 ## Telegram-Befehle
 
-| Befehl    | Macht                                                                             |
-| --------- | --------------------------------------------------------------------------------- |
-| `/help`   | Was der Bot kann                                                                  |
-| `/status` | Laufzeit, Speicher, Tokenverbrauch und Kosten, Zusammenfassung des Systemzustands |
-| `/rooms`  | Knöpfe für jeden Bereich — antippen für dessen Status                             |
-| `/ping`   | Kurzer Lebenszeichen-Test                                                         |
-| `/start`  | Begrüssung                                                                        |
+| Befehl    | Macht                                                                          |
+| --------- | ------------------------------------------------------------------------------ |
+| `/help`   | Was der Bot kann                                                               |
+| `/status` | Laufzeit, Speicher, geschätzte Tokenkosten, Zusammenfassung des Systemzustands |
+| `/rooms`  | Knöpfe für jeden Bereich — antippen für dessen Status                          |
+| `/ping`   | Kurzer Lebenszeichen-Test                                                      |
+| `/start`  | Begrüssung                                                                     |
 
 Alles andere ist einfach Gespräch. Sprachnachrichten funktionieren, wenn `openai_api_key`
 gesetzt ist. Geht etwas schief, gibt es einen **Nochmal versuchen**-Knopf.

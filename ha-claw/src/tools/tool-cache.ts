@@ -34,6 +34,11 @@ export function setCachedResult(key: string, value: any, ttl = DEFAULT_TTL): voi
   });
 }
 
+/** Drop a key. Setting TTL 0 left a dead entry in the map. */
+export function invalidateCachedResult(key: string): void {
+  cache.delete(key);
+}
+
 /**
  * Clear the cache (e.g. at the start of a new loop or after a service call).
  */

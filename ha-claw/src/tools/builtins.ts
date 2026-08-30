@@ -5,7 +5,7 @@
  * They cover basic system info and JSON store access.
  */
 
-import { registerTool } from './registry.js';
+import { registerTool, clampLimit } from './registry.js';
 import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
 import * as mem from '../storage/memory-cards.js';
@@ -411,8 +411,9 @@ export function registerBuiltinTools(): void {
     {
       status: {
         type: 'string',
-        description: 'Filter by status: proposed, approved, in_progress, done, rejected',
-        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected', 'deferred'],
+        description:
+          'Filter by status: proposed, approved, in_progress, done, rejected, deferred, failed',
+        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected', 'deferred', 'failed'],
       },
       priority: {
         type: 'string',
@@ -448,8 +449,9 @@ export function registerBuiltinTools(): void {
       id: { type: 'string', description: 'Task ID (e.g., T-A1B2C3)' },
       status: {
         type: 'string',
-        description: 'New status: proposed, approved, in_progress, done, rejected',
-        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected', 'deferred'],
+        description:
+          'New status: proposed, approved, in_progress, done, rejected, deferred, failed',
+        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected', 'deferred', 'failed'],
       },
       priority: {
         type: 'string',
@@ -769,7 +771,7 @@ export function registerBuiltinTools(): void {
     },
     async args => {
       const actions = await listActions({
-        limit: (args['limit'] as number) ?? 20,
+        limit: clampLimit(args['limit'], 20),
         category: args['category'] as any,
       });
       return { count: actions.length, actions };

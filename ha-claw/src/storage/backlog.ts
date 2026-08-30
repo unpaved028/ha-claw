@@ -30,7 +30,11 @@ export type TaskStatus =
   | 'in_progress'
   | 'done'
   | 'rejected'
-  | 'deferred';
+  | 'deferred'
+  | 'failed';
+
+/** Give up after this many processor attempts (solution + execution combined). */
+export const MAX_TASK_ATTEMPTS = 3;
 
 export interface BacklogTask {
   id: string;
@@ -62,6 +66,8 @@ export interface BacklogTask {
   solutionApprovedAt?: string;
   /** Execution result or error */
   executionResult?: string;
+  /** Processor attempts so far. Reset when a human retries a failed task. */
+  attemptCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -198,8 +204,10 @@ export async function updateTask(
       | 'solution'
       | 'solutionApprovedAt'
       | 'executionResult'
+      | 'attemptCount'
     >
   >,
+  options?: { notify?: boolean },
 ): Promise<BacklogTask | null> {
   const existing = await getTask(id);
   if (!existing) return null;
@@ -213,11 +221,20 @@ export async function updateTask(
     updatedAt: new Date().toISOString(),
   };
 
+  if (existing.status === 'failed' && updates.status && PROCESSABLE_STATUSES.has(updates.status)) {
+    updated.attemptCount = 0;
+  }
+
   await atomicWrite(taskPath(id), updated);
   log.info('Backlog task updated', { id, status: updated.status });
 
-  // Notify processor if task reached a processable status
-  if (updates.status && PROCESSABLE_STATUSES.has(updates.status) && onTaskStatusChanged) {
+  const shouldNotify = options?.notify !== false;
+  if (
+    shouldNotify &&
+    updates.status &&
+    PROCESSABLE_STATUSES.has(updates.status) &&
+    onTaskStatusChanged
+  ) {
     onTaskStatusChanged();
   }
 

@@ -29,6 +29,10 @@ registry.register({
 The `description` is not a comment. It is the only thing the model has to decide whether a
 tool applies, so changing it changes behaviour. Treat it as an API change.
 
+`executeTool` in the registry times out after **15 seconds**; the loop returns that as a
+tool error the model can react to. A numeric `limit` argument that is missing, `NaN` or
+out of range is clamped (default 1–200) so `slice(0, NaN)` cannot look like an empty house.
+
 ## Danger flag and complexity
 
 **`dangerous: true`** means every call is held until the user confirms it — inline keyboard
@@ -126,7 +130,7 @@ Long-term memory cards, retrieved by keyword relevance and injected into the sys
 | --- | --- | --- |
 | `tasks_add` | no | Add a task the user asked for. |
 | `backlog_propose` | no | Propose an improvement the agent found itself. |
-| `backlog_list` | no | List tasks, optionally filtered by status. |
+| `backlog_list` | no | List tasks, optionally filtered by status (including `failed`). |
 | `backlog_detail` | no | Full detail for one task, including its proposed solution. |
 | `backlog_update` | no | Change status or fields. Drives the approval workflow. |
 | `backlog_delete` | **yes** | Delete a task permanently. |

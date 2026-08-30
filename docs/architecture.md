@@ -177,7 +177,8 @@ error context.
 
 A `toolFilter` parameter restricts which tools an agent may use — onboarding runs with three.
 A `ConfirmationFn` handles the safety gate, with implementations for Telegram, the Web UI, and
-auto-approve for scheduled jobs.
+auto-approve for scheduled jobs. Each tool execution is capped at **15 seconds**; a hang
+returns an error to the model instead of stalling the loop.
 
 ## Tool registry
 
@@ -238,13 +239,16 @@ no tokens and generates no polling traffic.
 ```text
 proposed ──▶ approved ──▶ solution_proposed ──▶ solution_approved ──▶ done
                 │                                       │
-             rejected                               (on failure,
-             deferred                            back to solution_approved)
+             rejected                               (on failure: retry,
+             deferred                                then failed after 3)
 ```
 
 The agent generates a concrete solution for approved tasks, the user reviews it, and only then
-does the agent execute it. One startup scan catches tasks approved while the add-on was down.
-Rapid status changes are coalesced through a 2-second debounce.
+does the agent execute it. A failed generation or execution increments `attemptCount` and is
+retried after 30 seconds; after `MAX_TASK_ATTEMPTS` (3) the task is marked `failed` instead of
+retrying forever. The Web UI offers **Erneut versuchen**, which resets the counter. One startup
+scan catches tasks approved while the add-on was down. Rapid status changes are coalesced
+through a 2-second debounce.
 
 ## Proactive analysis vs system health
 
@@ -283,7 +287,7 @@ permanently unreachable — so they are computed on demand and never written to 
 | Check | Measures | Warn | Critical |
 | --- | --- | --- | --- |
 | `unavailable` | Devices with entities in `unavailable` | ≥ 3 devices | ≥ 15 devices |
-| `stale_sensors` | Sensors unchanged for more than 48 h | ≥ 5 devices | ≥ 25 devices |
+| `stale_sensors` | Periodic sensors (`temperature`, `humidity`, `atmospheric_pressure`, air-quality classes) with no `last_updated` in 48 h. Binary sensors and event-driven classes are ignored — a closed window is not a fault. Allowlist: `PERIODIC_SENSOR_CLASSES` in [`system-health.ts`](../ha-claw/src/core/system-health.ts). | ≥ 5 devices | ≥ 25 devices |
 | `low_battery` | Battery level below 20 % | ≥ 1 device | ≥ 8 devices |
 | `backup` | Age of the newest backup containing Home Assistant | ≥ 7 days, or local-only storage | ≥ 14 days, or no backup at all |
 | `storage` | Free space on the HA data partition | Flash < 128 GB: under 5 GB free. SSD: under 10 % free. Drive lifetime ≥ 90 % | Flash: under 3 GB. SSD: under 5 %. Lifetime ≥ 95 % |

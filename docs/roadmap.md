@@ -81,33 +81,10 @@ contains no features at all.
 
 ## Now — 0.9.x
 
-Finish what is half-built. No new surface area.
-
-- [ ] **Tool timeouts.** A tool that hangs stalls the whole loop and holds the HTTP request
-      open. 15 s per execution, surfaced to the model as a failure it can react to.
-- [ ] **Retry limit for backlog tasks.** A permanently failing task retries forever, spending
-      tokens on every attempt. Count attempts, give up after N, mark it failed with the reason.
-- [ ] **Fix tool cache invalidation.** `tools/tool-cache.ts` "invalidates" by setting TTL to 0
-      instead of deleting the key. Fix that before considering any HA state cache.
-- [ ] **Retry only what is retryable.** `core/openrouter.ts` retries 4xx responses three times
-      with backoff. A wrong API key or an unknown model is not going to succeed on attempt
-      three. Retry 429 and 5xx only.
-- [ ] **Clamp `limit` parameters.** `ha_search_entities` and friends pass a model-supplied
-      `limit` straight into `slice()`. A non-numeric value yields `slice(0, NaN)` and an empty
-      result that looks like "nothing found".
-- [ ] **Escape area names before building a RegExp.** `core/entity-cache.ts` interpolates area
-      names into `new RegExp()`. An area called `Küche (EG)` breaks pruning.
-- [ ] **`getActionById` searches only the last 200 entries.** Rolling back an older action
-      fails even though the data is in the file.
-- [ ] **Correct the token-counting claim.** The v0.7.0 changelog says token counting uses
-      `js-tiktoken`. It does not — `context-manager.ts` uses a 4-characters-per-token
-      heuristic and `js-tiktoken` is not a dependency. Either adopt a real tokeniser or state
-      the estimate honestly in the UI.
-
-Already done, previously listed as open:
-
-- ~~Retry button on errors~~ — shipped in both surfaces; the Telegram button was fixed in
-  v0.9.2 and the Web UI renders one on every error bubble.
+The leftover correctness items (tool timeouts, backlog retry cap, cache invalidation,
+retryable LLM errors only, clamped `limit`, escaped area names, full action-log lookup,
+honest token-cost label) are in [`CHANGELOG.md`](../ha-claw/CHANGELOG.md) under Unreleased.
+Next scheduled work is [v1.0.0](#v100--trust-and-hardening).
 
 ## v1.0.0 — Trust and hardening
 

@@ -10,16 +10,34 @@
  */
 
 import { createLogger } from '../core/logger.js';
-import { getTask, updateTask, listTasks, onProcessableStatusChange } from './backlog.js';
+import {
+  getTask,
+  updateTask,
+  listTasks,
+  onProcessableStatusChange,
+  MAX_TASK_ATTEMPTS,
+} from './backlog.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
 import { getCircuitBreakerState } from '../core/openrouter.js';
 import type { AgentConfig } from '../core/types.js';
 
 const log = createLogger('backlog-proc');
 
+/** Space retries so a permanent failure does not spin the loop. */
+const RETRY_DELAY_MS = 30_000;
+
 let agentBuilder: (() => AgentConfig) | null = null;
 let processing = false; // prevent overlapping runs
 let pendingNotify = false; // coalesce rapid-fire notifications
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+function scheduleRetryScan(): void {
+  if (retryTimer) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined;
+    notifyTaskChanged();
+  }, RETRY_DELAY_MS);
+}
 
 /**
  * Initialize the backlog processor.
@@ -86,14 +104,18 @@ async function processQueue(): Promise<void> {
     // Find tasks that need solution generation (approved or fast_track_approved)
     const allTasks = await listTasks();
     const needsSolution = allTasks.filter(
-      t => t.status === 'approved' || t.status === 'fast_track_approved',
+      t =>
+        (t.status === 'approved' || t.status === 'fast_track_approved') &&
+        (t.attemptCount ?? 0) < MAX_TASK_ATTEMPTS,
     );
     for (const task of needsSolution) {
       await generateSolution(task.id);
     }
 
     // Find tasks that need execution
-    const solutionApproved = allTasks.filter(t => t.status === 'solution_approved');
+    const solutionApproved = allTasks.filter(
+      t => t.status === 'solution_approved' && (t.attemptCount ?? 0) < MAX_TASK_ATTEMPTS,
+    );
     for (const task of solutionApproved) {
       await executeSolution(task.id);
     }
@@ -140,7 +162,14 @@ Antworte NUR mit der Loesung, keine Einleitung oder Erklaerung drumherum.`;
     });
     log.info('Solution proposed for task', { id: taskId, autoApproved: isFastTrack });
   } catch (err) {
-    log.error('Solution generation failed', { id: taskId, error: String(err) });
+    const reason = String(err);
+    log.error('Solution generation failed', { id: taskId, error: reason });
+    await recordAttempt(
+      taskId,
+      task.attemptCount,
+      reason,
+      isFastTrack ? 'fast_track_approved' : 'approved',
+    );
   }
 }
 
@@ -167,13 +196,34 @@ Nutze die verfuegbaren Tools um die Loesung umzusetzen. Bestaetige was du getan 
     log.info('Task completed', { id: taskId });
     if (updated && executionFinishedListener) executionFinishedListener(updated);
   } catch (err) {
-    log.error('Task execution failed', { id: taskId, error: String(err) });
-    const updated = await updateTask(taskId, {
-      status: 'solution_approved', // revert to allow retry
-      executionResult: `FEHLER: ${String(err).slice(0, 500)}`,
-    });
+    const reason = String(err);
+    log.error('Task execution failed', { id: taskId, error: reason });
+    const updated = await recordAttempt(taskId, task.attemptCount, reason, 'solution_approved');
     if (updated && executionFinishedListener) executionFinishedListener(updated);
   }
+}
+
+async function recordAttempt(
+  taskId: string,
+  previous: number | undefined,
+  reason: string,
+  retryStatus: 'approved' | 'fast_track_approved' | 'solution_approved',
+) {
+  const attempts = (previous ?? 0) + 1;
+  const exhausted = attempts >= MAX_TASK_ATTEMPTS;
+  const updated = await updateTask(
+    taskId,
+    {
+      status: exhausted ? 'failed' : retryStatus,
+      attemptCount: attempts,
+      executionResult: exhausted
+        ? `Aufgegeben nach ${attempts} Versuchen: ${reason.slice(0, 500)}`
+        : `FEHLER (Versuch ${attempts}/${MAX_TASK_ATTEMPTS}): ${reason.slice(0, 500)}`,
+    },
+    { notify: false },
+  );
+  if (!exhausted) scheduleRetryScan();
+  return updated;
 }
 
 export { processQueue };

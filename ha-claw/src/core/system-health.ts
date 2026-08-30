@@ -87,14 +87,50 @@ interface HAState {
   state: string;
   attributes: Record<string, unknown>;
   last_changed: string;
+  last_updated: string;
 }
 
 // ── Thresholds ────────────────────────────────────────────
 
 const SEVERITY_ORDER: Record<Severity, number> = { ok: 0, warn: 1, critical: 2 };
 
-/** Hours without a state change after which a sensor counts as stale. */
+/**
+ * Hours without a report (`last_updated`) after which a *periodic* sensor
+ * counts as stale. `last_changed` is the wrong clock: a closed window or a
+ * dry rain sensor can keep the same state for weeks and still be healthy.
+ */
 const STALE_HOURS = 48;
+
+/**
+ * device_class values that are expected to keep talking even when the reading
+ * stays the same. Binary sensors (door, motion, leak, rain) and event-driven
+ * classes (battery, energy pulse, precipitation) are deliberately absent.
+ * Source of truth for the system-health stale check.
+ */
+const PERIODIC_SENSOR_CLASSES = new Set([
+  'temperature',
+  'humidity',
+  'atmospheric_pressure',
+  'carbon_dioxide',
+  'carbon_monoxide',
+  'volatile_organic_compounds',
+  'volatile_organic_compounds_parts',
+  'pm1',
+  'pm10',
+  'pm25',
+  'nitrogen_dioxide',
+  'nitrogen_monoxide',
+  'nitrous_oxide',
+  'ozone',
+  'sulphur_dioxide',
+  'aqi',
+]);
+
+function isPeriodicSensor(s: HAState): boolean {
+  if (!s.entity_id.startsWith('sensor.')) return false;
+  const deviceClass = String(s.attributes['device_class'] ?? '').toLowerCase();
+  return PERIODIC_SENSOR_CLASSES.has(deviceClass);
+}
 
 /** Battery percentage below which a device counts as low. */
 const LOW_BATTERY_PCT = 20;
@@ -246,10 +282,10 @@ function checkUnavailable(entityIds: string[], info: ha.EntityDeviceInfo[]): Hea
 function checkStaleSensors(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
   return buildCheck(
     'stale_sensors',
-    `Sensoren seit ${STALE_HOURS}h unverändert`,
+    `Sensoren seit ${STALE_HOURS}h ohne Meldung`,
     groupByDevice(entityIds, info),
-    'Alle Sensoren melden aktuelle Werte.',
-    'Batterie leer oder Verbindung verloren? Dauerhaft tote Sensoren aus Home Assistant entfernen. Achtung: manche Sensoren ändern sich legitim selten.',
+    'Die Sensoren, die sich regelmässig melden sollten, tun das.',
+    'Nur Temperatur, Luftfeuchte, Luftdruck und Luftqualität. Ein Fenster das tagelang zu bleibt, ist kein Defekt. Batterie und Integration prüfen, oder das Gerät aus Home Assistant entfernen.',
     5,
     25,
   );
@@ -394,13 +430,11 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     .map(s => s.entity_id);
   const stale = states
     .filter(s => {
-      if (!s.entity_id.startsWith('sensor.') && !s.entity_id.startsWith('binary_sensor.')) {
-        return false;
-      }
+      if (!isPeriodicSensor(s)) return false;
       if (s.state === 'unavailable' || s.state === 'unknown') return false;
-      // Backup status entities stay put for days (timestamp state / "backed_up").
       if (isBackupStatusEntity(s.entity_id, s.attributes)) return false;
-      const hoursAgo = (now.getTime() - new Date(s.last_changed).getTime()) / 3_600_000;
+      const reportedAt = s.last_updated || s.last_changed;
+      const hoursAgo = (now.getTime() - new Date(reportedAt).getTime()) / 3_600_000;
       return hoursAgo > STALE_HOURS;
     })
     .map(s => s.entity_id);

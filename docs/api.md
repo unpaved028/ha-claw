@@ -210,7 +210,7 @@ Accepted schedule strings are listed in [tools.md § Scheduler](tools.md#schedul
 | `DELETE` | `/api/logs` | `{ cleared: true }` |
 | `GET` | `/api/actions` | `{ count, actions }` — the 100 most recent entries |
 | `DELETE` | `/api/actions` | `{ cleared: true }` |
-| `POST` | `/api/actions/rollback` | Body `{ id }`. Replays the recorded inverse service call. `400` for a malformed body, `404` when the action has no rollback payload. |
+| `POST` | `/api/actions/rollback` | Body `{ id }`. Replays the recorded inverse service call. Lookup scans the whole `actions.jsonl` file, not only the last page of `GET /api/actions`. `400` for a malformed body, `404` when the action is missing or has no rollback payload. |
 
 The log buffer is in memory and resets on restart. `store/actions.jsonl` is persistent and
 pruned to a rolling 7-day window.
@@ -228,8 +228,10 @@ The backlog: improvement proposals with an approval workflow.
 | `POST` | `/api/backlog/cleanup` | Removes duplicate analysis tasks and leftovers from checks that moved to system health |
 
 The status flow is `proposed → approved → solution_proposed → solution_approved → done`, with
-`rejected` and `deferred` as terminal user decisions. Status changes trigger the event-driven
-backlog processor; an idle system spends no tokens.
+`rejected` and `deferred` as terminal user decisions. Generation or execution that fails three
+times marks the task `failed`; a human retry back to `approved` or `solution_approved` resets
+`attemptCount`. Status changes trigger the event-driven backlog processor; an idle system
+spends no tokens.
 
 ## System health
 

@@ -95,7 +95,9 @@ export interface ActionListOptions {
 }
 
 export async function listActions(options: ActionListOptions = {}): Promise<ActionEntry[]> {
-  const { limit = 50, category } = options;
+  const rawLimit = options.limit ?? 50;
+  const limit = Number.isFinite(rawLimit) ? Math.min(500, Math.max(1, Math.trunc(rawLimit))) : 50;
+  const { category } = options;
   try {
     const raw = await readFile(ACTIONS_PATH, 'utf-8');
     const lines = raw.trim().split('\n').filter(Boolean);
@@ -107,10 +109,23 @@ export async function listActions(options: ActionListOptions = {}): Promise<Acti
   }
 }
 
-/** Get a single action by ID (useful for rollback). */
+/** Get a single action by ID (useful for rollback). Scans the whole file. */
 export async function getActionById(id: string): Promise<ActionEntry | null> {
-  const actions = await listActions({ limit: 200 });
-  return actions.find(a => a.id === id) || null;
+  try {
+    const raw = await readFile(ACTIONS_PATH, 'utf-8');
+    for (const line of raw.split('\n')) {
+      if (!line) continue;
+      try {
+        const entry = JSON.parse(line) as ActionEntry;
+        if (entry.id === id) return entry;
+      } catch {
+        // skip malformed lines
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 /** Clear action log. */

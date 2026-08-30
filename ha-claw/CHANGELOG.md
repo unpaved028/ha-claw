@@ -8,7 +8,8 @@ Format follows https://keepachangelog.com.
 
 ## Unreleased
 
-Documentation and repository housekeeping. No functional change to the add-on.
+Documentation and repository housekeeping, the stale-sensor correction, and the leftover
+0.9.x correctness items.
 
 ### Added
 
@@ -28,6 +29,10 @@ Documentation and repository housekeeping. No functional change to the add-on.
 
 ### Changed
 
+- **Stale-sensor check no longer treats a quiet window as dead.** It uses `last_updated`
+  (last report to Home Assistant), not `last_changed` (last value change), and only applies
+  to sensors that should keep reporting: temperature, humidity, atmospheric pressure and
+  air-quality classes. Binary sensors and event-driven classes are ignored.
 - **Add-on store assets follow the Home Assistant guidelines**: `icon.png` is 128×128 (down
   from 1024×1024 and 997 KB) and a proper 250×100 `logo.png` now ships with the add-on.
 - **`.gitignore` rewritten** — generic `node_modules/` and `dist/` patterns, `.env` files
@@ -36,11 +41,23 @@ Documentation and repository housekeeping. No functional change to the add-on.
 
 ### Fixed
 
-- **The v0.7.0 entry below claims token counting uses `js-tiktoken`.** It does not, and never
-  did — `src/core/context-manager.ts` estimates at roughly four characters per token, and
-  `js-tiktoken` is not a dependency. The historical entry is left in place; this note is the
-  correction. Adopting a real tokeniser or labelling the figure as an estimate is on the
-  roadmap.
+- **Tool executions time out after 15 seconds** instead of stalling the agentic loop and the
+  HTTP request. The model sees the timeout as a tool error.
+- **Backlog tasks stop retrying after three failures.** Generation or execution increments
+  `attemptCount`; a fourth attempt is not started. The task is marked `failed` with the last
+  error, and Status → Tasks offers **Erneut versuchen**.
+- **Tool-cache invalidation deletes the key.** Setting TTL to 0 left a dead entry in the map.
+- **OpenRouter retries only 429 and 5xx.** A wrong API key or unknown model is no longer
+  retried three times, and those 4xx errors do not trip the circuit breaker.
+- **`limit` arguments are clamped** before they reach `slice()`, so a non-numeric value no
+  longer looks like an empty house.
+- **Area names are escaped before they go into a RegExp**, so an area called `Küche (EG)` no
+  longer breaks entity-cache pruning.
+- **`getActionById` scans the whole action log**, not only the last 200 entries. Rolling back
+  an older action can find it.
+- **Telegram `/status` labels cost as an estimate.** Token counts remain a four-characters-per-
+  token heuristic; `js-tiktoken` is not a dependency. The v0.7.0 entry below is left as
+  written.
 
 ## 0.9.5
 
