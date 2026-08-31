@@ -226,4 +226,33 @@ async function recordAttempt(
   return updated;
 }
 
+/**
+ * Run the proposed solution with write tools disabled. Stores the would-call
+ * report on the task so the UI can show it before approval.
+ */
+export async function previewSolution(
+  taskId: string,
+  agentOverride?: AgentConfig,
+): Promise<{ preview: string } | { error: string }> {
+  const task = await getTask(taskId);
+  if (!task) return { error: 'not found' };
+  if (!task.solution) return { error: 'no solution' };
+  const base = agentOverride ?? agentBuilder?.();
+  if (!base) return { error: 'processor not ready' };
+
+  const agent = { ...base, dryRun: true };
+  const prompt = `Vorschau. Fuehre NICHTS aus. Beschreibe, welche Schreib-Aktionen du ausfuehren wuerdest, um diese Loesung umzusetzen. Schreib-Tools liefern nur wouldCall zurueck — das ist beabsichtigt.
+
+Loesung:
+${task.solution}`;
+
+  try {
+    const result = await runAgenticLoop(prompt, agent);
+    await updateTask(taskId, { previewResult: result.response }, { notify: false });
+    return { preview: result.response };
+  } catch (err) {
+    return { error: String(err) };
+  }
+}
+
 export { processQueue };

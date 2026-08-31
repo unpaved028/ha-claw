@@ -14,6 +14,7 @@ Assistant supplies in the `X-Ingress-Path` request header.
 - [Logs and actions](#logs-and-actions)
 - [Tasks](#tasks)
 - [System health](#system-health)
+- [Maintenance](#maintenance)
 - [Store](#store)
 
 ## Access and authentication
@@ -39,7 +40,7 @@ Liveness probe. The Supervisor `watchdog` and the image `HEALTHCHECK` both call 
 ```json
 {
   "status": "ok",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "uptime": 87231,
   "startedAt": "2026-08-29T21:14:02.104Z",
   "mode": "addon",
@@ -143,10 +144,13 @@ overwriting the other. Anything unanswered after **60 seconds** is auto-denied.
 ```jsonc
 { "pending": false, "count": 0 }
 // or
-{ "pending": true, "count": 2, "id": "c1a3...", "toolName": "ha_call_service_dangerous", "args": { } }
+{ "pending": true, "count": 2, "id": "c1a3...", "toolName": "ha_call_service_dangerous", "args": { }, "preview": null }
 ```
 
-Returns the oldest entry plus the queue length. The dashboard polls this.
+Returns the oldest entry plus the queue length. The dashboard polls this. For
+`ha_save_automation_config` / `ha_save_script_config`, `preview` is a
+`{ kind: "config_write", title, yamlDiff, blastRadius, currentMissing }` object so the
+dialog can show a YAML diff instead of the raw config JSON.
 
 ### `POST /api/confirm/:id`
 
@@ -210,7 +214,7 @@ Accepted schedule strings are listed in [tools.md § Scheduler](tools.md#schedul
 | `DELETE` | `/api/logs` | `{ cleared: true }` |
 | `GET` | `/api/actions` | `{ count, actions }` — the 100 most recent entries |
 | `DELETE` | `/api/actions` | `{ cleared: true }` |
-| `POST` | `/api/actions/rollback` | Body `{ id }`. Replays the recorded inverse service call. Lookup scans the whole `actions.jsonl` file, not only the last page of `GET /api/actions`. `400` for a malformed body, `404` when the action is missing or has no rollback payload. |
+| `POST` | `/api/actions/rollback` | Body `{ id }`. Replays the recorded inverse service call, or restores a config snapshot when `rollback.domain` is `config` and `rollback.service` is `restore`. Lookup scans the whole `actions.jsonl` file, not only the last page of `GET /api/actions`. `400` for a malformed body, `404` when the action is missing or has no rollback payload. |
 
 The log buffer is in memory and resets on restart. `store/actions.jsonl` is persistent and
 pruned to a rolling 7-day window.
@@ -226,6 +230,7 @@ The backlog: improvement proposals with an approval workflow.
 | `PUT` | `/api/backlog/:id` | Partial update, `404` if unknown |
 | `DELETE` | `/api/backlog/:id` | `{ deleted: true }` or `404` |
 | `POST` | `/api/backlog/cleanup` | Removes duplicate analysis tasks and leftovers from checks that moved to system health |
+| `POST` | `/api/backlog/:id/preview` | Dry-run of the proposed solution. Stores `previewResult`. `404` if unknown, `400` if there is no solution. |
 
 The status flow is `proposed → approved → solution_proposed → solution_approved → done`, with
 `rejected` and `deferred` as terminal user decisions. Generation or execution that fails three
@@ -290,6 +295,26 @@ is unreachable.
 Checks are never written to the backlog. A full run also happens shortly after start and
 every hour (Telegram regressions). Thresholds are documented in
 [architecture.md § System health](architecture.md#proactive-analysis-vs-system-health).
+
+### `POST /api/system-health/orphans/remove`
+
+Body `{ "itemIds": ["dev:…", "stem:…"] }`. Removes those devices / entity stems from the
+Home Assistant registries. Same ids as the `orphans` card. `400` when `itemIds` is missing.
+Kicks off a background health refresh.
+
+## Maintenance
+
+Status → Pflege. These are live reports, not backlog tasks.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/coverage` | Area-aware automation gaps (`motion_light`, `cover_sun`, `leak_notify`) with `suggestedBlueprint` |
+| `GET` | `/api/naming` | Friendly-name proposals (up to 80) |
+| `POST` | `/api/naming/apply` | Body `{ items: [{ entityId, name }] }`. Writes the entity registry. |
+| `GET` | `/api/energy` | Current power sensors (W) and energy totals (kWh) |
+| `GET` | `/api/review` | Combined weekly-digest object including `text` |
+
+`503` when Home Assistant is unreachable.
 
 ## Store
 

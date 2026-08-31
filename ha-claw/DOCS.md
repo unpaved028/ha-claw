@@ -11,6 +11,7 @@ _Deutsche Fassung: [DOCS.de.md](DOCS.de.md)_
 - [Talking to it](#talking-to-it)
 - [The dashboard](#the-dashboard)
 - [System health](#system-health)
+- [Care](#care)
 - [Tasks](#tasks)
 - [Reminders and schedules](#reminders-and-schedules)
 - [Memory and learning](#memory-and-learning)
@@ -197,9 +198,10 @@ Three sections in the top navigation.
 **Chat** — the conversation. Progress is shown live: which tool is running, what it found,
 when it is done. There is a microphone button for voice input (browser-based, German).
 
-**Status** — three tabs:
+**Status** — four tabs:
 
 - _System Health_ — the standing checks described below.
+- _Pflege_ — coverage gaps, name proposals and live power, as one report.
 - _Tasks_ — improvement proposals awaiting your decision.
 - _Logs_ — the add-on log and, under Actions, every service call with a rollback button.
 
@@ -278,8 +280,24 @@ second rule is what catches a genuine new outage in an installation that is perm
 Improvements are recorded silently.
 
 If devices stay in the list forever, they are usually leftovers from hardware you removed.
-Deleting those entities in Home Assistant is the only way to clear them — HA-Claw cannot tell
-the difference between "offline right now" and "thrown away last year".
+The **Unreachable for 30 days** card has **Remove** / **Remove all**. That deletes the device
+or its leftover entities from Home Assistant's registries. Confirm before you tap it — there
+is no undo.
+
+## Care
+
+**Status → Pflege** answers the questions that used to become three backlog tasks.
+
+- **Coverage** — rooms with motion sensors and no light automation, covers with no sun
+  automation, leak sensors with no notification. Each gap names a well-known blueprint
+  instead of inventing YAML.
+- **Names** — entities without a usable `friendly_name`, with a suggested name from area +
+  entity id. Tick the ones you want and apply them in bulk.
+- **Power** — existing `device_class: power` / `energy` sensors, summed in watts.
+
+A **Wochenbericht** job is created automatically (`weekly sun 10:00`). It sends this digest
+to Telegram when the bot is set up. It does not run the assistant. You can disable or delete
+the job like any other schedule.
 
 ## Tasks
 
@@ -291,7 +309,8 @@ The workflow deliberately asks twice:
 
 1. **Proposed** — you approve, reject or defer it.
 2. **Approved** — the assistant works out a concrete solution.
-3. **Solution proposed** — you review the actual plan and approve it.
+3. **Solution proposed** — you review the actual plan. **Preview** shows what write tools
+   would call without doing it. Then you approve it.
 4. **Executing** — the assistant carries it out and reports the result.
 
 If generation or execution fails three times, the task is marked **Failed** instead of
@@ -333,8 +352,9 @@ Delivered through Telegram. Relative delays (`5m`, `2h`, `1h30m`) and absolute t
 | `weekends 10:00`   | Saturday and Sunday at 10:00 |
 | `weekly mon 08:00` | Every Monday at 08:00        |
 
-A useful one to start with is a weekly analysis: _"Every Monday at 8, analyse my home and send
-me the result."_ Manage jobs under Status, or ask the assistant to list them.
+A **Wochenbericht** (Sunday 10:00) is created for you. A useful extra is a weekly analysis:
+_"Every Monday at 8, analyse my home and send me the result."_ Manage jobs under Status, or
+ask the assistant to list them.
 
 ## Memory and learning
 
@@ -382,8 +402,12 @@ directly.
 
 - **Telegram** — Yes/No buttons in the chat. Only the person who triggered the action can
   answer. Automatically denied after 60 seconds.
-- **Web UI** — a dialog showing the tool and its exact arguments. Also 60 seconds. Several
-  pending requests queue up rather than overwriting each other.
+- **Web UI** — a dialog showing the tool and its exact arguments. Editing an automation or
+  script shows a YAML diff and what else references the same entities, not a JSON blob.
+  Also 60 seconds. Several pending requests queue up rather than overwriting each other.
+
+Config writes that fail the structural check never reach this dialog. After a successful
+write, Status → Actions offers **Revert** for that change.
 
 The dialog shows the raw entity ID rather than a friendly description on purpose. The
 description would be written by the same assistant whose decision you are checking. Read the

@@ -153,6 +153,36 @@ export function isDangerous(name: string): boolean {
   return tools.get(name)?.dangerous ?? false;
 }
 
+const WRITE_TOOLS = new Set([
+  'ha_call_service',
+  'ha_light_set_scene',
+  'ha_light_set_color',
+  'store_write',
+  'store_delete',
+  'notes_add',
+  'memory_remember',
+  'memory_update',
+  'memory_forget',
+  'tasks_add',
+  'backlog_propose',
+  'backlog_update',
+  'backlog_delete',
+  'schedule_create',
+  'schedule_once',
+  'schedule_toggle',
+  'schedule_delete',
+  'learn_correction',
+  'learn_rule',
+  'save_onboarding_profile',
+  'analyze_home',
+]);
+
+/** Tools that do not change Home Assistant or HA-Claw storage. */
+export function isReadOnlyTool(name: string): boolean {
+  if (isDangerous(name)) return false;
+  return !WRITE_TOOLS.has(name);
+}
+
 /**
  * Execute a tool by name with the given arguments.
  */

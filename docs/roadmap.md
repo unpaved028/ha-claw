@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.0.0**. Last reviewed: 2026-09-01.
+Current version: **1.2.0**. Last reviewed: 2026-09-01.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -11,8 +11,7 @@ roadmap that lists every possible feature is not a roadmap.
 - [Where the effort goes](#where-the-effort-goes)
 - [Now — 0.9.x](#now--09x)
 - [v1.0.0 — Trust and hardening](#v100--trust-and-hardening)
-- [v1.1 — Safe change management](#v11--safe-change-management)
-- [v1.2 — The maintenance layer](#v12--the-maintenance-layer)
+- [v1.1 / v1.2 — shipped](#v11--v12--shipped)
 - [v1.3 — Reach](#v13--reach)
 - [Exploratory](#exploratory)
 - [Deliberately not doing](#deliberately-not-doing)
@@ -74,8 +73,9 @@ and a second implementation of it would help nobody.
 
 **The bottleneck is trust, not capability.** An assistant that can rewrite your automations is
 only useful if you are willing to let it. The safety-policy table test pins the allowlist;
-[v1.0.0](#v100--trust-and-hardening) shipped the rest of that trust work. Product work
-resumes at [v1.1](#v11--safe-change-management).
+[v1.0.0](#v100--trust-and-hardening) shipped the rest of that trust work.
+[v1.2.0](../ha-claw/CHANGELOG.md#120) shipped safe config writes and the maintenance
+layer. Product work resumes at [v1.3](#v13--reach).
 
 ---
 
@@ -87,8 +87,8 @@ by severity, expandable explanations, last-seen trend, deep links into Home Assi
 stopped add-ons, recorder, restored-only entities, disabled-entity count, failed scripts,
 and a YAML coverage note on broken references — shipped in
 [v0.10.0](../ha-claw/CHANGELOG.md#0100). The trust cut shipped in
-[v1.0.0](../ha-claw/CHANGELOG.md#100). Next is
-[v1.1](#v11--safe-change-management).
+[v1.0.0](../ha-claw/CHANGELOG.md#100). Safe writes and the maintenance layer shipped in
+[v1.2.0](../ha-claw/CHANGELOG.md#120). Next is [v1.3](#v13--reach).
 
 ## v1.0.0 — Trust and hardening
 
@@ -97,45 +97,16 @@ pinned non-root image with HEALTHCHECK / watchdog / AppArmor, serialised writes,
 overlap protection, graceful shutdown, tool-argument validation and the Ingress source-IP
 allowlist.
 
-## v1.1 — Safe change management
+## v1.1 / v1.2 — shipped
 
-The differentiator is that HA-Claw can *change* your installation. Today
-`ha_save_automation_config` overwrites an automation after a yes/no prompt that shows raw
-JSON. That is not enough to earn the permission it asks for.
+Shipped together in [v1.2.0](../ha-claw/CHANGELOG.md#120): YAML diff and blast radius before
+a config write, snapshot revert, task dry-run, orphan one-click remove, Status → Pflege
+(coverage, naming, energy), weekly digest, blueprint guidance.
 
-- [ ] **Diff before write.** Show a YAML diff of the automation as it is versus as it would
-      be. Confirming a diff is a decision; confirming a blob is a coin flip.
-- [ ] **Snapshot and one-click revert.** Store the previous configuration with every write, and
-      offer "revert this change" in the action log. Rollback already exists for service calls;
-      configuration writes need the same.
-- [ ] **Validate before saving.** Run the generated YAML through Home Assistant's config check
-      and refuse to write if it fails. Never leave the user with a broken automation because
-      the model produced plausible-looking nonsense.
-- [ ] **Explain the blast radius.** Before rewriting an automation, list what else references
-      the entities involved. Renaming or restructuring is where an AI assistant does the most
-      damage, and the `safe-refactoring.md` knowledge already describes how to avoid it — it is
-      just advice to the model, not an enforced step.
-- [ ] **Preview mode for tasks.** Let a task be executed in a mode that reports what it *would*
-      do without doing it.
-
-## v1.2 — The maintenance layer
-
-Where the project is heading. Each item is a question a Home Assistant user cannot answer
-today without manual work.
-
-- [ ] **Orphan cleanup.** System Health already lists devices `unavailable` for 30 days.
-      Offering a one-click remove from that card is still open.
-- [ ] **Automation coverage report.** Rooms with motion sensors and no light automation. Covers
-      with no sun automation. Leak sensors with no notification. The analysis modules already
-      find some of these; make it a coherent report rather than three tasks in a backlog.
-- [ ] **Naming and structure hygiene** with bulk proposals. Not "12 entities lack a friendly
-      name" but "here are the 12, here are the names I suggest, approve all or edit".
-- [ ] **Periodic home review.** A weekly digest: what changed, what degraded, what improved,
-      what is worth doing next. One message with substance beats a backlog that fills up.
-- [ ] **Energy attribution.** Which devices actually cost you money, using the existing power
-      sensors. The standby-waste check hints at this; it deserves to be a real capability.
-- [ ] **Blueprint awareness.** When proposing an automation that a well-known blueprint already
-      solves, suggest the blueprint instead of generating bespoke YAML.
+Config validation is structural (required keys, known fields, valid `mode`). Home Assistant
+`check_config` is not used — that call inspects YAML files on disk, not a pending UI
+automation. Do not reopen "run check_config before save" without a new HA API that can
+validate a UI config that has not been written yet.
 
 ## v1.3 — Reach
 

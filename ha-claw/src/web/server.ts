@@ -47,6 +47,13 @@ import {
 } from '../core/system-health.js';
 import { getToolDefinitions } from '../tools/registry.js';
 import * as actionLog from '../storage/action-log.js';
+import type { ConfirmPreview } from '../core/config-change.js';
+import { buildCoverageReport } from '../core/coverage-report.js';
+import { applyNamingProposals, buildNamingReport } from '../core/naming-hygiene.js';
+import { buildEnergyReport } from '../core/energy-attribution.js';
+import { buildWeeklyDigest } from '../core/home-review.js';
+import { removeOrphans } from '../core/orphan-cleanup.js';
+import { previewSolution } from '../storage/backlog-processor.js';
 
 const log = createLogger('web');
 const STARTUP_TIME = new Date().toISOString();
@@ -59,6 +66,7 @@ interface PendingConfirmation {
   id: string;
   toolName: string;
   args: Record<string, unknown>;
+  preview?: ConfirmPreview;
   resolve: (approved: boolean) => void;
   timer: NodeJS.Timeout;
 }
@@ -68,7 +76,11 @@ const pendingConfirmations = new Map<string, PendingConfirmation>();
 let confirmCounter = 0;
 
 function createWebConfirmFn(): ConfirmationFn {
-  return async (toolName: string, args: Record<string, unknown>): Promise<boolean> => {
+  return async (
+    toolName: string,
+    args: Record<string, unknown>,
+    preview?: ConfirmPreview,
+  ): Promise<boolean> => {
     const id = String(++confirmCounter);
     log.info('Web safety gate: awaiting confirmation', { id, toolName });
     return new Promise<boolean>(resolve => {
@@ -79,7 +91,7 @@ function createWebConfirmFn(): ConfirmationFn {
           resolve(false);
         }
       }, CONFIRM_TIMEOUT_MS);
-      pendingConfirmations.set(id, { id, toolName, args, resolve, timer });
+      pendingConfirmations.set(id, { id, toolName, args, preview, resolve, timer });
     });
   };
 }
@@ -294,6 +306,7 @@ export async function startWebServer(): Promise<void> {
       id: next.id,
       toolName: next.toolName,
       args: next.args,
+      preview: next.preview,
     };
   });
 
@@ -405,22 +418,14 @@ export async function startWebServer(): Promise<void> {
       return { error: 'Rollback data not found for this action' };
     }
 
-    const { domain, service, entity_id, data } = action.rollback;
-    log.info('Executing rollback', { id, domain, service, entity_id });
+    log.info('Executing rollback', {
+      id,
+      domain: action.rollback.domain,
+      service: action.rollback.service,
+    });
 
     try {
-      // Use HA client directly for rollback to avoid infinite loops or recursion
-      const { callService } = await import('../core/ha-client.js');
-      const res = await callService(domain, service, { entity_id, ...data });
-
-      // Log the rollback itself as a new action
-      await actionLog.logAction(
-        'system',
-        `Rollback: ${domain}.${service} auf ${entity_id}`,
-        'rollback',
-      );
-
-      return res;
+      return await actionLog.executeRollback(action);
     } catch (err) {
       log.error('Rollback failed', { error: String(err) });
       reply.status(500);
@@ -474,6 +479,15 @@ export async function startWebServer(): Promise<void> {
     return backlog.cleanupAnalysisTasks();
   });
 
+  app.post<{ Params: { id: string } }>('/api/backlog/:id/preview', async (req, reply) => {
+    const result = await previewSolution(req.params.id, buildAgent());
+    if ('error' in result) {
+      reply.status(result.error === 'not found' ? 404 : 400);
+      return result;
+    }
+    return result;
+  });
+
   // ── System Health ───────────────────────────────────────
   // Standing checks, deliberately not persisted as backlog tasks – see
   // core/system-health.ts. GET serves the last report; POST recomputes.
@@ -495,6 +509,80 @@ export async function startWebServer(): Promise<void> {
     try {
       const health = await getSystemHealth();
       return { checking: false, health };
+    } catch (err) {
+      reply.status(503);
+      return { error: String(err) };
+    }
+  });
+
+  app.post<{ Body: { itemIds?: string[] } }>(
+    '/api/system-health/orphans/remove',
+    async (req, reply) => {
+      const itemIds = req.body?.itemIds;
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        reply.status(400);
+        return { error: 'itemIds required' };
+      }
+      try {
+        const result = await removeOrphans(itemIds.slice(0, 40));
+        void getSystemHealth().catch(err =>
+          log.warn('Health refresh after orphan remove failed', { error: String(err) }),
+        );
+        return result;
+      } catch (err) {
+        reply.status(503);
+        return { error: String(err) };
+      }
+    },
+  );
+
+  app.get('/api/coverage', async (_req, reply) => {
+    try {
+      return await buildCoverageReport();
+    } catch (err) {
+      reply.status(503);
+      return { error: String(err) };
+    }
+  });
+
+  app.get('/api/naming', async (_req, reply) => {
+    try {
+      return await buildNamingReport();
+    } catch (err) {
+      reply.status(503);
+      return { error: String(err) };
+    }
+  });
+
+  app.post<{ Body: { items?: { entityId: string; name: string }[] } }>(
+    '/api/naming/apply',
+    async (req, reply) => {
+      const items = req.body?.items;
+      if (!Array.isArray(items) || items.length === 0) {
+        reply.status(400);
+        return { error: 'items required' };
+      }
+      try {
+        return await applyNamingProposals(items.slice(0, 80));
+      } catch (err) {
+        reply.status(503);
+        return { error: String(err) };
+      }
+    },
+  );
+
+  app.get('/api/energy', async (_req, reply) => {
+    try {
+      return await buildEnergyReport();
+    } catch (err) {
+      reply.status(503);
+      return { error: String(err) };
+    }
+  });
+
+  app.get('/api/review', async (_req, reply) => {
+    try {
+      return await buildWeeklyDigest();
     } catch (err) {
       reply.status(503);
       return { error: String(err) };

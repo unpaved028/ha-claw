@@ -84,6 +84,8 @@ export interface AgentConfig {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  /** When true, write tools return a would-call payload instead of running. */
+  dryRun?: boolean;
 }
 
 // ── Loop Result ──────────────────────────────────────────────

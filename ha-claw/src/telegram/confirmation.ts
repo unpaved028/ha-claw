@@ -13,6 +13,8 @@
 import type { Bot } from 'grammy';
 import { InlineKeyboard } from 'grammy';
 import { createLogger } from '../core/logger.js';
+import type { ConfirmationFn } from '../core/agentic-loop.js';
+import { formatPreviewText, type ConfirmPreview } from '../core/config-change.js';
 
 const log = createLogger('safety-gate');
 
@@ -105,15 +107,21 @@ export function createTelegramConfirmFn(
   bot: Bot,
   chatId: number,
   userId: number | null = null,
-): (toolName: string, args: Record<string, unknown>) => Promise<boolean> {
-  return async (toolName: string, args: Record<string, unknown>): Promise<boolean> => {
+): ConfirmationFn {
+  return async (
+    toolName: string,
+    args: Record<string, unknown>,
+    preview?: ConfirmPreview,
+  ): Promise<boolean> => {
     const callbackId = String(++confirmationCounter);
 
-    const text =
-      `⚠️ *Gefährliche Aktion*\n\n` +
-      `Tool: \`${toolName}\`\n` +
-      `Args: \`${JSON.stringify(args).slice(0, 200)}\`\n\n` +
-      `Genehmigen?`;
+    const previewBlock = preview ? formatPreviewText(preview, 2200) : '';
+    const text = previewBlock
+      ? `⚠️ Gefährliche Aktion\n\nTool: ${toolName}\n\n${previewBlock}\n\nGenehmigen?`
+      : `⚠️ *Gefährliche Aktion*\n\n` +
+        `Tool: \`${toolName}\`\n` +
+        `Args: \`${JSON.stringify(args).slice(0, 200)}\`\n\n` +
+        `Genehmigen?`;
 
     const keyboard = new InlineKeyboard()
       .text('✅ Ja', `confirm:${callbackId}:yes`)

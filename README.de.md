@@ -13,7 +13,7 @@ bevor es etwas anfasst, das dich aussperren oder einen Alarm auslösen könnte.
 
 [![CI](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml/badge.svg)](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml)
 [![Lizenz: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Add-on-Version](https://img.shields.io/badge/add--on-v1.0.0-0aa8d2.svg)](ha-claw/CHANGELOG.md)
+[![Add-on-Version](https://img.shields.io/badge/add--on-v1.2.0-0aa8d2.svg)](ha-claw/CHANGELOG.md)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Add--on-41BDF5.svg?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
 
 [Installation](#installation) · [Handbuch](ha-claw/DOCS.de.md) · [Roadmap](docs/roadmap.md) · [English](README.md)

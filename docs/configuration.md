@@ -157,9 +157,9 @@ Everything is JSON or JSONL under `<dataPath>/store/`. In the add-on that is
 | `store/memory/`, `store/memory-cards/` | Long-term memory cards with version history | `storage/memory-cards.ts` |
 | `store/backlog/` | Improvement tasks, one file per task | `storage/backlog.ts` |
 | `store/learning/` | Corrections, prompt patches, usage patterns, error history | `storage/learning.ts` |
-| `store/scheduler.json` | Recurring jobs and one-shot timers | `storage/scheduler.ts` |
+| `store/scheduler.json` | Recurring jobs and one-shot timers, including the seeded weekly digest | `storage/scheduler.ts` |
 | `store/usage/` | Cumulative token counts and cost estimate | `storage/usage-tracker.ts` |
-| `store/actions.jsonl` | Append-only action log with rollback payloads, pruned after 7 days | `storage/action-log.ts` |
+| `store/actions.jsonl` | Append-only action log with service-call and config-snapshot rollback payloads, pruned after 7 days | `storage/action-log.ts` |
 | `store/disabled-tools.json` | Tools switched off in the Tool Vault | `tools/registry.ts` |
 | `store/system-health.json` | Last-seen count/severity per health check (UI trend) and last-notified values (Telegram regressions) | `core/system-health.ts` |
 | `store/system-health-report.json` | Last full health report served to the Status screen | `core/system-health.ts` |

@@ -26,7 +26,8 @@
 import { registerTool, getToolNames } from './registry.js';
 import * as ha from '../core/ha-client.js';
 import { createLogger } from '../core/logger.js';
-import { logAction, getActionById } from '../storage/action-log.js';
+import { logAction, getActionById, executeRollback } from '../storage/action-log.js';
+import { saveConfigWithSnapshot } from '../core/config-change.js';
 import { getCachedResult, setCachedResult, invalidateCachedResult } from './tool-cache.js';
 import { clampLimit } from './registry.js';
 import { SAFE_DOMAINS, assertDomainMatches, evaluateSafeCallPolicy } from './safety-policy.js';
@@ -472,14 +473,7 @@ export function registerHATools(): void {
       if (!action) return { error: `Action ${id} not found.` };
       if (!action.rollback) return { error: `Action ${id} has no rollback information.` };
 
-      const { domain, service, entity_id, data } = action.rollback;
-      const res = await ha.callService(domain, service, { ...data, entity_id });
-
-      await logAction(
-        'system',
-        `Rollback ausgeführt für Aktion ${id}: ${action.description}`,
-        'action_log_rollback',
-      );
+      const res = await executeRollback(action);
 
       return { success: true, original_action: action.description, rollback_result: res };
     },
@@ -677,7 +671,7 @@ export function registerHATools(): void {
   // ── ha_save_automation_config ─────────────────────────────
   registerTool(
     'ha_save_automation_config',
-    'Update the configuration of an existing Home Assistant automation. WARNING: This will overwrite the existing configuration. Use ha_get_automation_config first to get the current config.',
+    'Update the configuration of an existing Home Assistant automation. Confirmation shows a YAML diff and what else references the entities. Invalid configs are refused before write. Use ha_best_practices topic "blueprints" before inventing YAML. Use ha_get_automation_config first.',
     {
       id: {
         type: 'string',
@@ -693,7 +687,22 @@ export function registerHATools(): void {
       const id = args['id'] as string;
       const config = args['config'] as Record<string, unknown>;
       if (!id || !config) return { error: 'id and config are required' };
-      return ha.saveAutomationConfig(id, config);
+      const saved = await saveConfigWithSnapshot('automation', id, config);
+      if ('error' in saved) return saved;
+      await logAction(
+        'config',
+        `Automation ${id} geschrieben`,
+        'ha_save_automation_config',
+        saved.snapshot
+          ? {
+              domain: 'config',
+              service: 'restore',
+              entity_id: id,
+              data: { kind: 'automation', config: saved.snapshot.config },
+            }
+          : undefined,
+      );
+      return { success: true };
     },
     { dangerous: true, required: ['id', 'config'], complexity: 3 },
   );
@@ -721,7 +730,7 @@ export function registerHATools(): void {
   // ── ha_save_script_config ────────────────────────────────
   registerTool(
     'ha_save_script_config',
-    'Update the configuration of an existing Home Assistant script. WARNING: This will overwrite the existing configuration. Use ha_get_script_config first to get the current config.',
+    'Update the configuration of an existing Home Assistant script. Confirmation shows a YAML diff and what else references the entities. Invalid configs are refused before write. Use ha_get_script_config first.',
     {
       id: {
         type: 'string',
@@ -736,7 +745,22 @@ export function registerHATools(): void {
       const id = args['id'] as string;
       const config = args['config'] as Record<string, unknown>;
       if (!id || !config) return { error: 'id and config are required' };
-      return ha.saveScriptConfig(id, config);
+      const saved = await saveConfigWithSnapshot('script', id, config);
+      if ('error' in saved) return saved;
+      await logAction(
+        'config',
+        `Skript ${id} geschrieben`,
+        'ha_save_script_config',
+        saved.snapshot
+          ? {
+              domain: 'config',
+              service: 'restore',
+              entity_id: id,
+              data: { kind: 'script', config: saved.snapshot.config },
+            }
+          : undefined,
+      );
+      return { success: true };
     },
     { dangerous: true, required: ['id', 'config'], complexity: 3 },
   );

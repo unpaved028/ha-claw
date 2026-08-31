@@ -15,6 +15,7 @@ import * as learning from '../storage/learning.js';
 import { runAnalysis } from '../core/proactive-analysis.js';
 import { logAction, listActions } from '../storage/action-log.js';
 import { saveProfile, needsOnboarding } from '../core/profile.js';
+import { buildWeeklyDigest } from '../core/home-review.js';
 
 export function registerBuiltinTools(): void {
   // ── save_onboarding_profile ───────────────────────────────
@@ -776,5 +777,12 @@ export function registerBuiltinTools(): void {
       });
       return { count: actions.length, actions };
     },
+  );
+
+  registerTool(
+    'home_review',
+    'One-page home review: last system health, automation coverage gaps, naming proposals, live power sensors, open tasks. Read-only.',
+    {},
+    async () => buildWeeklyDigest(),
   );
 }

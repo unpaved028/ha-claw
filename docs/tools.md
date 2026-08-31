@@ -83,16 +83,18 @@ Which domains `ha_call_service` accepts, and the `cover`/`scene` special cases, 
 | Tool | Tier | Dangerous | Description |
 | --- | --- | --- | --- |
 | `ha_get_automation_config` | 1 | no | Full triggers, conditions and actions. Resolves the internal automation `id` from entity attributes, so UI-created automations load correctly. |
-| `ha_save_automation_config` | 3 | **yes** | Overwrites an automation's configuration. |
+| `ha_save_automation_config` | 3 | **yes** | Overwrites an automation after a YAML diff + blast-radius confirmation. Structural validation runs first; invalid configs never reach the gate. Previous config is snapshotted for one-click revert. |
 | `ha_get_script_config` | 1 | no | Reads a script's sequence. |
-| `ha_save_script_config` | 3 | **yes** | Overwrites a script's configuration. |
+| `ha_save_script_config` | 3 | **yes** | Same write path as automations. |
 
-The two write tools are tier 3 and dangerous. Generating automation YAML is the one task
-where model quality visibly matters, and a bad write silently breaks a working automation.
+The two write tools are tier 3 and dangerous. Confirmation shows a YAML diff, not a JSON
+blob. Validation is structural (required keys, known fields, valid `mode`) — it is not
+Home Assistant `check_config`. A 400 from HA aborts and leaves the previous config in place.
+See [architecture.md § Safe config writes](architecture.md#safe-config-writes).
 
 ## Built-in tools
 
-[`src/tools/builtins.ts`](../ha-claw/src/tools/builtins.ts) — 30 tools. All tier 1 except
+[`src/tools/builtins.ts`](../ha-claw/src/tools/builtins.ts) — 31 tools. All tier 1 except
 `analyze_home`.
 
 ### Time and system
@@ -168,6 +170,10 @@ executor, so a job that lasts longer than the tick cannot fire twice. When the b
 closes, overdue jobs are jittered by up to 60 seconds so they do not all hit the model at
 once.
 
+Jobs may carry `kind: "digest"`. Those skip the agentic loop and send the weekly home
+review (`home-review.ts`). Startup seeds a **Wochenbericht** job (`weekly sun 10:00`) if
+none exists.
+
 ### Analysis and learning
 
 | Tool | Tier | Description |
@@ -178,6 +184,7 @@ once.
 | `detect_patterns` | 1 | Finds recurring actions in the usage history. |
 | `list_learned` | 1 | Everything learned so far: corrections, rules, patterns, errors. |
 | `action_log_list` | 1 | Recent agent actions from `actions.jsonl`. |
+| `home_review` | 1 | Combined digest: health, coverage gaps, naming proposals, live watts, open tasks. |
 
 What each analysis module checks is documented in
 [architecture.md § Proactive analysis](architecture.md#proactive-analysis-vs-system-health).
@@ -200,9 +207,9 @@ knows who you are.
 | --- | --- |
 | `ha_best_practices` | Retrieves Home Assistant guidance by topic or keyword. |
 
-It reads six reference files from
+It reads seven reference files from
 [`ha-claw/agents/skills/ha-best-practices/`](../ha-claw/agents/skills/ha-best-practices/):
-`automation-patterns.md`, `device-control.md`, `helper-selection.md`,
+`automation-patterns.md`, `blueprints.md`, `device-control.md`, `helper-selection.md`,
 `safe-refactoring.md`, `template-guidelines.md` and `examples.yaml`.
 
 The point is to stop the model inventing Home Assistant YAML from a two-year-old training

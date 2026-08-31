@@ -27,6 +27,43 @@ export interface ActionEntry {
   };
 }
 
+export function isConfigRestore(rollback: NonNullable<ActionEntry['rollback']>): boolean {
+  return rollback.domain === 'config' && rollback.service === 'restore';
+}
+
+/** Replay a recorded inverse: service call, or a config snapshot restore. */
+export async function executeRollback(action: ActionEntry): Promise<unknown> {
+  if (!action.rollback) throw new Error('Action has no rollback information');
+  if (isConfigRestore(action.rollback)) {
+    const kind = action.rollback.data?.['kind'];
+    const config = action.rollback.data?.['config'];
+    const id = Array.isArray(action.rollback.entity_id)
+      ? action.rollback.entity_id[0]
+      : action.rollback.entity_id;
+    if (
+      (kind !== 'automation' && kind !== 'script') ||
+      !id ||
+      !config ||
+      typeof config !== 'object'
+    ) {
+      throw new Error('Invalid config snapshot');
+    }
+    const { restoreConfigSnapshot } = await import('../core/config-change.js');
+    await restoreConfigSnapshot({
+      kind,
+      id,
+      config: config as Record<string, unknown>,
+    });
+    await logAction('system', `Rollback: ${kind} ${id} wiederhergestellt`, 'rollback');
+    return { success: true, kind, id };
+  }
+  const { domain, service, entity_id, data } = action.rollback;
+  const { callService } = await import('../core/ha-client.js');
+  const res = await callService(domain, service, { entity_id, ...data });
+  await logAction('system', `Rollback: ${domain}.${service} auf ${entity_id}`, 'rollback');
+  return res;
+}
+
 /** Ensure storage exists. */
 export async function initActionLog(): Promise<void> {
   const dir = join(appConfig.dataPath, 'store');

@@ -83,7 +83,7 @@ All run from `ha-claw/`.
 | `npm run check` | `tsc --noEmit` |
 | `npm run lint` / `lint:fix` | ESLint |
 | `npm run format` / `format:fix` | Prettier |
-| `npm test` | `node:test` suite under `test/` (safety policy, scheduler, pruning, storage) |
+| `npm test` | `node:test` suite under `test/` (safety policy, scheduler, pruning, storage, config write helpers) |
 | `npm run bundle` | Regenerate `src/web/dashboard.ts` |
 | `npm run verify:bundle` | Fail if the generated dashboard drifted |
 

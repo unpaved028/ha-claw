@@ -56,9 +56,9 @@ the image is built on the user's Raspberry Pi.
 
 **7. Never claim something works because it compiles.** `npm run check` passing means the
 types line up. `npm test` covers the safety policy, schedule parsing, context pruning,
-entity-cache compression, storage locks, tool-argument validation and the Ingress
-allowlist — not live Home Assistant behaviour. If you cannot verify something, say so
-plainly instead of implying you did.
+entity-cache compression, storage locks, tool-argument validation, the Ingress allowlist,
+YAML diffs and config validation — not live Home Assistant behaviour. If you cannot
+verify something, say so plainly instead of implying you did.
 
 ## Where things live
 

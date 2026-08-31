@@ -193,12 +193,14 @@ What that buys them, and what it does not:
 
 So the mitigation is the human in the loop, which is exactly why the gate displays raw
 arguments rather than a model-written summary. Read the entity ID before you tap yes.
+Config writes show a YAML diff and a blast-radius list instead of the raw config object.
 
 ## Audit trail
 
 Every Home Assistant service call is appended to `store/actions.jsonl` with its arguments,
-result and — where one can be computed — the inverse call needed to undo it. Visible under
-**Status → Actions**, with a rollback button per entry. Retained for 7 days.
+result and — where one can be computed — the inverse call needed to undo it. Automation and
+script writes store the previous config on the same record. Visible under
+**Status → Actions**, with a rollback / **Zurücksetzen** button per entry. Retained for 7 days.
 
 After anything unexpected, that log is the record of what actually happened, independent of
 what the agent said it did.
@@ -216,3 +218,8 @@ Stated plainly, because a security document that only lists strengths is marketi
    earns the add-on the custom-profile security point; it is not a tight jail.
 4. **Approved backlog tasks execute with the full tool set.** Approving a task is a broader
    grant than approving a single action. Read the proposed solution before approving it.
+   Preview (`dryRun`) reports what write tools *would* call; it is not a guarantee the later
+   execution will do only that.
+5. **Config validation is structural, not Home Assistant `check_config`.** `check_config`
+   inspects YAML files on disk, not a pending UI automation. A config can pass HA-Claw's
+   key/mode check and still fail HA's own parser — that failure aborts the write.

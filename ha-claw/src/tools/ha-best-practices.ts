@@ -44,12 +44,12 @@ export function registerHABestPracticesTools(): void {
 
   registerTool(
     'ha_best_practices',
-    'Retrieve Home Assistant best practice guidelines. Topics: "automation-patterns", "device-control", "helper-selection", "safe-refactoring", "template-guidelines", "examples". Use this when creating or reviewing HA automations, scripts, helpers, or templates to ensure best practices are followed.',
+    'Retrieve Home Assistant best practice guidelines. Topics: "automation-patterns", "blueprints", "device-control", "helper-selection", "safe-refactoring", "template-guidelines", "examples". Use this when creating or reviewing HA automations, scripts, helpers, or templates. Check "blueprints" before inventing YAML for motion lights, sun covers or leak notify.',
     {
       topic: {
         type: 'string',
         description:
-          'Topic to retrieve. One of: automation-patterns, device-control, helper-selection, safe-refactoring, template-guidelines, examples. Or a keyword to search across all topics.',
+          'Topic to retrieve. One of: automation-patterns, blueprints, device-control, helper-selection, safe-refactoring, template-guidelines, examples. Or a keyword to search across all topics.',
       },
     },
     async args => {

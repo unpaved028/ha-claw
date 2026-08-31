@@ -66,6 +66,8 @@ export interface BacklogTask {
   solutionApprovedAt?: string;
   /** Execution result or error */
   executionResult?: string;
+  /** Dry-run of the proposed solution (what write tools would have called). */
+  previewResult?: string;
   /** Processor attempts so far. Reset when a human retries a failed task. */
   attemptCount?: number;
   createdAt: string;
@@ -204,6 +206,7 @@ export async function updateTask(
       | 'solution'
       | 'solutionApprovedAt'
       | 'executionResult'
+      | 'previewResult'
       | 'attemptCount'
     >
   >,

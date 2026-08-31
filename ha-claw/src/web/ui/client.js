@@ -92,6 +92,7 @@ function activateStatusSection(name) {
 
   if (name === 'health') loadSystemHealth();
   else stopHealthPoll();
+  if (name === 'care') loadCare(false);
   if (name === 'tasks') loadBacklog();
   if (name === 'logs') {
     startLogPolling();
@@ -435,7 +436,7 @@ function startConfirmPolling() {
       if (d.pending) {
         clearInterval(confirmPollTimer);
         confirmPollTimer = null;
-        showConfirmModal(d.id, d.toolName, d.args);
+        showConfirmModal(d.id, d.toolName, d.args, d.preview);
       }
     } catch (e) {}
   }, 800);
@@ -446,21 +447,70 @@ function stopConfirmPolling() {
     confirmPollTimer = null;
   }
 }
-function showConfirmModal(id, toolName, args) {
+function renderYamlDiff(diff) {
+  return (
+    '<pre class="confirm-diff">' +
+    String(diff || '')
+      .split('\n')
+      .map(line => {
+        const cls = line.startsWith('+')
+          ? 'diff-add'
+          : line.startsWith('-') && !line.startsWith('---')
+            ? 'diff-del'
+            : line.startsWith('@@') || line.startsWith('---') || line.startsWith('+++')
+              ? 'diff-meta'
+              : '';
+        return '<span class="' + cls + '">' + escHtml(line) + '</span>';
+      })
+      .join('\n') +
+    '</pre>'
+  );
+}
+
+function showConfirmModal(id, toolName, args, preview) {
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
   overlay.id = 'confirm-overlay';
-  const argsStr = Object.entries(args)
-    .map(([k, v]) => k + ': ' + JSON.stringify(v, null, 2))
-    .join('\n');
+  let body;
+  if (preview && preview.kind === 'config_write') {
+    const blast =
+      preview.blastRadius && preview.blastRadius.length
+        ? '<div class="confirm-blast">Wird auch referenziert von:<ul>' +
+          preview.blastRadius
+            .slice(0, 12)
+            .map(b => '<li>' + escHtml(b.label) + '</li>')
+            .join('') +
+          '</ul></div>'
+        : '';
+    const missing = preview.currentMissing
+      ? '<p class="confirm-blast">Keine aktuelle Config gefunden (neu oder nur YAML).</p>'
+      : '';
+    body =
+      'Tool <strong>' +
+      escHtml(toolName) +
+      '</strong> schreibt ' +
+      escHtml(preview.title || 'eine Config') +
+      '.' +
+      missing +
+      renderYamlDiff(preview.yamlDiff) +
+      blast;
+  } else {
+    const argsStr = Object.entries(args || {})
+      .map(([k, v]) => k + ': ' + JSON.stringify(v, null, 2))
+      .join('\n');
+    body =
+      'Tool <strong>' +
+      escHtml(toolName) +
+      '</strong> moechte ausgefuehrt werden:<pre>' +
+      escHtml(argsStr) +
+      '</pre>';
+  }
   overlay.innerHTML =
     '<div class="confirm-modal">' +
     '<div class="confirm-title">Sicherheitsabfrage</div>' +
-    '<div class="confirm-body">Tool <strong>' +
-    escHtml(toolName) +
-    '</strong> moechte ausgefuehrt werden:<pre>' +
-    escHtml(argsStr) +
-    '</pre></div>' +
+    '<div class="confirm-body">' +
+    body +
+    '</div>' +
     '<div class="confirm-actions">' +
     '<button class="confirm-btn approve" onclick="respondConfirm(\'' +
     id +
@@ -1075,6 +1125,11 @@ function renderBacklog() {
             esc(t.solution) +
             '</pre></div>'
           : '') +
+        (t.previewResult
+          ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">Vorschau (ohne Schreiben)</div><pre style="background:var(--bg-input);padding:0.75rem;border-radius:8px;overflow-x:auto;font-size:0.72rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:var(--text-muted)">' +
+            esc(t.previewResult) +
+            '</pre></div>'
+          : '') +
         (t.executionResult
           ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">Ergebnis</div><div class="backlog-detail-text">' +
             esc(t.executionResult) +
@@ -1229,20 +1284,27 @@ function healthLink(href, label, extraClass) {
   );
 }
 
-function renderHealthItem(item, haBase) {
+function renderHealthItem(item, haBase, orphan) {
   const entities = item.entities || [];
   const label = item.label || entities[0] || '';
   const href = healthHref(haBase, item.href);
   const title = healthLink(href, label);
+  const remove = orphan && item.id
+    ? '<button type="button" class="health-orphan-btn" onclick="removeOrphans(JSON.parse(decodeURIComponent(\'' +
+      encodeURIComponent(JSON.stringify([item.id])) +
+      "')), this)\">Entfernen</button>"
+    : '';
   if (entities.length <= 1) {
-    return '<div class="health-device">' + title + '</div>';
+    return '<div class="health-device">' + title + remove + '</div>';
   }
   return (
     '<details class="health-device"><summary>' +
     title +
     ' <span class="health-device-count">' +
     entities.length +
-    ' Entities</span></summary><div class="health-device-entities">' +
+    ' Entities</span>' +
+    remove +
+    '</summary><div class="health-device-entities">' +
     entities.map(e => esc(e)).join('<br>') +
     '</div></details>'
   );
@@ -1296,7 +1358,7 @@ function renderHealth(health, checking) {
             items.length +
             summary +
             '</summary><div class="health-entity-list">' +
-            items.map(item => renderHealthItem(item, haBase)).join('') +
+            items.map(item => renderHealthItem(item, haBase, c.key === 'orphans')).join('') +
             '</div></details>'
           : '';
       const cardHref = healthHref(haBase, c.href);
@@ -1331,6 +1393,11 @@ function renderHealth(health, checking) {
         '</div>' +
         renderHealthTrend(c) +
         (c.severity === 'ok' ? '' : '<div class="health-hint">' + esc(c.hint) + '</div>') +
+        (c.key === 'orphans' && items.length
+          ? '<div class="health-orphan-bar"><button type="button" class="health-orphan-btn" onclick="removeOrphans(JSON.parse(decodeURIComponent(\'' +
+            encodeURIComponent(JSON.stringify(items.map(i => i.id).filter(Boolean))) +
+            "')), this)\">Alle entfernen</button></div>"
+          : '') +
         about +
         nested +
         '</div>'
@@ -1373,6 +1440,182 @@ async function cleanupBacklog(btn) {
   }
 }
 
+async function removeOrphans(itemIds, btn) {
+  if (!itemIds || !itemIds.length) return;
+  if (
+    !confirm(
+      itemIds.length === 1
+        ? 'Dieses Geraet bzw. diese Entities aus Home Assistant entfernen?'
+        : itemIds.length + ' Altlasten aus Home Assistant entfernen?',
+    )
+  ) {
+    return;
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch(base + '/api/system-health/orphans/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemIds }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      alert(d.error || 'Entfernen fehlgeschlagen.');
+      return;
+    }
+    await loadSystemHealth(true);
+  } catch (e) {
+    alert('Netzwerkfehler beim Entfernen.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function previewBacklogTask(id, btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Vorschau...';
+  }
+  try {
+    const r = await fetch(base + '/api/backlog/' + encodeURIComponent(id) + '/preview', {
+      method: 'POST',
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      alert(d.error || 'Vorschau fehlgeschlagen.');
+      return;
+    }
+    await loadBacklog();
+  } catch (e) {
+    alert('Netzwerkfehler bei der Vorschau.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Vorschau';
+    }
+  }
+}
+
+async function loadCare(force) {
+  const digestEl = document.getElementById('care-review');
+  const covEl = document.getElementById('care-coverage');
+  const namEl = document.getElementById('care-naming');
+  const enEl = document.getElementById('care-energy');
+  if (!covEl) return;
+  if (force || !covEl.dataset.loaded) {
+    if (digestEl) digestEl.textContent = 'Lade Bericht...';
+    covEl.innerHTML = '<div class="backlog-empty">Lade...</div>';
+    namEl.innerHTML = '<div class="backlog-empty">Lade...</div>';
+    enEl.innerHTML = '<div class="backlog-empty">Lade...</div>';
+  }
+  try {
+    const [review, coverage, naming, energy] = await Promise.all([
+      fetch(base + '/api/review').then(r => r.json()),
+      fetch(base + '/api/coverage').then(r => r.json()),
+      fetch(base + '/api/naming').then(r => r.json()),
+      fetch(base + '/api/energy').then(r => r.json()),
+    ]);
+    if (digestEl) digestEl.textContent = review.text || '';
+    if (coverage.gaps) {
+      covEl.innerHTML = coverage.gaps.length
+        ? coverage.gaps
+            .map(
+              g =>
+                '<div class="care-row"><div><strong>' +
+                esc(g.area) +
+                '</strong> — ' +
+                esc(g.detail) +
+                '<div class="care-meta">' +
+                esc(g.suggestedBlueprint) +
+                '</div></div></div>',
+            )
+            .join('')
+        : '<div class="backlog-empty">Keine Luecken in den zugeordneten Bereichen.</div>';
+    } else {
+      covEl.innerHTML = '<div class="backlog-empty">' + esc(coverage.error || 'Fehler') + '</div>';
+    }
+    if (naming.proposals) {
+      namEl.innerHTML = naming.proposals.length
+        ? naming.proposals
+            .map(
+              p =>
+                '<label class="care-row"><input type="checkbox" class="naming-pick" data-entity="' +
+                esc(p.entityId) +
+                '" data-name="' +
+                esc(p.proposedName) +
+                '" checked> <div><strong>' +
+                esc(p.proposedName) +
+                '</strong><div class="care-meta">' +
+                esc(p.entityId) +
+                ' · ' +
+                esc(p.area) +
+                (p.currentName ? ' · jetzt: ' + esc(p.currentName) : '') +
+                '</div></div></label>',
+            )
+            .join('')
+        : '<div class="backlog-empty">Alle relevanten Entities haben einen Namen.</div>';
+    } else {
+      namEl.innerHTML = '<div class="backlog-empty">' + esc(naming.error || 'Fehler') + '</div>';
+    }
+    if (energy.rows) {
+      const head =
+        '<div class="care-meta">Summe ' + Math.round(energy.totalWatts || 0) + ' W</div>';
+      enEl.innerHTML =
+        head +
+        (energy.rows.length
+          ? energy.rows
+              .map(
+                r =>
+                  '<div class="care-row"><div>' +
+                  esc(r.label) +
+                  '<div class="care-meta">' +
+                  esc(r.area) +
+                  (r.watts != null ? ' · ' + Math.round(r.watts) + ' W' : '') +
+                  (r.kwh != null ? ' · ' + r.kwh + ' kWh' : '') +
+                  '</div></div></div>',
+              )
+              .join('')
+          : '<div class="backlog-empty">Keine Power-/Energy-Sensoren gefunden.</div>');
+    } else {
+      enEl.innerHTML = '<div class="backlog-empty">' + esc(energy.error || 'Fehler') + '</div>';
+    }
+    covEl.dataset.loaded = '1';
+  } catch (e) {
+    if (digestEl) digestEl.textContent = 'Pflege konnte nicht geladen werden.';
+  }
+}
+
+async function applyNamingSelected() {
+  const picks = [...document.querySelectorAll('.naming-pick:checked')].map(el => ({
+    entityId: el.dataset.entity,
+    name: el.dataset.name,
+  }));
+  if (!picks.length) {
+    alert('Nichts ausgewaehlt.');
+    return;
+  }
+  if (!confirm(picks.length + ' Namen in der Entity-Registry setzen?')) return;
+  const btn = document.getElementById('naming-apply-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch(base + '/api/naming/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: picks }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      alert(d.error || 'Uebernehmen fehlgeschlagen.');
+      return;
+    }
+    await loadCare(true);
+  } catch (e) {
+    alert('Netzwerkfehler beim Umbenennen.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function buildBacklogActions(t) {
   const btns = [];
   if (t.status === 'proposed') {
@@ -1403,6 +1646,13 @@ function buildBacklogActions(t) {
     );
   }
   if (t.status === 'solution_proposed') {
+    if (t.solution) {
+      btns.push(
+        '<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="previewBacklogTask(\'' +
+          t.id +
+          "', this)\">Vorschau</button>",
+      );
+    }
     btns.push(
       '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
         t.id +
@@ -1761,10 +2011,16 @@ async function loadActions() {
           cls = 'task';
         }
 
+        const rollbackLabel =
+          a.rollback && a.rollback.domain === 'config' && a.rollback.service === 'restore'
+            ? 'Zuruecksetzen'
+            : 'Rollback';
         const rollbackBtn = a.rollback
           ? '<button class="action-rollback" onclick="rollbackAction(event, \'' +
             a.id +
-            '\')">Rollback</button>'
+            '\')">' +
+            rollbackLabel +
+            '</button>'
           : '';
 
         return (

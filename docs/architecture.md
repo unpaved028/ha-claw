@@ -14,6 +14,8 @@ a Telegram bot. Two runtime dependencies: `fastify` and `grammy`.
 - [Device control verification](#device-control-verification)
 - [Backlog processor](#backlog-processor)
 - [Proactive analysis vs system health](#proactive-analysis-vs-system-health)
+- [Safe config writes](#safe-config-writes)
+- [Maintenance layer](#maintenance-layer)
 - [Self-improvement](#self-improvement)
 - [Storage](#storage)
 - [Data flow](#data-flow)
@@ -85,7 +87,7 @@ conversation record, so a question asked in the sidebar can be followed up from 
     │   ├── onboarding.md        # Setup conversation prompt
     │   ├── cie.md               # Continuous Improvement Engine prompt
     │   ├── KI-Systemarchitekt.md
-    │   └── skills/ha-best-practices/   # 6 reference files
+    │   └── skills/ha-best-practices/   # 7 reference files (incl. blueprints.md)
     └── src/
         ├── index.ts             # Boot sequence
         ├── core/
@@ -104,6 +106,13 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── health-signals.ts # Broken refs, traces, failed entries
         │   ├── health-links.ts  # HA frontend paths for Ingress deep links
         │   ├── backup-health.ts # Backup age and offsite detection
+        │   ├── yaml-text.ts     # JSON → YAML-ish text + unified diff
+        │   ├── config-change.ts # Validate, blast radius, snapshot write
+        │   ├── coverage-report.ts
+        │   ├── naming-hygiene.ts
+        │   ├── energy-attribution.ts
+        │   ├── orphan-cleanup.ts
+        │   ├── home-review.ts   # Weekly digest + seed job
         │   └── types.ts
         ├── storage/
         │   ├── atomic-write.ts  # Per-path lock + unique temp-and-rename
@@ -186,8 +195,10 @@ error context.
 
 A `toolFilter` parameter restricts which tools an agent may use — onboarding runs with three.
 A `ConfirmationFn` handles the safety gate, with implementations for Telegram, the Web UI, and
-auto-approve for scheduled jobs. Each tool execution is capped at **15 seconds**; a hang
-returns an error to the model instead of stalling the loop.
+auto-approve for scheduled jobs. Config writes attach a YAML diff and blast-radius list to
+that callback. `AgentConfig.dryRun` makes write tools return `{ preview, wouldCall, args }`
+instead of running — that is how task preview works. Each tool execution is capped at
+**15 seconds**; a hang returns an error to the model instead of stalling the loop.
 
 ## Tool registry
 
@@ -258,6 +269,9 @@ retried after 30 seconds; after `MAX_TASK_ATTEMPTS` (3) the task is marked `fail
 retrying forever. The Web UI offers **Erneut versuchen**, which resets the counter. One startup
 scan catches tasks approved while the add-on was down. Rapid status changes are coalesced
 through a 2-second debounce.
+
+**Preview** (`POST /api/backlog/:id/preview`) runs the proposed solution with `dryRun: true`
+and stores `previewResult` on the task. Write tools do not execute.
 
 ## Proactive analysis vs system health
 
@@ -342,6 +356,42 @@ escalated or its count at least doubled since the last message. `storage` and `r
 skip the doubling rule — those counts shrink as the problem grows. A permanently broken
 installation therefore does not generate hourly notifications, while a genuine new outage
 still gets through. Recovery is recorded silently.
+
+The `orphans` card offers one-click remove (`POST /api/system-health/orphans/remove`).
+Ids are the same `dev:…` / `stem:…` keys the card already lists.
+
+## Safe config writes
+
+[`src/core/config-change.ts`](../ha-claw/src/core/config-change.ts) is the write path for
+`ha_save_automation_config` and `ha_save_script_config`.
+
+1. Structural validation (required trigger/action or sequence, known keys, valid `mode`).
+   Invalid configs return to the model and never reach the confirmation gate.
+2. YAML-ish diff of current vs proposed (`yaml-text.ts` — no extra YAML library).
+3. Blast radius: other UI automations, scripts and scenes that mention the same entities.
+4. After a successful POST, the previous config is stored on the action-log rollback
+   payload (`domain: config`, `service: restore`). Status → Actions shows **Zurücksetzen**.
+
+Home Assistant `check_config` is **not** used. That call checks YAML files on disk, not a
+pending UI automation. A 400 from the HA REST write is treated as failure and no snapshot
+is recorded.
+
+## Maintenance layer
+
+Status → **Pflege** is one report, not three backlog tasks.
+
+| Surface | Module | API |
+| --- | --- | --- |
+| Coverage gaps (motion+lights, covers+sun, leak+notify), area-aware | `coverage-report.ts` | `GET /api/coverage` |
+| Friendly-name proposals, bulk apply | `naming-hygiene.ts` | `GET /api/naming`, `POST /api/naming/apply` |
+| Live power / energy sensors | `energy-attribution.ts` | `GET /api/energy` |
+| Combined digest | `home-review.ts` | `GET /api/review`, tool `home_review` |
+
+A scheduler job named **Wochenbericht** (`kind: digest`, `weekly sun 10:00`) is seeded on
+startup if missing. Digest jobs send the report; they do not run the agentic loop.
+
+When proposing a motion-light, sun-cover or leak-notify automation, `ha_best_practices`
+topic `blueprints` is the first stop. Coverage rows already carry `suggestedBlueprint`.
 
 ## Self-improvement
 

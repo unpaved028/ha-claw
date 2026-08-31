@@ -11,6 +11,7 @@ _English version: [DOCS.md](DOCS.md)_
 - [Mit dem Assistenten reden](#mit-dem-assistenten-reden)
 - [Das Dashboard](#das-dashboard)
 - [Systemzustand](#systemzustand)
+- [Pflege](#pflege)
 - [Aufgaben](#aufgaben)
 - [Erinnerungen und Zeitpläne](#erinnerungen-und-zeitpläne)
 - [Gedächtnis und Lernen](#gedächtnis-und-lernen)
@@ -205,9 +206,10 @@ Drei Bereiche in der oberen Navigation.
 es gefunden hat, wann es fertig ist. Es gibt einen Mikrofon-Knopf für Spracheingabe
 (browserbasiert, deutsch).
 
-**Status** — drei Reiter:
+**Status** — vier Reiter:
 
 - _System Health_ — die unten beschriebenen Dauerprüfungen.
+- _Pflege_ — Automationslücken, Namensvorschläge und aktuelle Leistung, als ein Bericht.
 - _Tasks_ — Verbesserungsvorschläge, die auf deine Entscheidung warten.
 - _Logs_ — das Add-on-Protokoll und unter Actions jeder Dienstaufruf mit Rückgängig-Knopf.
 
@@ -288,9 +290,25 @@ wechselt (grün → gelb → rot) oder sich ihr Wert seit der letzten Meldung mi
 hat. Die zweite Regel fängt einen echten neuen Ausfall auch in einer Installation, die
 dauerhaft rot steht. Verbesserungen werden still vermerkt.
 
-Bleiben Geräte dauerhaft in der Liste, sind es meist Reste entfernter Hardware. Solche Entities
-in Home Assistant zu löschen ist der einzige Weg, sie loszuwerden — HA-Claw kann nicht
-unterscheiden zwischen „gerade offline" und „letztes Jahr entsorgt".
+Bleiben Geräte dauerhaft in der Liste, sind es meist Reste entfernter Hardware. Die Karte
+**Seit 30 Tagen nicht erreichbar** hat **Entfernen** / **Alle entfernen**. Das löscht das
+Gerät oder die übrig gebliebenen Entities aus den Registries von Home Assistant. Vorher
+bestätigen — es gibt kein Rückgängig.
+
+## Pflege
+
+**Status → Pflege** beantwortet die Fragen, die früher drei Tasks im Backlog wurden.
+
+- **Lücken** — Räume mit Bewegungsmelder ohne Licht-Automation, Cover ohne Sonnen-Automation,
+  Leck-Sensoren ohne Benachrichtigung. Jede Lücke nennt einen bekannten Blueprint statt
+  YAML zu erfinden.
+- **Namen** — Entities ohne brauchbaren `friendly_name`, mit Vorschlag aus Bereich + Entity-ID.
+  Haken setzen und in einem Rutsch übernehmen.
+- **Leistung** — vorhandene `device_class: power` / `energy`-Sensoren, Summe in Watt.
+
+Ein Job **Wochenbericht** wird automatisch angelegt (`weekly sun 10:00`). Er schickt diesen
+Bericht per Telegram, wenn der Bot eingerichtet ist. Der Assistent läuft dafür nicht. Du
+kannst den Job wie jeden anderen Zeitplan abschalten oder löschen.
 
 ## Aufgaben
 
@@ -302,7 +320,8 @@ Der Ablauf fragt bewusst zweimal:
 
 1. **Vorgeschlagen** — du gibst frei, lehnst ab oder stellst zurück.
 2. **Freigegeben** — der Assistent erarbeitet eine konkrete Lösung.
-3. **Lösung vorgeschlagen** — du prüfst den tatsächlichen Plan und gibst ihn frei.
+3. **Lösung vorgeschlagen** — du prüfst den tatsächlichen Plan. **Vorschau** zeigt, welche
+   Schreib-Aktionen ausgeführt würden, ohne sie auszuführen. Danach gibst du frei.
 4. **Ausführung** — der Assistent setzt ihn um und meldet das Ergebnis.
 
 Scheitert die Ausarbeitung oder die Ausführung dreimal, wird die Aufgabe als **Failed**
@@ -346,9 +365,9 @@ Nachricht kann:
 | `weekends 10:00`   | Samstag und Sonntag um 10:00 |
 | `weekly mon 08:00` | Jeden Montag um 08:00        |
 
-Ein guter Einstieg ist eine wöchentliche Analyse: _„Jeden Montag um 8 mein Zuhause analysieren
-und mir das Ergebnis schicken."_ Jobs verwaltest du unter Status, oder du lässt sie dir vom
-Assistenten auflisten.
+Ein **Wochenbericht** (Sonntag 10:00) wird für dich angelegt. Extra nützlich ist eine
+wöchentliche Analyse: _„Jeden Montag um 8 mein Zuhause analysieren und mir das Ergebnis
+schicken."_ Jobs verwaltest du unter Status, oder du lässt sie dir vom Assistenten auflisten.
 
 ## Gedächtnis und Lernen
 
@@ -396,8 +415,13 @@ Alltägliche Geräte — Licht, Schalter, Klima, Rollos, Medienplayer, Helfer �
 
 - **Telegram** — Ja/Nein-Knöpfe im Chat. Nur wer die Aktion ausgelöst hat, kann antworten.
   Nach 60 Sekunden automatisch abgelehnt.
-- **Web-UI** — ein Dialog mit dem Werkzeug und seinen exakten Parametern. Ebenfalls 60
-  Sekunden. Mehrere offene Anfragen reihen sich an, statt sich gegenseitig zu überschreiben.
+- **Web-UI** — ein Dialog mit dem Werkzeug und seinen exakten Parametern. Beim Schreiben
+  einer Automation oder eines Skripts siehst du einen YAML-Diff und, was sonst noch auf
+  dieselben Entities zeigt — kein JSON-Klumpen. Ebenfalls 60 Sekunden. Mehrere offene
+  Anfragen reihen sich an, statt sich gegenseitig zu überschreiben.
+
+Ungültige Configs kommen gar nicht erst in diesen Dialog. Nach einem erfolgreichen Schreiben
+bietet Status → Actions **Zurücksetzen** für genau diese Änderung.
 
 Der Dialog zeigt absichtlich die rohe Entity-ID statt einer freundlichen Beschreibung. Die
 Beschreibung käme von demselben Assistenten, dessen Entscheidung du gerade prüfst. Lies die

@@ -6,6 +6,33 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## 1.2.0
+
+Safe change management and the maintenance layer that were listed as v1.1 and v1.2.
+
+### Added
+
+- **YAML diff before writing an automation or script.** Confirmation shows current vs
+  proposed, plus which other automations, scripts and scenes reference the same entities.
+- **Snapshot and one-click revert** for those writes, on Status → Actions
+  (**Zurücksetzen**).
+- **Structural validation** before the write. Invalid configs never reach the confirmation
+  gate and are not posted to Home Assistant.
+- **Task preview.** A dry-run reports which write tools would run, without executing them.
+- **Status → Pflege.** Area-aware coverage gaps (motion+lights, covers+sun, leak+notify)
+  with a suggested blueprint, bulk-approve friendly-name proposals, and live power sensors.
+- **One-click orphan remove** on the 30-day-unavailable health card.
+- **Weekly home review** (`Wochenbericht`, Sunday 10:00). Sends the digest; does not run
+  the assistant. Also available as the `home_review` tool.
+- **Blueprint guidance** (`ha_best_practices` topic `blueprints`) so common patterns are
+  not reinvented as YAML.
+
+### Changed
+
+- Config-write confirmation no longer dumps a JSON blob.
+- Action-log rollback restores a config snapshot when the recorded inverse is
+  `config.restore`.
+
 ## 1.0.0
 
 The trust cut. Tests CI actually runs, a container that is not root-on-a-floating-tag, and

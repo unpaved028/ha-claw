@@ -23,8 +23,10 @@ import {
   getToolDefinitions,
   executeTool,
   isDangerous,
+  isReadOnlyTool,
   getToolComplexity,
 } from '../tools/registry.js';
+import { buildConfigWritePreview } from './config-change.js';
 import { searchCards, buildMemoryContext } from '../storage/memory-cards.js';
 import {
   findRelevantCorrections,
@@ -85,7 +87,11 @@ function retrievalQuery(userMessage: string): string {
  * The agentic loop doesn't know about Telegram or Web UI –
  * it just calls this function and waits for a boolean.
  */
-export type ConfirmationFn = (toolName: string, args: Record<string, unknown>) => Promise<boolean>;
+export type ConfirmationFn = (
+  toolName: string,
+  args: Record<string, unknown>,
+  preview?: import('./config-change.js').ConfirmPreview,
+) => Promise<boolean>;
 
 /** Default: auto-approve (used when no confirmation mechanism is available) */
 const autoApprove: ConfirmationFn = async () => true;
@@ -278,7 +284,7 @@ export async function runAgenticLoop(
 
       const results = await Promise.all(
         batch.map(async call => {
-          const result = await executeWithSafetyGate(call, confirmFn);
+          const result = await executeWithSafetyGate(call, confirmFn, Boolean(agent.dryRun));
           onProgress?.({ type: 'tool_result', toolName: call.function.name });
           return { call, result };
         }),
@@ -314,7 +320,11 @@ export async function runAgenticLoop(
  * Execute a tool call with safety gate for dangerous tools.
  * Tracks usage and errors for the learning system.
  */
-async function executeWithSafetyGate(call: ToolCall, confirmFn: ConfirmationFn): Promise<string> {
+async function executeWithSafetyGate(
+  call: ToolCall,
+  confirmFn: ConfirmationFn,
+  dryRun = false,
+): Promise<string> {
   const name = call.function.name;
   let args: Record<string, unknown>;
 
@@ -324,10 +334,24 @@ async function executeWithSafetyGate(call: ToolCall, confirmFn: ConfirmationFn):
     return JSON.stringify({ error: `Invalid JSON arguments for tool ${name}` });
   }
 
+  if (dryRun && !isReadOnlyTool(name)) {
+    return JSON.stringify({ preview: true, wouldCall: name, args });
+  }
+
   // Safety Gate
   if (isDangerous(name)) {
     log.info('Dangerous tool – requesting confirmation', { tool: name, args });
-    const approved = await confirmFn(name, args);
+    let preview;
+    if (name === 'ha_save_automation_config' || name === 'ha_save_script_config') {
+      preview = await buildConfigWritePreview(name, args);
+      if (preview?.validationErrors && preview.validationErrors.length > 0) {
+        return JSON.stringify({
+          error: 'Config invalid — not written.',
+          details: preview.validationErrors,
+        });
+      }
+    }
+    const approved = await confirmFn(name, args, preview ?? undefined);
     if (!approved) {
       log.info('Tool call DENIED by user', { tool: name });
       return JSON.stringify({ error: 'User denied this action.' });

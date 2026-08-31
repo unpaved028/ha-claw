@@ -38,6 +38,8 @@ export interface ScheduledJob {
   name: string;
   schedule: string; // human-readable schedule string
   message: string; // message to send to the agentic loop
+  /** `digest` skips the agent loop and sends the weekly home review. Default is `agent`. */
+  kind?: 'agent' | 'digest';
   enabled: boolean;
   oneshot: boolean; // one-time job (auto-disabled after execution)
   createdAt: string;
@@ -301,6 +303,7 @@ export async function createJob(opts: {
   schedule: string;
   message: string;
   oneshot?: boolean;
+  kind?: 'agent' | 'digest';
 }): Promise<ScheduledJob> {
   // Validate schedule
   const nextRun = calcNextRun(opts.schedule);
@@ -317,6 +320,7 @@ export async function createJob(opts: {
     message: opts.message,
     enabled: true,
     oneshot: opts.oneshot ?? false,
+    kind: opts.kind ?? 'agent',
     createdAt: new Date().toISOString(),
     lastRunAt: null,
     nextRunAt: nextRun,
@@ -358,12 +362,14 @@ export async function updateJob(
     name?: string;
     schedule?: string;
     message?: string;
+    kind?: 'agent' | 'digest';
   },
 ): Promise<ScheduledJob | null> {
   const job = jobs.find(j => j.id === id);
   if (!job) return null;
   if (updates.name) job.name = updates.name;
   if (updates.message) job.message = updates.message;
+  if (updates.kind) job.kind = updates.kind;
   if (updates.schedule) {
     const nextRun = calcNextRun(updates.schedule);
     if (!nextRun) throw new Error(`Ungueltiges Schedule-Format: "${updates.schedule}"`);

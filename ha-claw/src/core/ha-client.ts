@@ -917,4 +917,16 @@ export async function getUiConfig(
   }
 }
 
+export async function removeDevice(deviceId: string): Promise<void> {
+  await haWebsocketCommand('config/device_registry/remove', { device_id: deviceId });
+}
+
+export async function removeEntity(entityId: string): Promise<void> {
+  await haWebsocketCommand('config/entity_registry/remove', { entity_id: entityId });
+}
+
+export async function updateEntityName(entityId: string, name: string): Promise<void> {
+  await haWebsocketCommand('config/entity_registry/update', { entity_id: entityId, name });
+}
+
 export type { HAState, HAServiceResponse };

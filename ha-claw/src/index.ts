@@ -23,6 +23,7 @@ import { initBacklogProcessor } from './storage/backlog-processor.js';
 import { initActionLog } from './storage/action-log.js';
 import { initLearning } from './storage/learning.js';
 import { initScheduler, stopScheduler } from './storage/scheduler.js';
+import { buildWeeklyDigest, ensureWeeklyDigestJob } from './core/home-review.js';
 import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
 import { registerHABestPracticesTools } from './tools/ha-best-practices.js';
@@ -117,16 +118,15 @@ async function main(): Promise<void> {
 
   // Step 7: Scheduler – runs jobs through the agentic loop + proactive notifications
   await initScheduler(async job => {
-    log.info('Scheduler executing job', { id: job.id, message: job.message });
-    const agent = buildAgent();
-    const result = await runAgenticLoop(job.message, agent);
+    log.info('Scheduler executing job', { id: job.id, message: job.message, kind: job.kind });
+    const response =
+      job.kind === 'digest'
+        ? (await buildWeeklyDigest()).text
+        : (await runAgenticLoop(job.message, buildAgent())).response;
 
-    // Send proactive notification via Telegram if available
     const currentProfile = getProfile();
     if (telegramBot && currentProfile.telegramChatId) {
       try {
-        const response = result.response;
-        // Respect Telegram's 4096 char limit
         if (response.length <= 4096) {
           await telegramBot.api
             .sendMessage(currentProfile.telegramChatId, response, { parse_mode: 'Markdown' })
@@ -145,8 +145,9 @@ async function main(): Promise<void> {
       }
     }
 
-    return result.response;
+    return response;
   });
+  await ensureWeeklyDigestJob();
 
   // Step 8: Backlog processor – auto-processes approved tasks
   initBacklogProcessor(buildAgent);

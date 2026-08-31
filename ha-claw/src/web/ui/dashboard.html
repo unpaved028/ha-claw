@@ -107,6 +107,22 @@
                 ></span>
                 System Health
               </button>
+              <button class="settings-nav-item" data-status="care">
+                <span class="settings-nav-icon"
+                  ><svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg
+                ></span>
+                Pflege
+              </button>
               <button class="settings-nav-item" data-status="tasks">
                 <span class="settings-nav-icon"
                   ><svg
@@ -150,7 +166,7 @@
             <div class="settings-header">
               <h1>System <strong>Status</strong></h1>
               <p class="settings-header-sub">
-                Geraetezustand, Verbesserungsvorschlaege und Aktivitaetsprotokoll.
+                Geraetezustand, Pflege, Verbesserungsvorschlaege und Aktivitaetsprotokoll.
               </p>
             </div>
 
@@ -192,6 +208,50 @@
 
               <div class="health-list" id="health-list">
                 <div class="backlog-empty">Lade letzten Stand...</div>
+              </div>
+            </div>
+
+            <!-- Care / maintenance -->
+            <div class="settings-section" id="status-care">
+              <div class="backlog-header">
+                <div class="settings-section-title">Pflege</div>
+                <button type="button" class="backlog-add-btn" onclick="loadCare(true)">
+                  Neu laden
+                </button>
+              </div>
+              <div class="health-intro">
+                Automationslücken, Namensvorschläge und aktuelle Leistung — ein Bericht, keine
+                drei Tasks. Der Wochenbericht geht sonntags um 10:00 per Telegram, wenn der Bot
+                eingerichtet ist.
+              </div>
+              <div id="care-review" class="care-digest"></div>
+              <div class="care-block">
+                <div class="settings-section-title">Automationslücken</div>
+                <div id="care-coverage" class="care-list">
+                  <div class="backlog-empty">Noch nicht geladen.</div>
+                </div>
+              </div>
+              <div class="care-block">
+                <div class="backlog-header">
+                  <div class="settings-section-title">Namen</div>
+                  <button
+                    type="button"
+                    class="backlog-add-btn"
+                    id="naming-apply-btn"
+                    onclick="applyNamingSelected()"
+                  >
+                    Ausgewählte übernehmen
+                  </button>
+                </div>
+                <div id="care-naming" class="care-list">
+                  <div class="backlog-empty">Noch nicht geladen.</div>
+                </div>
+              </div>
+              <div class="care-block">
+                <div class="settings-section-title">Leistung</div>
+                <div id="care-energy" class="care-list">
+                  <div class="backlog-empty">Noch nicht geladen.</div>
+                </div>
               </div>
             </div>
 
