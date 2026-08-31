@@ -8,21 +8,24 @@
  * the old implementation put the live count into the task title
  * ("59 Geräte nicht erreichbar"), so every fluctuation produced a brand new
  * task – and because the device check is high priority, also an hourly Telegram
- * push. Health is therefore computed on demand here and only reported when it
- * actually deteriorates.
+ * push. Health is therefore computed in the background (shortly after start
+ * and hourly) or when the user clicks Refresh, and only reported when it
+ * actually deteriorates. Opening Status serves the last report so the
+ * screen does not wait on Home Assistant.
  *
- * The snapshot on disk exists solely to answer "has this gotten worse?".
+ * The snapshot on disk answers "has this gotten worse?". The last full
+ * report is stored separately so a restart still has something to show.
  */
 
-import { readFile, writeFile, rename, mkdir, statfs } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { readFile, statfs } from 'node:fs/promises';
+import { join } from 'node:path';
+import { atomicWriteJson, withPathLock } from '../storage/atomic-write.js';
 import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
 import { checkBackup, isBackupStatusEntity } from './backup-health.js';
 import {
   findBrokenReferences,
-  findDisabledEntities,
   findFailedAutomations,
   findFailedIntegrations,
   findStoppedAddons,
@@ -32,6 +35,7 @@ import { HA_PATH, haFrontendBase, hrefForEntity } from './health-links.js';
 const log = createLogger('health');
 
 const SNAPSHOT_PATH = join(appConfig.dataPath, 'store', 'system-health.json');
+const REPORT_PATH = join(appConfig.dataPath, 'store', 'system-health-report.json');
 
 /** How many affected entities to name in a report before truncating. */
 const MAX_EXAMPLES = 8;
@@ -66,7 +70,6 @@ export interface HealthCheck {
     | 'stopped_addons'
     | 'recorder'
     | 'restored'
-    | 'disabled_entities'
     | 'backup'
     | 'storage';
   /** Short German label for the UI. */
@@ -421,25 +424,6 @@ function checkRestored(entityIds: string[], info: ha.EntityDeviceInfo[]): Health
   );
 }
 
-const DISABLED_LIST_CAP = 40;
-
-function checkDisabled(items: HealthItem[]): HealthCheck {
-  const check = buildCheck(
-    'disabled_entities',
-    'Deaktivierte Entities',
-    items,
-    'Keine deaktivierten Entities in der Registry.',
-    'Einstellungen → Geräte & Dienste → Entities. Altlasten löschen oder wieder aktivieren.',
-    15,
-    60,
-  );
-  if (items.length > DISABLED_LIST_CAP) {
-    check.items = items.slice(0, DISABLED_LIST_CAP);
-    check.note = `Erste ${DISABLED_LIST_CAP} von ${items.length} angezeigt.`;
-  }
-  return check;
-}
-
 function checkPendingUpdates(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
   return buildCheck(
     'pending_updates',
@@ -728,11 +712,6 @@ const CHECK_META: Record<HealthCheck['key'], { about: string; href?: string }> =
       'Entities mit restored=true — nach einem Restore gesehen, seit diesem Start aber nie wieder. Weder unavailable noch 30-Tage-Waise.',
     href: HA_PATH.entities,
   },
-  disabled_entities: {
-    about:
-      'Alle in der Registry deaktivierten Entities. Ein wachsender Haufen, kein einzelner Defekt.',
-    href: HA_PATH.entities,
-  },
   backup: {
     about:
       'Alter des neuesten Backups, das Home Assistant enthält. Eine Offsite-Kopie reicht; nur lokal bleibt gelb.',
@@ -774,10 +753,74 @@ function decorateChecks(checks: HealthCheck[]): HealthCheck[] {
   });
 }
 
+// ── Report cache ──────────────────────────────────────────
+
+let cachedHealth: SystemHealth | null = null;
+let hydrateReport: Promise<void> | null = null;
+let refreshInFlight: Promise<SystemHealth> | null = null;
+
+function isSystemHealth(value: unknown): value is SystemHealth {
+  if (!value || typeof value !== 'object') return false;
+  const o = value as Record<string, unknown>;
+  return typeof o['checkedAt'] === 'string' && Array.isArray(o['checks']);
+}
+
+async function readLastReport(): Promise<SystemHealth | null> {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(REPORT_PATH, 'utf-8'));
+    return isSystemHealth(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeLastReport(health: SystemHealth): Promise<void> {
+  await withPathLock(REPORT_PATH, () => atomicWriteJson(REPORT_PATH, health));
+}
+
+async function hydrateCachedHealth(): Promise<void> {
+  if (cachedHealth) return;
+  if (!hydrateReport) {
+    hydrateReport = readLastReport()
+      .then(report => {
+        if (report && !cachedHealth) cachedHealth = report;
+      })
+      .finally(() => {
+        hydrateReport = null;
+      });
+  }
+  await hydrateReport;
+}
+
+export function isHealthRefreshInFlight(): boolean {
+  return refreshInFlight != null;
+}
+
+/** Last completed report from memory, or from disk after a restart. */
+export async function getCachedSystemHealth(): Promise<SystemHealth | null> {
+  await hydrateCachedHealth();
+  return cachedHealth;
+}
+
+/** Drop the in-memory cache so the next read hydrates from disk again. */
+export function resetHealthCache(): void {
+  cachedHealth = null;
+  hydrateReport = null;
+  refreshInFlight = null;
+}
+
 // ── Public API ────────────────────────────────────────────
 
 /** Run all health checks against the current Home Assistant state. */
 export async function getSystemHealth(): Promise<SystemHealth> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = computeSystemHealth().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function computeSystemHealth(): Promise<SystemHealth> {
   const states = (await ha.getStates()) as HAState[];
   const now = new Date();
 
@@ -869,11 +912,10 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     ha.getRecorderInfo(),
   ]);
 
-  const [brokenRefs, failedAutos, failedIntegrations, disabled] = await Promise.all([
+  const [brokenRefs, failedAutos, failedIntegrations] = await Promise.all([
     findBrokenReferences(states, snapshot),
     Promise.resolve(findFailedAutomations(states, snapshot)),
     Promise.resolve(findFailedIntegrations(snapshot)),
-    Promise.resolve(findDisabledEntities(snapshot)),
   ]);
 
   const updates = checkPendingUpdates(pendingUpdateIds, deviceInfo);
@@ -904,7 +946,6 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     checkRadioQuiet(radioQuiet, deviceInfo),
     ...(addons ? [checkStoppedAddons(findStoppedAddons(addons))] : []),
     checkRestored(restoredIds, deviceInfo),
-    checkDisabled(disabled),
     backup,
   ];
   if (recorder.recording != null || recorder.threadRunning != null || recorder.backlog != null) {
@@ -925,6 +966,12 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   };
   await rememberChecks(health);
   health.checks = sortChecks(health.checks);
+  cachedHealth = health;
+  try {
+    await writeLastReport(health);
+  } catch (err) {
+    log.warn('Could not persist last health report', { error: String(err) });
+  }
   return health;
 }
 
@@ -937,10 +984,7 @@ async function readSnapshot(): Promise<Snapshot> {
 }
 
 async function writeSnapshot(snapshot: Snapshot): Promise<void> {
-  await mkdir(dirname(SNAPSHOT_PATH), { recursive: true });
-  const tmp = `${SNAPSHOT_PATH}.tmp`;
-  await writeFile(tmp, JSON.stringify(snapshot, null, 2), 'utf-8');
-  await rename(tmp, SNAPSHOT_PATH);
+  await withPathLock(SNAPSHOT_PATH, () => atomicWriteJson(SNAPSHOT_PATH, snapshot));
 }
 
 function lastSeenOf(

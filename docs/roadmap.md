@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **0.10.0**. Last reviewed: 2026-08-31.
+Current version: **1.0.0**. Last reviewed: 2026-09-01.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -73,9 +73,9 @@ They are simply not where new capability is planned, because Assist covers that 
 and a second implementation of it would help nobody.
 
 **The bottleneck is trust, not capability.** An assistant that can rewrite your automations is
-only useful if you are willing to let it — and today no automated test covers the code that
-decides whether an action needs your approval. That is why [v1.0.0](#v100--trust-and-hardening)
-contains no features at all.
+only useful if you are willing to let it. The safety-policy table test pins the allowlist;
+[v1.0.0](#v100--trust-and-hardening) shipped the rest of that trust work. Product work
+resumes at [v1.1](#v11--safe-change-management).
 
 ---
 
@@ -86,60 +86,16 @@ cards shipped in [v0.9.7](../ha-claw/CHANGELOG.md#097). The rest of that screen 
 by severity, expandable explanations, last-seen trend, deep links into Home Assistant,
 stopped add-ons, recorder, restored-only entities, disabled-entity count, failed scripts,
 and a YAML coverage note on broken references — shipped in
-[v0.10.0](../ha-claw/CHANGELOG.md#0100). Next is
-[v1.0.0](#v100--trust-and-hardening).
+[v0.10.0](../ha-claw/CHANGELOG.md#0100). The trust cut shipped in
+[v1.0.0](../ha-claw/CHANGELOG.md#100). Next is
+[v1.1](#v11--safe-change-management).
 
 ## v1.0.0 — Trust and hardening
 
-**No features.** The version number is a claim about reliability, and right now the project
-cannot back it. Everything here removes a reason not to trust the agent with your home.
-
-### Tests
-
-There are none. Optimise for where a bug is expensive, not for coverage:
-
-- [ ] **Safety policy table test** — domain × service × `device_class` against expected
-      "needs confirmation: yes/no". *This is the most important test in the project.* It nails
-      down the allowlist, the `cover` and `scene` exceptions, and the `entity_id` prefix check.
-      Without it, a refactor can silently reopen the `script.turn_on` bypass that was closed in
-      v0.9.2.
-- [ ] **Schedule parsing** — every accepted format, plus DST transitions and the
-      today-or-tomorrow boundary of `once HH:MM`.
-- [ ] **Context pruning** — the budget is respected and `tool_calls` stay paired with their
-      results. An orphaned tool result is a hard API error, not a degraded answer.
-- [ ] **Entity cache compression** — grouping at three or more, and area names containing
-      regex metacharacters.
-- [ ] **Storage atomicity** — concurrent `upsert` on the same record loses nothing.
-
-### Container
-
-- [ ] Pin the base image by digest. `node:22-alpine` is a floating tag; the same commit does
-      not produce the same image twice.
-- [ ] Run as non-root (`USER node`, with `/data` ownership handled).
-- [ ] Add `HEALTHCHECK` against the existing `/health` endpoint, and a Supervisor `watchdog`.
-- [ ] Drop `VOLUME /data` — the Supervisor mounts it already.
-- [ ] Ship an `apparmor.txt` profile. It constrains the container and raises the add-on's
-      security rating.
-
-### Correctness
-
-- [ ] **Serialise writes.** `learning.ts` and `scheduler.ts` write without temp-and-rename, so
-      a crash mid-write costs the whole file. Every monolithic JSON is read-modify-write
-      without a lock, so concurrent Web and Telegram requests overwrite each other. One
-      single-flight mutex per path, one shared atomic-write helper with unique temp names.
-- [ ] **Prevent scheduler overlap.** `nextRunAt` is advanced *after* the executor returns, so a
-      job running longer than the tick interval fires twice — double LLM cost, double action,
-      double notification. Advance before, and track a per-job running flag. Also jitter
-      overdue jobs when the circuit breaker closes instead of releasing them all at once.
-- [ ] **Shut down cleanly.** `index.ts` calls `process.exit(0)` without awaiting
-      `app.close()`, cutting off in-flight requests, and never clears the cache-refresh or
-      analysis intervals.
-- [ ] **Validate tool arguments.** The JSON Schema on each tool is documentation only; the
-      handler receives whatever the model produced. A type and required-field check before the
-      handler runs.
-- [ ] **Reject non-Ingress source addresses.** Home Assistant asks add-on servers to accept
-      only `172.30.32.2`. HA-Claw relies on the port not being published, which is true but is
-      not the same thing.
+Shipped in [v1.0.0](../ha-claw/CHANGELOG.md#100): a test suite where a bug is expensive, a
+pinned non-root image with HEALTHCHECK / watchdog / AppArmor, serialised writes, scheduler
+overlap protection, graceful shutdown, tool-argument validation and the Ingress source-IP
+allowlist.
 
 ## v1.1 — Safe change management
 

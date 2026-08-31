@@ -9,10 +9,11 @@
  * - Onboarding status
  */
 
-import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
+import { atomicWriteJson, withPathLock } from '../storage/atomic-write.js';
 
 const log = createLogger('profile');
 
@@ -110,10 +111,7 @@ export async function saveProfile(updates: Partial<Profile>): Promise<Profile> {
     updatedAt: new Date().toISOString(),
   };
 
-  await mkdir(dirname(PROFILE_PATH), { recursive: true });
-  const tmpPath = `${PROFILE_PATH}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(currentProfile, null, 2), 'utf-8');
-  await rename(tmpPath, PROFILE_PATH);
+  await withPathLock(PROFILE_PATH, () => atomicWriteJson(PROFILE_PATH, currentProfile));
 
   log.info('Profile saved', { botName: currentProfile.botName, user: currentProfile.userName });
   return currentProfile;

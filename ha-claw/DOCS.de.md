@@ -224,7 +224,9 @@ es gefunden hat, wann es fertig ist. Es gibt einen Mikrofon-Knopf für Sprachein
 ## Systemzustand
 
 **Status → System Health** zeigt Dauerprüfungen mit ihrem aktuellen Stand und einem Hinweis,
-was zu tun ist.
+was zu tun ist. Beim Öffnen steht die letzte Prüfung sofort da (Uhrzeit unten). HA-Claw
+aktualisiert den Bericht nach dem Start und stündlich. **Neu prüfen** holt auf Wunsch einen
+frischen Stand — nur dann wartet die Oberfläche.
 
 | Prüfung                                 | Was sie bedeutet                                                                       | Gelb                             | Rot                                  |
 | --------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------ |
@@ -240,7 +242,6 @@ was zu tun ist.
 | **Add-ons laufen nicht**                | Add-ons mit Autostart, die gestoppt sind, plus jedes Add-on im Fehlerzustand           | ab 1                             | ab 3                                 |
 | **Recorder / Historie**                 | Historie wird nicht geschrieben, der Recorder-Thread steht, oder der Rückstau ist groß | Rückstau ≥ 1 000, oder Migration | Recorder aus, oder Rückstau ≥ 10 000 |
 | **Nur wiederhergestellt**               | Entities, die nur aus einem Restore stammen und seit diesem Start nicht gesehen wurden | ab 1                             | ab 15                                |
-| **Deaktivierte Entities**               | Registry-Einträge, die abgeschaltet sind                                               | ab 15                            | ab 60                                |
 | **Backup**                              | Tage seit dem letzten Backup, das Home Assistant enthält                               | ab 7 Tagen, oder nur lokal       | ab 14 Tagen, oder gar kein Backup    |
 | **Speicherplatz**                       | Freier Platz auf der HA-Datenpartition                                                 | siehe unten                      | siehe unten                          |
 
@@ -434,17 +435,18 @@ Massgeblich ist dein OpenRouter-Dashboard.
 
 Alles liegt in `/data/store/` und wird von Home-Assistant-Backups automatisch mitgesichert.
 
-| Ordner               | Inhalt                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------- |
-| `conversations/`     | Chat-Verlauf, gemeinsam für Web-UI und Telegram                                                   |
-| `memory/`            | Langzeit-Gedächtniskarten                                                                         |
-| `notes/`             | Notizen                                                                                           |
-| `backlog/`           | Aufgaben                                                                                          |
-| `learning/`          | Korrekturen, Regeln, Muster, frühere Fehler                                                       |
-| `scheduler.json`     | Erinnerungen und wiederkehrende Jobs                                                              |
-| `actions.jsonl`      | Aktionsprotokoll mit Rückgängig-Daten, 7 Tage aufbewahrt                                          |
-| `profile.json`       | Namen, Gesprächsstil, Modellwahl                                                                  |
-| `system-health.json` | Zuletzt gesehene Werte (die Oberfläche zeigt, was sich bewegt hat) und zuletzt gemeldeter Zustand |
+| Ordner                      | Inhalt                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `conversations/`            | Chat-Verlauf, gemeinsam für Web-UI und Telegram                                                   |
+| `memory/`                   | Langzeit-Gedächtniskarten                                                                         |
+| `notes/`                    | Notizen                                                                                           |
+| `backlog/`                  | Aufgaben                                                                                          |
+| `learning/`                 | Korrekturen, Regeln, Muster, frühere Fehler                                                       |
+| `scheduler.json`            | Erinnerungen und wiederkehrende Jobs                                                              |
+| `actions.jsonl`             | Aktionsprotokoll mit Rückgängig-Daten, 7 Tage aufbewahrt                                          |
+| `profile.json`              | Namen, Gesprächsstil, Modellwahl                                                                  |
+| `system-health.json`        | Zuletzt gesehene Werte (die Oberfläche zeigt, was sich bewegt hat) und zuletzt gemeldeter Zustand |
+| `system-health-report.json` | Letzter vollständiger System-Health-Bericht für die Status-Oberfläche                             |
 
 Ein wiederhergestelltes Home-Assistant-Backup stellt das alles mit wieder her. Für einen
 Neuanfang das Add-on deinstallieren (das leert `/data`) und neu installieren.
@@ -455,6 +457,11 @@ Neuanfang das Add-on deinstallieren (das leert `/data`) und neu installieren.
 Ins Protokoll schauen. Meist fehlt der `openrouter_api_key`, oder es ist ein
 `telegram_bot_token` ohne `telegram_allowed_user_ids` gesetzt — diese Kombination wird
 absichtlich verweigert, weil ein Bot ohne Whitelist jedem antwortet.
+
+**Das Add-on startet und der Supervisor startet es gleich wieder.**
+Ein Watchdog ruft `/health` auf. Wenn der HTTP-Server innerhalb von etwa 40 Sekunden nicht
+antwortet oder später weg ist, wirft Home Assistant den Container neu an. Das Add-on-Protokoll
+ist die erste Anlaufstelle.
 
 **Er findet ein Gerät nicht, das es definitiv gibt.**
 Ordne die Entity in Home Assistant einem Bereich zu und drücke unter Settings **Cache

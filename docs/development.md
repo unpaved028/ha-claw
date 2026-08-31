@@ -83,6 +83,7 @@ All run from `ha-claw/`.
 | `npm run check` | `tsc --noEmit` |
 | `npm run lint` / `lint:fix` | ESLint |
 | `npm run format` / `format:fix` | Prettier |
+| `npm test` | `node:test` suite under `test/` (safety policy, scheduler, pruning, storage) |
 | `npm run bundle` | Regenerate `src/web/dashboard.ts` |
 | `npm run verify:bundle` | Fail if the generated dashboard drifted |
 
@@ -92,9 +93,9 @@ From the repository root:
 node scripts/check-docs.mjs   # every relative link in every .md resolves
 ```
 
-CI runs the same set, plus `docker build` and two consistency checks: version agreement
-between `package.json`, `config.yaml` and the newest `CHANGELOG.md` heading, and model list
-agreement between `config.yaml` and `src/core/models.ts`.
+CI runs the same set, plus `npm test`, `docker build` and two consistency checks: version
+agreement between `package.json`, `config.yaml` and the newest `CHANGELOG.md` heading, and
+model list agreement between `config.yaml` and `src/core/models.ts`.
 
 ## The dashboard build pipeline
 
@@ -188,6 +189,7 @@ redacted by pattern, which is best-effort — check before pasting a log into an
 | Loop stalls | `GET /api/confirm/pending` — something is waiting for a confirmation |
 | LLM calls refused | `GET /api/status/circuit-breaker` |
 | Costs look wrong | `/status` in Telegram; cost is estimated from a model→price table, not billed usage |
+| System Health looks stale | Last report is cached. `POST /api/system-health/refresh` or Status → Refresh |
 
 The dashboard's Status section surfaces most of this without curl.
 

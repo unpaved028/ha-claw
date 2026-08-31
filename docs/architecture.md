@@ -70,13 +70,16 @@ conversation record, so a question asked in the sidebar can be followed up from 
 ├── docs/                        # This reference (English)
 └── ha-claw/                     # ← the add-on
     ├── config.yaml              # Add-on manifest: version, options, schema
-    ├── Dockerfile               # Two-stage build on node:22-alpine
+    ├── Dockerfile               # Two-stage build, node:22-alpine pinned by digest
+    ├── apparmor.txt             # Custom AppArmor profile (slug ha-claw)
     ├── DOCS.md / DOCS.de.md     # User manual, rendered by the HA add-on UI
     ├── CHANGELOG.md
     ├── icon.png · logo.png      # Add-on store assets
     ├── translations/{en,de}.yaml# Option labels for the HA config UI
     ├── scripts/
-    │   └── bundle-dashboard.cjs # Generates src/web/dashboard.ts from src/web/ui/
+    │   ├── bundle-dashboard.cjs # Generates src/web/dashboard.ts from src/web/ui/
+    │   ├── entrypoint.sh        # chown /data, drop to user node
+    │   └── run-tests.mjs
     ├── agents/
     │   ├── main.md              # Main system prompt
     │   ├── onboarding.md        # Setup conversation prompt
@@ -97,12 +100,13 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── openrouter.ts    # OpenRouter client, retry, circuit breaker
         │   ├── proactive-analysis.ts # 7 analysis modules → backlog
         │   ├── profile.ts       # Bot/user profile and personality
-        │   ├── system-health.ts # Live standing-condition checks
+        │   ├── system-health.ts # Standing-condition checks (cached)
         │   ├── health-signals.ts # Broken refs, traces, failed entries
         │   ├── health-links.ts  # HA frontend paths for Ingress deep links
         │   ├── backup-health.ts # Backup age and offsite detection
         │   └── types.ts
         ├── storage/
+        │   ├── atomic-write.ts  # Per-path lock + unique temp-and-rename
         │   ├── json-store.ts    # Generic JSON store, atomic writes
         │   ├── conversation.ts  # Shared Web + Telegram history
         │   ├── memory-cards.ts  # Long-term memory, keyword retrieval
@@ -114,12 +118,15 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   └── scheduler.ts     # Recurring jobs and one-shot timers
         ├── tools/
         │   ├── registry.ts      # Registration, complexity, enable/disable
-        │   ├── ha-tools.ts      # HA tools + the safety policy
+        │   ├── safety-policy.ts # Pure allowlist (table-tested)
+        │   ├── validate-args.ts # JSON Schema subset before the handler
+        │   ├── ha-tools.ts      # HA tools + live cover/scene lookup
         │   ├── builtins.ts      # Store, memory, backlog, scheduler, learning
         │   ├── ha-best-practices.ts
         │   └── tool-cache.ts    # Short-lived result cache
         ├── web/
         │   ├── server.ts        # Fastify routes, SSE, web safety gate
+        │   ├── ingress-allow.ts # Add-on source-IP allowlist
         │   ├── dashboard.ts     # GENERATED — do not edit
         │   └── ui/              # dashboard.html · style.css · client.js
         └── telegram/
@@ -284,7 +291,10 @@ rejected and deferred tasks are left alone.
 
 [`src/core/system-health.ts`](../ha-claw/src/core/system-health.ts) evaluates **standing
 conditions**. These never reach "done" — in many installations a handful of devices are
-permanently unreachable — so they are computed on demand and never written to the backlog.
+permanently unreachable — so they are never written to the backlog. A full check runs
+shortly after start, every hour (for Telegram regressions), and when the user clicks
+Refresh. `GET /api/system-health` returns the last report so the Status screen does not
+wait on Home Assistant.
 
 | Check | Measures | Warn | Critical |
 | --- | --- | --- | --- |
@@ -300,7 +310,6 @@ permanently unreachable — so they are computed on demand and never written to 
 | `stopped_addons` | Add-ons with `boot: auto` that are not `started` / `startup`, plus any add-on in `error`. Skipped when the Supervisor list is unavailable (standalone). | ≥ 1 | ≥ 3 |
 | `recorder` | `recorder/info`: not recording, thread down, backlog, or a pending migration. Skipped when the command is missing. | backlog ≥ 1 000, or migration in progress | not recording / thread down, or backlog ≥ 10 000 |
 | `restored` | Entities with `attributes.restored === true` that are not already 30-day orphans. After a restore they can look fine and never appear as `unavailable`. | ≥ 1 device | ≥ 15 devices |
-| `disabled_entities` | Registry entries with `disabled_by` set. A standing pile, not a single fault. The payload lists the first 40. | ≥ 15 | ≥ 60 |
 | `backup` | Age of the newest backup containing Home Assistant | ≥ 7 days, or local-only storage | ≥ 14 days, or no backup at all |
 | `storage` | Free space on the HA data partition | Flash < 128 GB: under 5 GB free. SSD: under 10 % free. Drive lifetime ≥ 90 % | Flash: under 3 GB. SSD: under 5 %. Lifetime ≥ 95 % |
 
@@ -308,7 +317,7 @@ The Status screen sorts cards critical → warn → ok. Each check carries an `a
 optional `previous` reading (last different count/severity) and `worse`, plus Home Assistant
 frontend paths (`href` on the card and on items). Ingress opens those with `target="_top"`.
 
-`broken_refs`, `failed_automations`, `failed_integrations`, `disabled_entities` and the
+`broken_refs`, `failed_automations`, `failed_integrations` and the
 script traces share one websocket session (`getRegistrySnapshot` in
 [`ha-client.ts`](../ha-claw/src/core/ha-client.ts)): entity and device registries, config
 entries, and recent automation **and script** traces. UI automation/script configs are then
@@ -327,7 +336,8 @@ nagged about. Local-only storage stays a warning even when fresh, because an SD 
 survive the hardware it lives in.
 
 `store/system-health.json` holds last-seen values (so the UI can show "was 1") and separate
-notify fields. `findHealthRegressions()` pushes to Telegram only when a check's severity
+notify fields. `store/system-health-report.json` holds the last full report the UI serves.
+`findHealthRegressions()` pushes to Telegram only when a check's severity
 escalated or its count at least doubled since the last message. `storage` and `recorder`
 skip the doubling rule — those counts shrink as the problem grows. A permanently broken
 installation therefore does not generate hourly notifications, while a genuine new outage
@@ -351,10 +361,11 @@ Plain JSON and JSONL under `<dataPath>/store/`, included in Home Assistant backu
 automatically. The full path table is in
 [configuration.md § Data paths](configuration.md#data-paths).
 
-`json-store.ts` writes atomically through a temp file and rename. Two modules
-(`learning.ts`, `scheduler.ts`) still write directly, and all monolithic JSON files are
-read-modify-write without a lock — concurrent Web and Telegram requests can overwrite each
-other. Serialising writes is a [roadmap item](roadmap.md#v100--trust-and-hardening).
+[`atomic-write.ts`](../ha-claw/src/storage/atomic-write.ts) is the shared helper: one lock
+per path, a unique temp file, then rename. `json-store.ts`, `learning.ts`, `scheduler.ts`,
+`profile.ts`, the disabled-tools list and the health snapshot all go through it. Concurrent
+`upsert` on the same record is serialised so the second writer reads the first writer's
+result.
 
 ## Data flow
 

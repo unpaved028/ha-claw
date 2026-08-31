@@ -36,6 +36,44 @@ interface EntityInfo {
   deviceClass: string;
 }
 
+/** Escape a string so it is safe inside a RegExp. Area names like `Küche (EG)` must not break pruning. */
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export interface CompressibleEntity {
+  id: string;
+  name?: string;
+  state: string;
+}
+
+/**
+ * Same-domain, same-state groups of three or more become one line.
+ * Smaller groups stay as individual rows.
+ */
+export function compressDomainLines(domain: string, entities: CompressibleEntity[]): string[] {
+  if (entities.length < 3) {
+    return entities.map(e => `- ${e.name || e.id} → \`${e.id}\` (${e.state})`);
+  }
+  const byState = new Map<string, CompressibleEntity[]>();
+  for (const e of entities) {
+    const list = byState.get(e.state) ?? [];
+    list.push(e);
+    byState.set(e.state, list);
+  }
+  const lines: string[] = [];
+  for (const [state, group] of byState) {
+    if (group.length >= 3) {
+      lines.push(
+        `- ${group.length}× ${domain} (alle ${state}): ${group.map(e => `\`${e.id}\``).join(', ')}`,
+      );
+    } else {
+      for (const e of group) lines.push(`- ${e.name || e.id} → \`${e.id}\` (${e.state})`);
+    }
+  }
+  return lines;
+}
+
 /** Structured storage for dynamic pruning */
 let lastGroupedData: Map<string, Map<string, EntityInfo[]>> | null = null;
 let lastFloorAreas: Map<string, string[]> | null = null;
@@ -163,8 +201,8 @@ export function getDynamicPrunedCache(query: string): string {
   const mentionedAreas = allAreas.filter(area => {
     if (area === 'Ohne Bereich') return false;
     // Check for exact word match to avoid false positives (e.g. "Bad" in "Badezimmer")
-    const escaped = area.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    const escaped = escapeRegExp(area.toLowerCase());
+    const regex = new RegExp(`(?:^|[\\s,;])${escaped}(?:[\\s,;]|$)`, 'i');
     return regex.test(queryLower);
   });
 
@@ -237,24 +275,7 @@ function renderCache(focusAreas?: string[]): string {
 
       for (const domain of relevantDomains) {
         const entities = domainMap.get(domain)!;
-        if (entities.length >= 3) {
-          const byState = new Map<string, EntityInfo[]>();
-          for (const e of entities) {
-            if (!byState.has(e.state)) byState.set(e.state, []);
-            byState.get(e.state)!.push(e);
-          }
-          for (const [state, group] of byState) {
-            if (group.length >= 3) {
-              lines.push(
-                `- ${group.length}× ${domain} (alle ${state}): ${group.map(e => `\`${e.id}\``).join(', ')}`,
-              );
-            } else {
-              for (const e of group) lines.push(`- ${e.name || e.id} → \`${e.id}\` (${e.state})`);
-            }
-          }
-        } else {
-          for (const e of entities) lines.push(`- ${e.name || e.id} → \`${e.id}\` (${e.state})`);
-        }
+        lines.push(...compressDomainLines(domain, entities));
       }
 
       if (importantSensors.length > 0) {

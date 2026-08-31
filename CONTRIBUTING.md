@@ -112,6 +112,7 @@ npm run verify:bundle   # dashboard.ts matches src/web/ui/
 npm run check           # tsc --noEmit
 npm run lint            # eslint
 npm run format          # prettier --check
+npm test                # node:test suite
 ```
 
 ```bash
@@ -165,8 +166,9 @@ The short version:
 
 1. Branch from `main`.
 2. Keep the change focused. Refactors and behaviour changes in one PR are hard to review.
-3. Fill in the pull request template — especially **how you tested it**. There is no test
-   suite yet ([roadmap item](docs/roadmap.md)), so manual verification steps matter.
+3. Fill in the pull request template — especially **how you tested it**. `npm test` covers
+   the safety policy and a handful of other expensive bugs; it does not talk to Home
+   Assistant. Manual verification still matters for anything the suite cannot see.
 4. Do **not** bump the version in a feature PR. Releases are cut separately; see
    [docs/releasing.md](docs/releasing.md).
 

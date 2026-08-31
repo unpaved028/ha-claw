@@ -5,7 +5,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { isAllowedAddonPeer } from './ingress-allow.js';
 import { appConfig } from '../core/config.js';
 import { AVAILABLE_MODELS } from '../core/models.js';
 import { createLogger, getLogBuffer, clearLogBuffer } from '../core/logger.js';
@@ -39,7 +40,11 @@ import {
   appendAssistantMessage,
 } from '../storage/conversation.js';
 import * as backlog from '../storage/backlog.js';
-import { getSystemHealth } from '../core/system-health.js';
+import {
+  getCachedSystemHealth,
+  getSystemHealth,
+  isHealthRefreshInFlight,
+} from '../core/system-health.js';
 import { getToolDefinitions } from '../tools/registry.js';
 import * as actionLog from '../storage/action-log.js';
 
@@ -140,8 +145,19 @@ function buildOnboardingAgent() {
 
 const ONBOARDING_TOOLS = ['save_onboarding_profile', 'get_current_time', 'schedule_create'];
 
+let server: FastifyInstance | null = null;
+
 export async function startWebServer(): Promise<void> {
   const app = Fastify({ logger: false });
+
+  if (appConfig.isAddon) {
+    app.addHook('onRequest', async (req, reply) => {
+      const peer = req.socket.remoteAddress;
+      if (isAllowedAddonPeer(peer)) return;
+      log.warn('Rejected non-Ingress peer', { peer });
+      return reply.code(403).send({ error: 'forbidden' });
+    });
+  }
 
   // Health
   app.get('/health', async () => ({
@@ -459,11 +475,26 @@ export async function startWebServer(): Promise<void> {
   });
 
   // ── System Health ───────────────────────────────────────
-  // Live checks, deliberately not persisted as backlog tasks – see
-  // core/system-health.ts for the reasoning.
-  app.get('/api/system-health', async (_req, reply) => {
+  // Standing checks, deliberately not persisted as backlog tasks – see
+  // core/system-health.ts. GET serves the last report; POST recomputes.
+  // Kick off at most one background check per process when nothing is cached
+  // yet — polling the Status screen must not start a new run every time.
+  let healthKickoff = false;
+  app.get('/api/system-health', async () => {
+    const health = await getCachedSystemHealth();
+    if (!health && !healthKickoff) {
+      healthKickoff = true;
+      void getSystemHealth().catch(err =>
+        log.warn('Background health check failed', { error: String(err) }),
+      );
+    }
+    return { checking: isHealthRefreshInFlight(), health };
+  });
+
+  app.post('/api/system-health/refresh', async (_req, reply) => {
     try {
-      return await getSystemHealth();
+      const health = await getSystemHealth();
+      return { checking: false, health };
     } catch (err) {
       reply.status(503);
       return { error: String(err) };
@@ -506,5 +537,14 @@ export async function startWebServer(): Promise<void> {
   const port = appConfig.ingressPort;
   const host = appConfig.isAddon ? '0.0.0.0' : '127.0.0.1';
   await app.listen({ port, host });
+  server = app;
   log.info('Web server started', { host, port });
+}
+
+export async function closeWebServer(): Promise<void> {
+  if (!server) return;
+  const app = server;
+  server = null;
+  await app.close();
+  log.info('Web server closed');
 }

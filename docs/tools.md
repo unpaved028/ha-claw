@@ -29,9 +29,11 @@ registry.register({
 The `description` is not a comment. It is the only thing the model has to decide whether a
 tool applies, so changing it changes behaviour. Treat it as an API change.
 
-`executeTool` in the registry times out after **15 seconds**; the loop returns that as a
-tool error the model can react to. A numeric `limit` argument that is missing, `NaN` or
-out of range is clamped (default 1–200) so `slice(0, NaN)` cannot look like an empty house.
+`executeTool` in the registry checks arguments against the tool's JSON Schema (`type`,
+`required`, `properties`, `anyOf`, `items`) and times out after **15 seconds**. Either
+failure comes back as a tool error the model can react to. A numeric `limit` argument that
+is missing, `NaN` or out of range is clamped (default 1–200) so `slice(0, NaN)` cannot look
+like an empty house.
 
 ## Danger flag and complexity
 
@@ -161,7 +163,10 @@ Accepted schedule strings, exactly as the parser in
 Input is lowercased and trimmed before parsing. `schedule_once` accepts the natural forms
 (`"5m"`, `"14:30"`) and converts them. An unrecognised string is rejected with a message
 listing the valid formats. The scheduler ticks every 30 seconds and skips jobs while the
-LLM circuit breaker is open.
+LLM circuit breaker is open. Recurring jobs get their next run time advanced *before* the
+executor, so a job that lasts longer than the tick cannot fire twice. When the breaker
+closes, overdue jobs are jittered by up to 60 seconds so they do not all hit the model at
+once.
 
 ### Analysis and learning
 

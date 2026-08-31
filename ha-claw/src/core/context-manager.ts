@@ -31,12 +31,47 @@ export function countTokens(messages: ChatMessage[]): number {
 }
 
 /**
+ * Drop the oldest message, keeping assistant `tool_calls` paired with their
+ * `role: tool` results. An orphaned tool result is a hard API error.
+ */
+export function dropOldestPaired(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length === 0) return messages;
+  const first = messages[0]!;
+  if (first.role === 'assistant' && first.tool_calls && first.tool_calls.length > 0) {
+    const ids = new Set(first.tool_calls.map(t => t.id));
+    let i = 1;
+    while (i < messages.length && messages[i]!.role === 'tool') {
+      const id = (messages[i] as { tool_call_id: string }).tool_call_id;
+      if (!ids.has(id)) break;
+      ids.delete(id);
+      i++;
+    }
+    return messages.slice(i);
+  }
+  if (first.role === 'tool') return messages.slice(1);
+  return messages.slice(1);
+}
+
+/** True when every tool result has a matching assistant tool_call still in the list. */
+export function toolCallsArePaired(messages: ChatMessage[]): boolean {
+  const open = new Set<string>();
+  for (const m of messages) {
+    if (m.role === 'assistant' && m.tool_calls) {
+      for (const c of m.tool_calls) open.add(c.id);
+    } else if (m.role === 'tool') {
+      if (!open.has(m.tool_call_id)) return false;
+      open.delete(m.tool_call_id);
+    }
+  }
+  return true;
+}
+
+/**
  * Prune message history to stay within a target token limit.
  *
- * Strategy (Middle-Pruning):
- * 1. Always keep the first message (System Prompt).
- * 2. Always keep the last N messages (Recent context).
- * 3. If still over limit, remove messages from the "middle" (oldest history).
+ * Always keep the first system message. Remove oldest history in paired
+ * groups until the budget is met. Prefer keeping four recent messages, but
+ * the budget wins — an orphaned tool result must never leave this function.
  */
 export function pruneMessages(messages: ChatMessage[], targetLimit: number): ChatMessage[] {
   const currentCount = countTokens(messages);
@@ -48,27 +83,40 @@ export function pruneMessages(messages: ChatMessage[], targetLimit: number): Cha
   });
 
   const systemMessage = messages[0]?.role === 'system' ? messages[0] : null;
-  const otherMessages = systemMessage ? messages.slice(1) : messages;
+  let pruned = systemMessage ? messages.slice(1) : [...messages];
 
-  // We want to keep at least 4 recent messages if possible (usually 2 user/assistant pairs)
   const MIN_KEEP_RECENT = 4;
 
-  let pruned = [...otherMessages];
-
-  // Repeatedly remove the oldest non-system message until we are within budget
-  // or reach our minimum "recent" buffer.
   while (
     countTokens(systemMessage ? [systemMessage, ...pruned] : pruned) > targetLimit &&
-    pruned.length > MIN_KEEP_RECENT
+    pruned.length > 0
   ) {
-    // Check if the next message is a tool result.
-    // If it is, we should try to keep the corresponding assistant message too.
-    // Simplifying for now: Just shift the oldest.
-    pruned.shift();
+    if (pruned.length <= MIN_KEEP_RECENT) {
+      const next = dropOldestPaired(pruned);
+      if (next.length === pruned.length) break;
+      pruned = next;
+      continue;
+    }
+    pruned = dropOldestPaired(pruned);
   }
 
-  const final = systemMessage ? [systemMessage, ...pruned] : pruned;
-  log.info('Context pruned', { finalCount: countTokens(final) });
+  while (pruned[0]?.role === 'tool') pruned = pruned.slice(1);
 
+  const final = systemMessage ? [systemMessage, ...pruned] : pruned;
+  if (!toolCallsArePaired(final)) {
+    log.warn('Prune left unpaired tool messages – dropping leading tool results');
+    const cleaned = final.filter((m, i, arr) => {
+      if (m.role !== 'tool') return true;
+      return arr
+        .slice(0, i)
+        .some(
+          prev => prev.role === 'assistant' && prev.tool_calls?.some(c => c.id === m.tool_call_id),
+        );
+    });
+    log.info('Context pruned', { finalCount: countTokens(cleaned) });
+    return cleaned;
+  }
+
+  log.info('Context pruned', { finalCount: countTokens(final) });
   return final;
 }

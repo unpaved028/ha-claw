@@ -13,7 +13,7 @@ anything that could lock you out or set off an alarm.
 
 [![CI](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml/badge.svg)](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Add-on version](https://img.shields.io/badge/add--on-v0.10.0-0aa8d2.svg)](ha-claw/CHANGELOG.md)
+[![Add-on version](https://img.shields.io/badge/add--on-v1.0.0-0aa8d2.svg)](ha-claw/CHANGELOG.md)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Add--on-41BDF5.svg?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
 
 [Installation](#installation) · [Documentation](docs/README.md) · [Roadmap](docs/roadmap.md) · [Deutsch](README.de.md)

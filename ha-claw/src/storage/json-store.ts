@@ -14,11 +14,12 @@
  *   /data/store/memory/      → Agent persistent memory
  */
 
-import { readFile, writeFile, rename, mkdir, readdir, unlink } from 'node:fs/promises';
+import { readFile, mkdir, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
+import { atomicWriteJson, withPathLock } from './atomic-write.js';
 
 const log = createLogger('storage');
 
@@ -77,7 +78,9 @@ export async function create<T extends Record<string, unknown>>(
     ...data,
   } as StoredRecord & T;
 
-  await atomicWrite(filePath(collection, id), record);
+  await withPathLock(filePath(collection, id), () =>
+    atomicWriteJson(filePath(collection, id), record),
+  );
   log.debug('Record created', { collection, id });
   return record;
 }
@@ -120,20 +123,23 @@ export async function update<T extends Record<string, unknown>>(
   id: string,
   data: Partial<T>,
 ): Promise<StoredRecord | null> {
-  const existing = await read(collection, id);
-  if (!existing) return null;
+  const path = filePath(collection, id);
+  return withPathLock(path, async () => {
+    const existing = await read(collection, id);
+    if (!existing) return null;
 
-  const updated = {
-    ...existing,
-    ...data,
-    id, // ID is immutable
-    createdAt: existing.createdAt, // createdAt is immutable
-    updatedAt: new Date().toISOString(),
-  };
+    const updated = {
+      ...existing,
+      ...data,
+      id,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
 
-  await atomicWrite(filePath(collection, id), updated);
-  log.debug('Record updated', { collection, id });
-  return updated;
+    await atomicWriteJson(path, updated);
+    log.debug('Record updated', { collection, id });
+    return updated;
+  });
 }
 
 /** Upsert a record (create or update) with a specific ID. */
@@ -142,20 +148,23 @@ export async function upsert<T extends Record<string, unknown>>(
   id: string,
   data: T,
 ): Promise<StoredRecord & T> {
-  const existing = await read(collection, id);
-  const now = new Date().toISOString();
+  const path = filePath(collection, id);
+  return withPathLock(path, async () => {
+    const existing = await read(collection, id);
+    const now = new Date().toISOString();
 
-  const record = {
-    ...(existing || {}),
-    ...data,
-    id,
-    createdAt: existing?.createdAt || now,
-    updatedAt: now,
-  } as StoredRecord & T;
+    const record = {
+      ...(existing || {}),
+      ...data,
+      id,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    } as StoredRecord & T;
 
-  await atomicWrite(filePath(collection, id), record);
-  log.debug('Record upserted', { collection, id });
-  return record;
+    await atomicWriteJson(path, record);
+    log.debug('Record upserted', { collection, id });
+    return record;
+  });
 }
 
 /** Delete a record by ID. Returns true if it existed. */
@@ -167,15 +176,4 @@ export async function remove(collection: CollectionName, id: string): Promise<bo
   } catch {
     return false;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Atomic write: write to temp file, then rename. Prevents partial/corrupt writes. */
-async function atomicWrite(path: string, data: unknown): Promise<void> {
-  const tmpPath = `${path}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-  await rename(tmpPath, path);
 }

@@ -300,18 +300,6 @@ export function findFailedIntegrations(snapshot: ha.HaRegistrySnapshot): HealthI
     .sort((a, b) => a.label.localeCompare(b.label, 'de'));
 }
 
-export function findDisabledEntities(snapshot: ha.HaRegistrySnapshot): HealthItem[] {
-  return snapshot.entities
-    .filter(e => e.disabled_by)
-    .map(e => ({
-      id: e.entity_id,
-      label: (e.name || e.original_name || e.entity_id).trim(),
-      entities: [e.entity_id, e.disabled_by ? `disabled_by=${e.disabled_by}` : 'disabled'],
-      href: HA_PATH.entities,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'de'));
-}
-
 export function findStoppedAddons(addons: ha.SupervisorAddon[]): HealthItem[] {
   return addons
     .filter(a => {

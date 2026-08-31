@@ -11,10 +11,11 @@
  * All data persisted in /data/store/learning/.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
+import { atomicWriteJson, withPathLock } from './atomic-write.js';
 
 const log = createLogger('learning');
 
@@ -431,7 +432,8 @@ async function persistErrors(): Promise<void> {
 
 async function saveJson(path: string, data: unknown): Promise<void> {
   try {
-    await writeFile(path, JSON.stringify(data, null, 2));
+    await mkdir(STORE_DIR, { recursive: true });
+    await withPathLock(path, () => atomicWriteJson(path, data));
   } catch (err) {
     log.warn('Failed to persist learning data', { path, error: String(err) });
   }

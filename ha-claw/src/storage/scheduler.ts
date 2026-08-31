@@ -22,11 +22,12 @@
  * Each job fires a message through the agentic loop as if the user sent it.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 import { getCircuitBreakerState } from '../core/openrouter.js';
+import { atomicWriteJson, withPathLock } from './atomic-write.js';
 
 const log = createLogger('scheduler');
 
@@ -56,11 +57,12 @@ const SCHEDULER_FILE = join(STORE_DIR, 'scheduler.json');
 let jobs: ScheduledJob[] = [];
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 let executor: JobExecutor | null = null;
+let breakerWasOpen = false;
+const running = new Set<string>();
 
 async function persist(): Promise<void> {
   try {
-    await mkdir(STORE_DIR, { recursive: true });
-    await writeFile(SCHEDULER_FILE, JSON.stringify(jobs, null, 2));
+    await withPathLock(SCHEDULER_FILE, () => atomicWriteJson(SCHEDULER_FILE, jobs));
   } catch (err) {
     log.warn('Failed to persist scheduler', { error: String(err) });
   }
@@ -87,9 +89,18 @@ export async function initScheduler(exec: JobExecutor): Promise<void> {
   }
   await persist();
 
-  // Tick every 30 seconds
-  tickTimer = setInterval(() => tick(), 30_000);
+  tickTimer = setInterval(() => {
+    void tick();
+  }, 30_000);
   log.info('Scheduler started (30s tick)');
+}
+
+/** Test hook: load jobs and set the executor without starting the 30s ticker. */
+export async function initSchedulerForTests(exec: JobExecutor): Promise<void> {
+  executor = exec;
+  jobs = [];
+  running.clear();
+  breakerWasOpen = false;
 }
 
 export function stopScheduler(): void {
@@ -102,55 +113,88 @@ export function stopScheduler(): void {
 // ── Tick (check & execute due jobs) ──────────────────────────
 
 async function tick(): Promise<void> {
-  const now = new Date();
+  await runDueJobs(new Date());
+}
 
-  // Wenn der Circuit Breaker offen ist, führen wir in diesem Tick keine Jobs aus.
-  // Sie bleiben in der Queue, da ihr nextRunAt in der Vergangenheit liegt
-  // und beim nächsten Tick (alle 30s) wieder geprüft wird.
+/**
+ * Fire every due job. Recurring jobs get their nextRunAt advanced *before*
+ * the executor so a run longer than the tick cannot overlap. Oneshots keep
+ * nextRunAt until they finish; the in-memory `running` set blocks a second
+ * fire. When the circuit breaker closes, overdue jobs are jittered so they
+ * do not all hit the LLM at once.
+ */
+export async function runDueJobs(now: Date): Promise<void> {
   if (getCircuitBreakerState().isOpen) {
-    // Da wir alle 30s ticken, loggen wir dies nur kurz (oder gar nicht, um Spam zu vermeiden).
+    breakerWasOpen = true;
     return;
   }
 
+  if (breakerWasOpen) {
+    breakerWasOpen = false;
+    jitterOverdueJobs(now);
+    await persist();
+  }
+
+  const due = jobs.filter(
+    job =>
+      job.enabled &&
+      job.nextRunAt &&
+      !running.has(job.id) &&
+      now.getTime() >= new Date(job.nextRunAt).getTime(),
+  );
+
+  await Promise.all(due.map(job => fireJob(job, now)));
+}
+
+function jitterOverdueJobs(now: Date): void {
   for (const job of jobs) {
     if (!job.enabled || !job.nextRunAt) continue;
-    const next = new Date(job.nextRunAt);
-    if (now >= next) {
-      log.info('Job firing', { id: job.id, name: job.name });
-      try {
-        const result = executor ? await executor(job) : '(no executor)';
-        job.lastRunAt = now.toISOString();
-        job.lastResult = result.slice(0, 300);
-        job.runCount++;
-        if (job.oneshot) {
-          job.enabled = false;
-          job.nextRunAt = null;
-          log.info('One-shot job completed and disabled', { id: job.id });
-        } else {
-          job.nextRunAt = calcNextRun(job.schedule);
-          log.info('Job completed', { id: job.id, nextRun: job.nextRunAt });
-        }
-      } catch (err) {
-        job.lastRunAt = now.toISOString();
-        job.lastResult = `ERROR: ${String(err).slice(0, 200)}`;
-        if (job.oneshot) {
-          job.enabled = false;
-          job.nextRunAt = null;
-          log.error('One-shot job failed and disabled', { id: job.id, error: String(err) });
-        } else {
-          job.nextRunAt = calcNextRun(job.schedule);
-          log.error('Job failed', { id: job.id, error: String(err) });
-        }
-      }
-      await persist();
+    if (new Date(job.nextRunAt).getTime() > now.getTime()) continue;
+    const delayMs = Math.floor(Math.random() * 60_000);
+    job.nextRunAt = new Date(now.getTime() + delayMs).toISOString();
+    log.info('Jittered overdue job after circuit breaker close', { id: job.id, delayMs });
+  }
+}
+
+async function fireJob(job: ScheduledJob, now: Date): Promise<void> {
+  running.add(job.id);
+  if (!job.oneshot) {
+    job.nextRunAt = calcNextRun(job.schedule, now);
+  }
+  await persist();
+  log.info('Job firing', { id: job.id, name: job.name, nextRun: job.nextRunAt });
+
+  try {
+    const result = executor ? await executor(job) : '(no executor)';
+    job.lastRunAt = now.toISOString();
+    job.lastResult = result.slice(0, 300);
+    job.runCount++;
+    if (job.oneshot) {
+      job.enabled = false;
+      job.nextRunAt = null;
+      log.info('One-shot job completed and disabled', { id: job.id });
+    } else {
+      log.info('Job completed', { id: job.id, nextRun: job.nextRunAt });
     }
+  } catch (err) {
+    job.lastRunAt = now.toISOString();
+    job.lastResult = `ERROR: ${String(err).slice(0, 200)}`;
+    if (job.oneshot) {
+      job.enabled = false;
+      job.nextRunAt = null;
+      log.error('One-shot job failed and disabled', { id: job.id, error: String(err) });
+    } else {
+      log.error('Job failed', { id: job.id, error: String(err) });
+    }
+  } finally {
+    running.delete(job.id);
+    await persist();
   }
 }
 
 // ── Schedule Parser ──────────────────────────────────────────
 
-function calcNextRun(schedule: string): string | null {
-  const now = new Date();
+export function calcNextRun(schedule: string, now: Date = new Date()): string | null {
   const s = schedule.trim().toLowerCase();
 
   // "every Xm" or "every Xh"
@@ -220,7 +264,16 @@ function calcNextRun(schedule: string): string | null {
   return null;
 }
 
-function nextTimeOfDay(now: Date, hour: number, minute: number, allowedDays?: number[]): string {
+export function markCircuitWasOpenForTests(): void {
+  breakerWasOpen = true;
+}
+
+export function nextTimeOfDay(
+  now: Date,
+  hour: number,
+  minute: number,
+  allowedDays?: number[],
+): string {
   const candidate = new Date(now);
   candidate.setHours(hour, minute, 0, 0);
 

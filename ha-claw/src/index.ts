@@ -27,7 +27,7 @@ import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
 import { registerHABestPracticesTools } from './tools/ha-best-practices.js';
 import { getToolNames, applyDisabledTools } from './tools/registry.js';
-import { startWebServer, buildAgent } from './web/server.js';
+import { startWebServer, closeWebServer, buildAgent } from './web/server.js';
 import { runAgenticLoop } from './core/agentic-loop.js';
 import { createBot, startBot } from './telegram/bot.js';
 import { setupProactiveNotifications, sendProactiveMessage } from './telegram/notifications.js';
@@ -38,6 +38,11 @@ import { getSystemHealth, findHealthRegressions } from './core/system-health.js'
 import { InlineKeyboard } from 'grammy';
 
 const log = createLogger('main');
+
+let cacheRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let analysisTimer: ReturnType<typeof setInterval> | null = null;
+let telegramBot: ReturnType<typeof createBot> | null = null;
+let shuttingDown = false;
 
 async function main(): Promise<void> {
   log.info('=== HA-Claw starting ===', {
@@ -72,8 +77,7 @@ async function main(): Promise<void> {
     // Step 4b: Build entity cache for agent context
     await buildEntityCache();
 
-    // Step 4c: Periodic cache refresh (every 30 minutes)
-    setInterval(
+    cacheRefreshTimer = setInterval(
       async () => {
         try {
           await buildEntityCache();
@@ -96,31 +100,20 @@ async function main(): Promise<void> {
   // Step 5: Web server (always – needed for Ingress)
   await startWebServer();
 
-  // Step 6: Telegram (optional)
-  let telegramBot: ReturnType<typeof createBot> | null = null;
   if (appConfig.telegramBotToken) {
     telegramBot = createBot();
     setupProactiveNotifications(telegramBot);
     await startBot(telegramBot);
-
-    const shutdown = (sig: string) => {
-      log.info(`Received ${sig}, shutting down...`);
-      stopScheduler();
-      telegramBot!.stop();
-      process.exit(0);
-    };
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
   } else {
     log.info('Telegram not configured – bot disabled');
-    const shutdown = (sig: string) => {
-      log.info(`Received ${sig}`);
-      stopScheduler();
-      process.exit(0);
-    };
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
   }
+
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
 
   // Step 7: Scheduler – runs jobs through the agentic loop + proactive notifications
   await initScheduler(async job => {
@@ -186,8 +179,7 @@ async function main(): Promise<void> {
     });
   }
 
-  // Run analysis every 60 minutes
-  setInterval(
+  analysisTimer = setInterval(
     async () => {
       try {
         log.info('Running periodic system analysis (60 min)');
@@ -206,6 +198,12 @@ async function main(): Promise<void> {
   );
 
   log.info('=== HA-Claw ready ===');
+
+  if (isHAAvailable()) {
+    void getSystemHealth()
+      .then(() => log.info('Initial system health check complete'))
+      .catch(err => log.warn('Initial system health check failed', { error: String(err) }));
+  }
 }
 
 /**
@@ -229,6 +227,26 @@ async function reportHealthRegressions(hasTelegram: boolean): Promise<void> {
   await sendProactiveMessage(`🩺 *Systemzustand verschlechtert*\n\n${body}`).catch(err =>
     log.error('Failed to send health push', { error: String(err) }),
   );
+}
+
+async function shutdown(sig: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log.info(`Received ${sig}, shutting down...`);
+  if (cacheRefreshTimer) clearInterval(cacheRefreshTimer);
+  if (analysisTimer) clearInterval(analysisTimer);
+  stopScheduler();
+  try {
+    telegramBot?.stop();
+  } catch (err) {
+    log.warn('Telegram stop failed', { error: String(err) });
+  }
+  try {
+    await closeWebServer();
+  } catch (err) {
+    log.warn('Web server close failed', { error: String(err) });
+  }
+  process.exit(0);
 }
 
 main().catch(err => {

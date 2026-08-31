@@ -37,7 +37,7 @@ body:
     attributes:
       label: HA-Claw version
       description: Shown in the dashboard footer and in the add-on info page.
-      placeholder: '0.10.0'
+      placeholder: '1.0.0'
     validations:
       required: true
 

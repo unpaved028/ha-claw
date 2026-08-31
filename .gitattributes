@@ -2,3 +2,4 @@
 # checkout gets CRLF and the next "npm run bundle" rewrites the whole file,
 # showing 4400 phantom changes.
 ha-claw/src/web/dashboard.ts text eol=lf
+ha-claw/scripts/entrypoint.sh text eol=lf

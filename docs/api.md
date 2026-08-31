@@ -25,21 +25,21 @@ Home Assistant user.
 The server binds to `0.0.0.0` in add-on mode and `127.0.0.1` in standalone mode. Port 3100
 is not published in `config.yaml`, so it is only reachable from inside the Docker network.
 
-> Home Assistant's add-on guidance additionally asks servers to reject any source address
-> other than the Ingress gateway (`172.30.32.2`). HA-Claw does not currently do that — it
-> relies on the port not being published. Adding the check is a
-> [roadmap item](roadmap.md#v100--trust-and-hardening).
+In add-on mode the server also rejects the TCP peer unless it is `172.30.32.2` (Ingress),
+loopback (the image `HEALTHCHECK`), or `172.30.32.0/23` (Supervisor watchdog). Everyone
+else gets `403 { "error": "forbidden" }`. The check uses the socket address, not forwarded
+headers. Standalone mode binds `127.0.0.1` and does not apply the allowlist.
 
 ## Health and UI
 
 ### `GET /health`
 
-Liveness probe. Also the endpoint a Supervisor `watchdog` would use.
+Liveness probe. The Supervisor `watchdog` and the image `HEALTHCHECK` both call this.
 
 ```json
 {
   "status": "ok",
-  "version": "0.10.0",
+  "version": "1.0.0",
   "uptime": 87231,
   "startedAt": "2026-08-29T21:14:02.104Z",
   "mode": "addon",
@@ -237,29 +237,37 @@ spends no tokens.
 
 ### `GET /api/system-health`
 
+Returns the last completed report without waiting on Home Assistant. `health` is `null`
+until the first check finishes (shortly after start, or after
+`POST /api/system-health/refresh`). If no report exists yet, GET starts a background check.
+`checking` is `true` while a refresh is in flight.
+
 ```jsonc
 {
-  "checkedAt": "2026-08-29T21:40:00.000Z",
-  "severity": "warn",
-  "totalEntities": 812,
-  "haBase": "",
-  "checks": [
-    {
-      "key": "low_battery",
-      "label": "Batterie unter 20 %",
-      "about": "Geräte, deren Batterie unter 20 % gemeldet wird.",
-      "href": "/config/entities",
-      "severity": "warn",
-      "count": 3,
-      "detail": "...",
-      "entities": ["sensor.…"],
-      "items": [{ "id": "dev:…", "label": "Fenster EG", "entities": ["sensor.…"], "href": "/config/devices/device/…" }],
-      "hint": "...",
-      "previous": { "severity": "ok", "count": 0, "checkedAt": "2026-08-28T21:40:00.000Z" },
-      "worse": true,
-      "note": "12 UI-Automationen/Skripte vollständig, 3 nur YAML (kein voller Scan)."
-    }
-  ]
+  "checking": false,
+  "health": {
+    "checkedAt": "2026-08-29T21:40:00.000Z",
+    "severity": "warn",
+    "totalEntities": 812,
+    "haBase": "",
+    "checks": [
+      {
+        "key": "low_battery",
+        "label": "Batterie unter 20 %",
+        "about": "Geräte, deren Batterie unter 20 % gemeldet wird.",
+        "href": "/config/entities",
+        "severity": "warn",
+        "count": 3,
+        "detail": "...",
+        "entities": ["sensor.…"],
+        "items": [{ "id": "dev:…", "label": "Fenster EG", "entities": ["sensor.…"], "href": "/config/devices/device/…" }],
+        "hint": "...",
+        "previous": { "severity": "ok", "count": 0, "checkedAt": "2026-08-28T21:40:00.000Z" },
+        "worse": true,
+        "note": "12 UI-Automationen/Skripte vollständig, 3 nur YAML (kein voller Scan)."
+      }
+    ]
+  }
 }
 ```
 
@@ -270,11 +278,17 @@ button is one row, not four. `haBase` is empty in the add-on (relative paths, op
 `target="_top"`) and the Home Assistant origin in standalone. `about` is always present.
 `href` on a check or item is a Home Assistant frontend path. `previous` / `worse` appear
 when the last different reading is known. `note` is a footnote (YAML coverage on
-`broken_refs`, list caps on `disabled_entities`). Check `key` values are listed in
+`broken_refs`). Check `key` values are listed in
 [architecture.md § System health](architecture.md#proactive-analysis-vs-system-health).
 
-Returns `503` when Home Assistant is unreachable. Checks are computed on demand, never
-cached, and never written to the backlog. Thresholds are documented in
+### `POST /api/system-health/refresh`
+
+Runs every check against live Home Assistant state, stores the report, and returns the same
+shape as GET. Concurrent refreshes share one in-flight run. Returns `503` when Home Assistant
+is unreachable.
+
+Checks are never written to the backlog. A full run also happens shortly after start and
+every hour (Telegram regressions). Thresholds are documented in
 [architecture.md § System health](architecture.md#proactive-analysis-vs-system-health).
 
 ## Store

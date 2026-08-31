@@ -2,7 +2,7 @@
 # Reference: https://developers.home-assistant.io/docs/add-ons/configuration
 
 name: 'HA-Claw'
-version: '0.10.0'
+version: '1.0.0'
 slug: 'ha-claw'
 description: 'Local AI-powered Smart Home Assistant with Telegram & Web UI'
 url: 'https://github.com/unpaved028/ha-claw'
@@ -16,6 +16,7 @@ arch:
 init: false
 startup: application
 boot: auto
+watchdog: 'http://[HOST]:[PORT:3100]/health'
 
 # ── Ingress (Web-UI in HA Sidebar) ────────────────────────────
 ingress: true

@@ -215,7 +215,9 @@ Changes take effect on your next message. No restart.
 ## System health
 
 **Status → System Health** shows standing checks with their current state and what to do about
-them.
+them. Opening the screen shows the last completed check (timestamp at the bottom). HA-Claw
+refreshes the report shortly after start and every hour. **Refresh** runs a new check on
+demand — that is the only time the screen waits.
 
 | Check                                     | What it means                                                                      | Yellow                          | Red                                  |
 | ----------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------ |
@@ -231,7 +233,6 @@ them.
 | **Add-ons not running**                   | Add-ons with autostart that are stopped, plus any add-on in an error state         | any                             | 3 or more                            |
 | **Recorder / history**                    | History is not being written, the recorder thread is down, or the backlog is large | backlog ≥ 1 000, or a migration | not recording, or backlog ≥ 10 000   |
 | **Restored only**                         | Entities seen only from a restore and not heard from since this boot               | any                             | 15 or more                           |
-| **Disabled entities**                     | Registry entries that are switched off                                             | 15 or more                      | 60 or more                           |
 | **Backup**                                | Days since the newest backup containing Home Assistant                             | 7 days, or local-only storage   | 14 days, or no backup at all         |
 | **Disk space**                            | Free space on the Home Assistant data partition                                    | See below                       | See below                            |
 
@@ -419,17 +420,18 @@ dashboard is authoritative.
 
 Everything lives in `/data/store/` and is included in Home Assistant backups automatically.
 
-| Folder               | Contents                                                                      |
-| -------------------- | ----------------------------------------------------------------------------- |
-| `conversations/`     | Chat history, shared between the Web UI and Telegram                          |
-| `memory/`            | Long-term memory cards                                                        |
-| `notes/`             | Notes                                                                         |
-| `backlog/`           | Tasks                                                                         |
-| `learning/`          | Corrections, rules, patterns, past errors                                     |
-| `scheduler.json`     | Reminders and recurring jobs                                                  |
-| `actions.jsonl`      | Action log with rollback data, kept for 7 days                                |
-| `profile.json`       | Names, conversational style, model choices                                    |
-| `system-health.json` | Last-seen values (so the screen can say what changed) and last notified state |
+| Folder                      | Contents                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `conversations/`            | Chat history, shared between the Web UI and Telegram                          |
+| `memory/`                   | Long-term memory cards                                                        |
+| `notes/`                    | Notes                                                                         |
+| `backlog/`                  | Tasks                                                                         |
+| `learning/`                 | Corrections, rules, patterns, past errors                                     |
+| `scheduler.json`            | Reminders and recurring jobs                                                  |
+| `actions.jsonl`             | Action log with rollback data, kept for 7 days                                |
+| `profile.json`              | Names, conversational style, model choices                                    |
+| `system-health.json`        | Last-seen values (so the screen can say what changed) and last notified state |
+| `system-health-report.json` | Last full System Health report shown on the Status screen                     |
 
 Restoring a Home Assistant backup restores all of it. To start over, uninstall the add-on
 (which clears `/data`) and reinstall.
@@ -440,6 +442,10 @@ Restoring a Home Assistant backup restores all of it. To start over, uninstall t
 Check the log. The usual cause is a missing `openrouter_api_key`, or a `telegram_bot_token`
 without `telegram_allowed_user_ids` — that combination is refused deliberately, because a bot
 without a whitelist answers anyone.
+
+**The add-on starts and then the Supervisor restarts it.**
+A watchdog hits `/health`. If the HTTP server is not listening within about 40 seconds, or
+later goes away, Home Assistant bounces the container. The add-on log is the place to look.
 
 **It cannot find a device that definitely exists.**
 Assign the entity to an area in Home Assistant, then press **Refresh cache** under Settings.

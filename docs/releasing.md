@@ -12,13 +12,11 @@ is publishing. There is no staging environment.
 
 ## Versioning
 
-Semantic-ish, pre-1.0:
-
 | Bump | When |
 | --- | --- |
-| **Patch** (`0.9.7` → `0.9.8`) | Bug fixes, documentation, dependency updates |
-| **Minor** (`0.9.7` → `0.10.0`) | New features, new options, behaviour changes users will notice |
-| **Major** | Reserved for `1.0.0` — see the [roadmap](roadmap.md#v100--trust-and-hardening) |
+| **Patch** (`1.0.0` → `1.0.1`) | Bug fixes, documentation, dependency updates |
+| **Minor** (`1.0.0` → `1.1.0`) | New features, new options, behaviour changes users will notice |
+| **Major** | Breaking changes operators cannot ignore |
 
 The version appears in exactly three places, and CI fails if they disagree:
 
@@ -56,6 +54,7 @@ npm run verify:bundle
 npm run check
 npm run lint
 npm run format
+npm test
 ```
 
 ```bash
@@ -102,15 +101,14 @@ Four jobs on every push and pull request
 
 | Job | Checks |
 | --- | --- |
-| **Types, lint, format** | `verify:bundle`, `tsc --noEmit`, ESLint, Prettier |
+| **Types, lint, format, tests** | `verify:bundle`, `tsc --noEmit`, ESLint, Prettier, `npm test` |
 | **Documentation links** | Every relative Markdown link and heading anchor resolves |
 | **Docker build** | The add-on image builds |
 | **Version consistency** | `package.json` = `config.yaml` = newest CHANGELOG heading; model list in `config.yaml` = `src/core/models.ts` |
 
-CI does not verify behaviour. There is no test suite yet — the highest-value one, a table
-test over the safety policy, is the first item on the
-[v1.0.0 roadmap](roadmap.md#v100--trust-and-hardening). Until then, manual verification before
-tagging is the only safety net.
+CI runs the table tests (safety policy, schedules, pruning, storage, Ingress allowlist).
+It still does not talk to a live Home Assistant. Manual verification on a real instance
+before tagging remains the safety net for anything the suite cannot see.
 
 ## Writing the changelog entry
 

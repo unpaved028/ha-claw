@@ -165,10 +165,11 @@ issue.
 through Home Assistant, which authenticates the user first. There is no login screen in
 HA-Claw because there is no unauthenticated path to it.
 
-The server binds `0.0.0.0` inside the container (`127.0.0.1` in standalone mode). Home
-Assistant's add-on guidance also asks servers to reject source addresses other than the
-Ingress gateway `172.30.32.2`; HA-Claw does not implement that check yet and relies on the
-port not being published. Closing that gap is a [roadmap item](roadmap.md#v100--trust-and-hardening).
+The server binds `0.0.0.0` inside the container (`127.0.0.1` in standalone mode). In add-on
+mode it also rejects the connection unless the peer is the Ingress gateway `172.30.32.2`,
+loopback (Docker `HEALTHCHECK`), or the hassio network `172.30.32.0/23` (Supervisor
+watchdog). Publishing the port is no longer enough to reach the API. The check uses the
+socket address, not `X-Forwarded-For`.
 
 The add-on requests `hassio_role: backup`, which is the least privileged role that can read
 `GET /backups/info` for the backup age check.
@@ -206,17 +207,12 @@ what the agent said it did.
 
 Stated plainly, because a security document that only lists strengths is marketing:
 
-1. **No tests cover the safety policy.** The allowlist, the `device_class` exceptions and the
-   `entity_id` prefix check are enforced by code that nothing verifies automatically. This is
-   the single highest-value test in the project and it is the first item on the
-   [v1.0.0 roadmap](roadmap.md#v100--trust-and-hardening).
-2. **Tool arguments are not schema-validated.** The JSON Schema on each tool is sent to the
-   model as documentation, but the handler receives whatever the model produced without a
-   type check.
-3. **The container runs as root** on a floating `node:22-alpine` tag, with no `HEALTHCHECK`.
-   Pinned digest, non-root user and health check are roadmap items.
-4. **No Ingress source-IP check**, as described above.
-5. **No AppArmor profile.** Adding `apparmor.txt` would raise the add-on's security rating
-   and constrain the container further.
-6. **Approved backlog tasks execute with the full tool set.** Approving a task is a broader
+1. **The safety-policy tests do not talk to Home Assistant.** Cover `device_class` and scene
+   members are injected as fixtures. A live entity whose class is missing still falls
+   through to the everyday path, same as before.
+2. **Tool-argument validation is the subset the registry actually writes** (`type`,
+   `required`, `properties`, `anyOf`, `items`). It is not a full JSON Schema implementation.
+3. **The AppArmor profile is broad** (`file,` and `network,`) so Node can start. It still
+   earns the add-on the custom-profile security point; it is not a tight jail.
+4. **Approved backlog tasks execute with the full tool set.** Approving a task is a broader
    grant than approving a single action. Read the proposed solution before approving it.

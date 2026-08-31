@@ -5,8 +5,8 @@ seriously and get priority over feature work.
 
 ## Supported versions
 
-Only the latest release receives fixes. HA-Claw is pre-1.0 and ships as a Home Assistant
-add-on, so upgrading is a one-click operation — there are no maintained backport branches.
+Only the latest release receives fixes. HA-Claw ships as a Home Assistant add-on, so
+upgrading is a one-click operation — there are no maintained backport branches.
 
 | Version | Supported |
 | --- | --- |

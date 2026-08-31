@@ -1,6 +1,6 @@
 {
   "name": "ha-claw",
-  "version": "0.10.0",
+  "version": "1.0.0",
   "description": "HA-Claw – Local AI Smart Home Assistant (HA Add-on)",
   "type": "module",
   "engines": {
@@ -17,7 +17,8 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --check .",
-    "format:fix": "prettier --write ."
+    "format:fix": "prettier --write .",
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "fastify": "^5.2.1",

@@ -29,110 +29,44 @@ import { createLogger } from '../core/logger.js';
 import { logAction, getActionById } from '../storage/action-log.js';
 import { getCachedResult, setCachedResult, invalidateCachedResult } from './tool-cache.js';
 import { clampLimit } from './registry.js';
+import { SAFE_DOMAINS, assertDomainMatches, evaluateSafeCallPolicy } from './safety-policy.js';
 
 const log = createLogger('ha-tools');
 
-/** Domains safe for everyday control without user confirmation. */
-const SAFE_DOMAINS = new Set([
-  'light',
-  'switch',
-  'scene',
-  'media_player',
-  'cover',
-  'fan',
-  'input_boolean',
-  'input_number',
-  'input_select',
-  'input_text',
-  'climate',
-  'vacuum',
-  'humidifier',
-  'water_heater',
-  'number',
-  'select',
-]);
-
-/** Domains that must never be reached without confirmation, not even indirectly. */
-const GUARDED_DOMAINS = new Set(['lock', 'alarm_control_panel']);
-
-/** Cover device classes that guard a building entrance rather than a window. */
-const GUARDED_COVER_CLASSES = new Set(['garage', 'gate', 'door']);
-
-/**
- * Reject entity IDs that do not belong to the requested service domain.
- * Without this the domain allowlist would be decorative.
- */
-function assertDomainMatches(domain: string, entityIds: string[]): string | null {
-  const mismatched = entityIds.filter(eid => !eid.startsWith(`${domain}.`));
-  if (mismatched.length === 0) return null;
-  return `entity_id must belong to domain "${domain}". Mismatched: ${mismatched.join(', ')}`;
-}
-
-/** Return the subset of cover entities that guard an entrance. */
-async function findGuardedCovers(entityIds: string[]): Promise<string[]> {
-  const guarded: string[] = [];
-  for (const eid of entityIds) {
-    try {
-      const state = await ha.getState(eid);
-      const deviceClass = String(state.attributes['device_class'] ?? '');
-      if (GUARDED_COVER_CLASSES.has(deviceClass)) guarded.push(eid);
-    } catch {
-      // Unknown entity – let the service call itself report the problem.
-    }
-  }
-  return guarded;
-}
-
-/**
- * Return scene targets that live in a guarded domain. A scene stores the
- * entities it controls in its `entity_id` attribute, so this can be checked
- * before the scene is activated.
- */
-async function findGuardedSceneTargets(sceneIds: string[]): Promise<string[]> {
-  const guarded: string[] = [];
-  for (const sceneId of sceneIds) {
-    try {
-      const state = await ha.getState(sceneId);
-      const targets = state.attributes['entity_id'];
-      if (!Array.isArray(targets)) continue;
-      for (const target of targets) {
-        const targetDomain = String(target).split('.')[0] ?? '';
-        if (GUARDED_DOMAINS.has(targetDomain)) guarded.push(`${sceneId} -> ${target}`);
-      }
-    } catch {
-      // Unknown scene – let the service call itself report the problem.
-    }
-  }
-  return guarded;
-}
-
 /**
  * Shared policy check for the non-confirming service tool.
- * Returns an error message when the call must not proceed, otherwise null.
+ * Fetches live cover/scene metadata, then the pure allowlist decides.
  */
 async function checkSafeCallPolicy(domain: string, entityIds: string[]): Promise<string | null> {
-  if (!SAFE_DOMAINS.has(domain)) {
-    return `Domain "${domain}" is not allowed in ha_call_service. Use ha_call_service_dangerous for security-sensitive domains (including script and button).`;
-  }
-
-  const mismatch = assertDomainMatches(domain, entityIds);
-  if (mismatch) return mismatch;
+  let coverDeviceClass: Record<string, string> | undefined;
+  let sceneTargets: Record<string, string[]> | undefined;
 
   if (domain === 'cover') {
-    const guarded = await findGuardedCovers(entityIds);
-    if (guarded.length > 0) {
-      return `${guarded.join(', ')} guards an entrance (device_class garage/gate/door). Use ha_call_service_dangerous.`;
+    coverDeviceClass = {};
+    for (const eid of entityIds) {
+      try {
+        const state = await ha.getState(eid);
+        coverDeviceClass[eid] = String(state.attributes['device_class'] ?? '');
+      } catch {
+        // Unknown entity – let the service call itself report the problem.
+      }
     }
   }
 
   if (domain === 'scene') {
-    const guarded = await findGuardedSceneTargets(entityIds);
-    if (guarded.length > 0) {
-      return `This scene targets a security-sensitive entity (${guarded.join(', ')}). Use ha_call_service_dangerous.`;
+    sceneTargets = {};
+    for (const sceneId of entityIds) {
+      try {
+        const state = await ha.getState(sceneId);
+        const targets = state.attributes['entity_id'];
+        if (Array.isArray(targets)) sceneTargets[sceneId] = targets.map(String);
+      } catch {
+        // Unknown scene – let the service call itself report the problem.
+      }
     }
   }
 
-  return null;
+  return evaluateSafeCallPolicy({ domain, entityIds, coverDeviceClass, sceneTargets });
 }
 
 /** Expected state after common service calls (for verification). */

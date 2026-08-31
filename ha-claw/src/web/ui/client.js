@@ -91,6 +91,7 @@ function activateStatusSection(name) {
   if (section) section.classList.add('active');
 
   if (name === 'health') loadSystemHealth();
+  else stopHealthPoll();
   if (name === 'tasks') loadBacklog();
   if (name === 'logs') {
     startLogPolling();
@@ -1097,18 +1098,92 @@ function esc(s) {
 // so persisting them as tasks produced a new entry on every analysis run.
 const HEALTH_ICONS = { ok: '&#9989;', warn: '&#9888;&#65039;', critical: '&#128308;' };
 
-async function loadSystemHealth() {
+let healthPollTimer = null;
+
+function stopHealthPoll() {
+  if (healthPollTimer) {
+    clearInterval(healthPollTimer);
+    healthPollTimer = null;
+  }
+}
+
+function setHealthRefreshBusy(busy) {
+  const btn = document.getElementById('health-refresh-btn');
+  const label = document.getElementById('health-refresh-label');
+  if (btn) btn.disabled = busy;
+  if (label) label.textContent = busy ? 'Prüft…' : 'Neu prüfen';
+}
+
+function scheduleHealthPoll() {
+  if (healthPollTimer) return;
+  let attempts = 0;
+  healthPollTimer = setInterval(async () => {
+    attempts += 1;
+    if (attempts > 30) {
+      stopHealthPoll();
+      return;
+    }
+    try {
+      const r = await fetch(base + '/api/system-health');
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.health) {
+        renderHealth(d.health, d.checking);
+        if (!d.checking) stopHealthPoll();
+      } else if (!d.checking) {
+        stopHealthPoll();
+        const empty = document.getElementById('health-list');
+        if (empty && !empty.querySelector('.health-card')) {
+          empty.innerHTML =
+            '<div class="backlog-empty">Noch keine Prüfung. Neu prüfen holt einen frischen Stand.</div>';
+        }
+      }
+    } catch (e) {
+      console.error('Health poll failed', e);
+    }
+  }, 2000);
+}
+
+async function loadSystemHealth(force) {
   const list = document.getElementById('health-list');
   if (!list) return;
-  list.innerHTML = '<div class="backlog-empty">Pruefe...</div>';
+  const hasCards = Boolean(list.querySelector('.health-card'));
+  if (!hasCards) {
+    list.innerHTML =
+      '<div class="backlog-empty">' +
+      (force ? 'Prüfe…' : 'Lade letzten Stand…') +
+      '</div>';
+  }
+  if (force) {
+    stopHealthPoll();
+    setHealthRefreshBusy(true);
+  }
   try {
-    const r = await fetch(base + '/api/system-health');
+    const r = await fetch(base + (force ? '/api/system-health/refresh' : '/api/system-health'), {
+      method: force ? 'POST' : 'GET',
+    });
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    renderHealth(await r.json());
+    const d = await r.json();
+    if (d.health) {
+      renderHealth(d.health, d.checking);
+      if (d.checking && !force) scheduleHealthPoll();
+      else stopHealthPoll();
+    } else if (d.checking) {
+      list.innerHTML = '<div class="backlog-empty">Prüfung läuft im Hintergrund…</div>';
+      scheduleHealthPoll();
+    } else {
+      stopHealthPoll();
+      list.innerHTML =
+        '<div class="backlog-empty">Noch keine Prüfung. Neu prüfen holt einen frischen Stand.</div>';
+    }
   } catch (e) {
     console.error('Health load failed', e);
-    list.innerHTML =
-      '<div class="backlog-empty">Systemzustand nicht abrufbar. Ist Home Assistant erreichbar?</div>';
+    if (!hasCards) {
+      list.innerHTML =
+        '<div class="backlog-empty">Systemzustand nicht abrufbar. Ist Home Assistant erreichbar?</div>';
+    }
+  } finally {
+    if (force) setHealthRefreshBusy(false);
   }
 }
 
@@ -1120,7 +1195,6 @@ function healthItemsSummary(key, n) {
     failed_integrations: ' Integration anzeigen',
     pending_updates: ' Update anzeigen',
     stopped_addons: ' Add-on anzeigen',
-    disabled_entities: ' Entity anzeigen',
     recorder: ' Hinweis anzeigen',
   };
   const many = {
@@ -1130,7 +1204,6 @@ function healthItemsSummary(key, n) {
     failed_integrations: ' Integrationen anzeigen',
     pending_updates: ' Updates anzeigen',
     stopped_addons: ' Add-ons anzeigen',
-    disabled_entities: ' Entities anzeigen',
     recorder: ' Hinweise anzeigen',
   };
   if (one[key]) return n === 1 ? one[key] : many[key];
@@ -1203,12 +1276,13 @@ function renderHealthTrend(check) {
   );
 }
 
-function renderHealth(health) {
+function renderHealth(health, checking) {
   const list = document.getElementById('health-list');
   if (!list) return;
   const haBase = typeof health.haBase === 'string' ? health.haBase : '';
 
-  const checkedAt = new Date(health.checkedAt).toLocaleTimeString('de-DE');
+  const checkedAt =
+    formatHealthWhen(health.checkedAt) || new Date(health.checkedAt).toLocaleTimeString('de-DE');
   const cards = health.checks
     .map(c => {
       const items =
@@ -1268,6 +1342,7 @@ function renderHealth(health) {
     cards +
     '<div class="health-meta">Geprüft um ' +
     checkedAt +
+    (checking ? ' · Prüfung läuft…' : '') +
     ' &middot; ' +
     health.totalEntities +
     ' Entities insgesamt</div>';

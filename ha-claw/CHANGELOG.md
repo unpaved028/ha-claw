@@ -6,6 +6,46 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## 1.0.0
+
+The trust cut. Tests CI actually runs, a container that is not root-on-a-floating-tag, and
+the write/scheduler/shutdown holes that could double-act or drop a file. System Health
+shows the last report immediately, and no longer treats intentionally disabled entities
+as a defect.
+
+### Added
+
+- **A test suite.** `node:test` covers the safety policy table (domain × `device_class` ×
+  `entity_id` prefix, including the `script.turn_on` bypass), schedule parsing, context
+  pruning, entity-cache compression, concurrent `upsert`, tool-argument validation and the
+  Ingress allowlist. CI runs `npm test`.
+- **AppArmor profile** (`apparmor.txt`) and a Supervisor `watchdog` on `/health`.
+- **Container HEALTHCHECK** against `/health`. The process drops to user `node` after
+  chowning `/data`.
+
+### Changed
+
+- **System Health no longer blocks the Status screen.** Opening Status shows the last
+  report immediately. A full check runs shortly after start, every hour, and when you
+  click Refresh.
+- **Base image is pinned by digest.** `node:22-alpine` is no longer a floating tag.
+- **JSON writes are serialised.** One lock per path, unique temp names, then rename.
+  `learning.ts` and `scheduler.ts` no longer write in place.
+- **Scheduler jobs cannot overlap.** `nextRunAt` advances before the executor; a per-job
+  running flag blocks a second fire. Overdue jobs are jittered when the circuit breaker
+  closes.
+- **Shutdown waits for `app.close()`** and clears the cache-refresh and analysis intervals.
+- **Tool arguments are checked against the tool's JSON Schema** before the handler runs.
+- **Add-on mode rejects peers outside Ingress / loopback / the hassio network** (`403`).
+- **Context pruning keeps `tool_calls` paired with their results.**
+- **`VOLUME /data` is gone** — the Supervisor already mounts it.
+
+### Removed
+
+- **Disabled-entities health card.** A switched-off entity is how Home Assistant hides
+  diagnostics, not a defect. Real installations routinely have hundreds of them; treating
+  60 as critical was noise.
+
 ## 0.10.0
 
 The rest of the System Health screen: you can see what is worst, what it means, whether it

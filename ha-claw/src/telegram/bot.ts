@@ -30,7 +30,11 @@ import {
   appendAssistantMessage,
 } from '../storage/conversation.js';
 import { getGlobalStats } from '../storage/usage-tracker.js';
-import { getSystemHealth, formatHealthSummary } from '../core/system-health.js';
+import {
+  getCachedSystemHealth,
+  getSystemHealth,
+  formatHealthSummary,
+} from '../core/system-health.js';
 import { whitelistGuard } from './whitelist.js';
 import { setupConfirmationHandler, createTelegramConfirmFn } from './confirmation.js';
 import { processVoiceMessage } from './voice.js';
@@ -117,7 +121,12 @@ export function createBot(): Bot {
 
     let healthMsg;
     try {
-      healthMsg = `\n🩺 *Systemzustand*\n${formatHealthSummary(await getSystemHealth())}`;
+      const health = (await getCachedSystemHealth()) ?? (await getSystemHealth());
+      const when = new Date(health.checkedAt).toLocaleString('de-DE', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
+      healthMsg = `\n🩺 *Systemzustand* (${when})\n${formatHealthSummary(health)}`;
     } catch (err) {
       log.warn('Health check for /status failed', { error: String(err) });
       healthMsg = '\n🩺 *Systemzustand*\nNicht abrufbar.';

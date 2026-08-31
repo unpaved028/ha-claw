@@ -1,5 +1,9 @@
+# node:22-alpine index digest as of 2026-08-31 (multi-arch: amd64 + aarch64).
+# The same commit then produces the same image. Refresh the digest when bumping Node.
+ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+
 # ── Build Stage ────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -17,21 +21,22 @@ COPY src/ ./src/
 RUN npm run build
 
 # ── Runtime Stage (minimal image) ─────────────────────────────
-FROM node:22-alpine
+FROM ${NODE_IMAGE}
 
 WORKDIR /app
 
-# Install only production dependencies (no devDeps = smaller image)
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy compiled JS from builder
 COPY --from=builder /app/dist ./dist
-
-# Copy agent definitions
 COPY agents/ ./agents/
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# /data is mounted by HA Supervisor (persistent across restarts/updates)
-VOLUME /data
+# Supervisor mounts /data. Do not declare VOLUME — it is already a mount.
+# The process drops to user `node` in the entrypoint after chowning /data.
 
-CMD ["node", "dist/index.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+ENTRYPOINT ["/entrypoint.sh"]

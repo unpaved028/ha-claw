@@ -55,7 +55,9 @@ what it now permits that was previously blocked. When in doubt, mark a tool `dan
 the image is built on the user's Raspberry Pi.
 
 **7. Never claim something works because it compiles.** `npm run check` passing means the
-types line up, nothing more. There is no test suite. If you cannot verify behaviour, say so
+types line up. `npm test` covers the safety policy, schedule parsing, context pruning,
+entity-cache compression, storage locks, tool-argument validation and the Ingress
+allowlist — not live Home Assistant behaviour. If you cannot verify something, say so
 plainly instead of implying you did.
 
 ## Where things live
@@ -159,6 +161,7 @@ npm run verify:bundle
 npm run check
 npm run lint
 npm run format
+npm test
 ```
 
 From the repository root:

@@ -162,6 +162,11 @@ Everything is JSON or JSONL under `<dataPath>/store/`. In the add-on that is
 | `store/actions.jsonl` | Append-only action log with rollback payloads, pruned after 7 days | `storage/action-log.ts` |
 | `store/disabled-tools.json` | Tools switched off in the Tool Vault | `tools/registry.ts` |
 | `store/system-health.json` | Last-seen count/severity per health check (UI trend) and last-notified values (Telegram regressions) | `core/system-health.ts` |
+| `store/system-health-report.json` | Last full health report served to the Status screen | `core/system-health.ts` |
+
+Monolithic JSON files are written through [`atomic-write.ts`](../ha-claw/src/storage/atomic-write.ts)
+(per-path lock, unique temp name, rename). `HA_CLAW_DATA_PATH` overrides `dataPath` in
+standalone mode so the test suite can use a temp directory.
 
 ## Option translations
 

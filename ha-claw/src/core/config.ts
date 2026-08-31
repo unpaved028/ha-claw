@@ -137,7 +137,7 @@ function loadConfig(): AppConfig {
     haApiUrl: isAddon ? 'http://supervisor/core/api' : (process.env['HA_API_URL'] ?? ''),
 
     ingressPort: Number(process.env['INGRESS_PORT'] ?? '3100'),
-    dataPath: isAddon ? '/data' : './data',
+    dataPath: isAddon ? '/data' : (process.env['HA_CLAW_DATA_PATH'] ?? './data'),
 
     logLevel: (options.log_level || 'info') as AppConfig['logLevel'],
     isAddon,

@@ -14,8 +14,10 @@
 import type { ToolDefinition } from '../core/types.js';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { atomicWriteJson, withPathLock } from '../storage/atomic-write.js';
+import { validateToolArgs } from './validate-args.js';
 
 const log = createLogger('tools');
 
@@ -81,8 +83,7 @@ async function saveDisabledSet(): Promise<void> {
     .filter(([, t]) => !t.enabled)
     .map(([name]) => name);
   try {
-    await mkdir(STORE_DIR, { recursive: true });
-    await writeFile(DISABLED_FILE, JSON.stringify(disabled, null, 2));
+    await withPathLock(DISABLED_FILE, () => atomicWriteJson(DISABLED_FILE, disabled));
   } catch (err) {
     log.warn('Failed to save disabled-tools', { error: String(err) });
   }
@@ -162,6 +163,11 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
   }
   if (!tool.enabled) {
     throw new Error(`Tool "${name}" is disabled.`);
+  }
+
+  const schemaError = validateToolArgs(tool.definition.function.parameters, args);
+  if (schemaError) {
+    throw new Error(`Invalid arguments for "${name}": ${schemaError}`);
   }
 
   log.debug(`Executing tool: ${name}`, { args });
