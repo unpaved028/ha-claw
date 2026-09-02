@@ -54,6 +54,18 @@ import { buildEnergyReport } from '../core/energy-attribution.js';
 import { buildWeeklyDigest } from '../core/home-review.js';
 import { removeOrphans } from '../core/orphan-cleanup.js';
 import { previewSolution } from '../storage/backlog-processor.js';
+import { loadMainPrompt } from '../core/prompts.js';
+import { getLanguage } from '../core/locale.js';
+import { t } from '../core/strings.js';
+import { buildDataExport } from '../core/data-export.js';
+import { pageMessages } from '../storage/conversation.js';
+import {
+  NOTIFY_CHANNELS,
+  NOTIFY_EVENT_IDS,
+  getNotifyMatrix,
+  parseNotifyMatrixBody,
+  saveNotifyMatrix,
+} from '../core/notify-matrix.js';
 
 const log = createLogger('web');
 const STARTUP_TIME = new Date().toISOString();
@@ -116,23 +128,6 @@ const PKG_VERSION = (() => {
 })();
 const VALID = new Set(['notes', 'conversations', 'memory']);
 
-function loadMainPrompt(): string {
-  try {
-    const dir = dirname(fileURLToPath(import.meta.url));
-    const mdPath = resolve(dir, '../../agents/main.md');
-    let prompt = readFileSync(mdPath, 'utf-8');
-    return prompt;
-  } catch {
-    log.warn('Could not load main.md – using fallback prompt');
-    return [
-      'Du bist HA-Claw, ein lokaler KI-Assistent für Smart Home und Produktivität.',
-      'Du läufst als Home Assistant Add-on.',
-      'Du antwortest knapp, hilfreich und auf Deutsch.',
-      'Du hast Zugriff auf Tools – nutze sie, wenn nötig.',
-    ].join('\n');
-  }
-}
-
 /** Build the agent config with dynamic personality injection. */
 export function buildAgent() {
   const profile = getProfile();
@@ -140,7 +135,7 @@ export function buildAgent() {
   const personality = personalityPrompt();
   return {
     name: 'main',
-    systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}${getSchedulerSummary()}`,
+    systemPrompt: `${basePrompt}\n\n## ${t('prompt.personalityHeading')}\n${personality}${getSchedulerSummary()}`,
     model: profile.modelOverride || undefined,
   };
 }
@@ -290,8 +285,12 @@ export async function startWebServer(): Promise<void> {
     return getCircuitBreakerState();
   });
 
-  app.get('/api/chat/history', async () => {
-    return loadConversation();
+  app.get('/api/chat/history', async req => {
+    const q = req.query as { offset?: string; limit?: string };
+    const all = await loadConversation();
+    const offset = q.offset !== undefined && q.offset !== '' ? Number(q.offset) : undefined;
+    const limit = q.limit !== undefined && q.limit !== '' ? Number(q.limit) : undefined;
+    return pageMessages(all, { offset, limit });
   });
 
   // ── Web Safety Gate Endpoints ────────────────────────
@@ -350,6 +349,9 @@ export async function startWebServer(): Promise<void> {
       haAvailable: !!(appConfig.supervisorToken && appConfig.haApiUrl),
       telegramConfigured: !!appConfig.telegramBotToken,
       availableModels: Array.from(new Set([appConfig.openRouterDefaultModel, ...AVAILABLE_MODELS])),
+      language: getLanguage(),
+      languageOption: appConfig.language,
+      notifyEntity: appConfig.notifyEntity,
     };
   });
 
@@ -587,6 +589,32 @@ export async function startWebServer(): Promise<void> {
       reply.status(503);
       return { error: String(err) };
     }
+  });
+
+  app.get('/api/export', async (_req, reply) => {
+    const payload = await buildDataExport();
+    reply.header('content-type', 'application/json; charset=utf-8');
+    reply.header('content-disposition', 'attachment; filename="ha-claw-export.json"');
+    return payload;
+  });
+
+  app.get('/api/notify-matrix', async () => {
+    return {
+      matrix: await getNotifyMatrix(),
+      notifyEntity: appConfig.notifyEntity,
+      telegramConfigured: !!appConfig.telegramBotToken,
+      events: NOTIFY_EVENT_IDS,
+      channels: NOTIFY_CHANNELS,
+    };
+  });
+
+  app.put('/api/notify-matrix', async (req, reply) => {
+    const parsed = parseNotifyMatrixBody(req.body);
+    if (!parsed) {
+      reply.status(400);
+      return { error: 'invalid matrix' };
+    }
+    return { matrix: await saveNotifyMatrix(parsed) };
   });
 
   // ── Store CRUD ──────────────────────────────────────────

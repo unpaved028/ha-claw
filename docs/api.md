@@ -10,11 +10,13 @@ Assistant supplies in the `X-Ingress-Path` request header.
 - [Server-sent events](#server-sent-events)
 - [Confirmation gate](#confirmation-gate)
 - [Settings, profile and tools](#settings-profile-and-tools)
+- [Notifications](#notifications)
 - [Scheduler](#scheduler)
 - [Logs and actions](#logs-and-actions)
 - [Tasks](#tasks)
 - [System health](#system-health)
 - [Maintenance](#maintenance)
+- [Export](#export)
 - [Store](#store)
 
 ## Access and authentication
@@ -40,7 +42,7 @@ Liveness probe. The Supervisor `watchdog` and the image `HEALTHCHECK` both call 
 ```json
 {
   "status": "ok",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "uptime": 87231,
   "startedAt": "2026-08-29T21:14:02.104Z",
   "mode": "addon",
@@ -84,8 +86,19 @@ request open for up to 60 seconds.
 
 ### `GET /api/chat/history`
 
-The shared conversation as a `ChatMessage[]`. The Web UI and the Telegram bot read and write
-the same record, so this returns the Telegram messages too.
+The shared conversation (Web UI and Telegram write the same record). Query `offset` and
+`limit` are optional. Omitting `offset` returns the **newest** page (default `limit` 30).
+`limit` is clamped to 1–100. `hasMore` is true when older messages exist before this slice.
+
+```jsonc
+{
+  "messages": [{ "role": "user", "content": "..." }],
+  "total": 80,
+  "offset": 50,
+  "limit": 30,
+  "hasMore": true
+}
+```
 
 ## Server-sent events
 
@@ -175,7 +188,9 @@ Rebuilds the entity cache immediately instead of waiting for the 30-minute cycle
 ### `GET /api/settings`
 
 One snapshot for the whole Settings page: `agent`, `profile`, `model`, `mode`, `tools`,
-`uptime`, `memory`, `version`, `haAvailable`, `telegramConfigured`, `availableModels`.
+`uptime`, `memory`, `version`, `haAvailable`, `telegramConfigured`, `availableModels`,
+`language` (resolved `en` or `de`), `languageOption` (`auto`, `en` or `de`),
+`notifyEntity` (the configured `notify.*` id, or `null`).
 
 ### `PUT /api/profile`
 
@@ -195,6 +210,36 @@ Returns `{ name, enabled, tools }`, or `{ error }` for an unknown tool. Persiste
 
 The full `ToolDefinition[]` exactly as sent to the model — names, descriptions and JSON
 Schema parameters. Useful when debugging why the agent picked the wrong tool.
+
+## Notifications
+
+### `GET /api/notify-matrix`
+
+The Settings notification matrix. Registered **before** `/api/:c`.
+
+```jsonc
+{
+  "matrix": {
+    "digest": { "telegram": true, "chat": false, "ha_notify": false, "persistent": false }
+  },
+  "notifyEntity": "notify.mobile_app_pixel",
+  "telegramConfigured": true,
+  "events": ["digest", "new_task"],
+  "channels": ["telegram", "chat", "ha_notify", "persistent"]
+}
+```
+
+`events` is the full list of row ids (including `health.<check>`). Missing cells on disk
+are filled from defaults: Telegram on for digest, tasks, other scheduler jobs and the
+bundled health regression; everything else off.
+
+### `PUT /api/notify-matrix`
+
+Body is either the matrix object or `{ "matrix": { … } }`. Unknown event ids are ignored;
+unknown channels on a known event fall back to that event's default. Returns
+`{ "matrix": { … } }`. `400 { "error": "invalid matrix" }` when the body is not an object.
+
+Persisted to `store/notify-matrix.json`.
 
 ## Scheduler
 
@@ -315,6 +360,26 @@ Status → Pflege. These are live reports, not backlog tasks.
 | `GET` | `/api/review` | Combined weekly-digest object including `text` |
 
 `503` when Home Assistant is unreachable.
+
+## Export
+
+### `GET /api/export`
+
+JSON dump of conversations, memory cards, tasks and the full action log. No API keys, no
+add-on options, no profile. Registered **before** `/api/:c` so Fastify does not treat
+`export` as a store collection.
+
+```jsonc
+{
+  "exportedAt": "2026-09-01T01:00:00.000Z",
+  "conversations": [],
+  "memory": [],
+  "tasks": [],
+  "actions": []
+}
+```
+
+The dashboard offers this as **Settings → Profile → Export data** (`ha-claw-export.json`).
 
 ## Store
 

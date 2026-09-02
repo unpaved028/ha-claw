@@ -26,6 +26,8 @@ against the `schema` block, and read by
 | `telegram_bot_token` | `str?` | no | `''` | Token from [@BotFather](https://t.me/BotFather). The bot only starts when this is non-empty. |
 | `telegram_allowed_user_ids` | `str?` | conditional | `''` | Comma-separated numeric user IDs. **Required** once a bot token is set; startup fails otherwise. |
 | `log_level` | `list(debug\|info\|warn\|error)` | no | `info` | Pino log level. `debug` includes full tool arguments and results. |
+| `language` | `list(auto\|en\|de)` | no | `auto` | Language of the system prompt, Web UI and Telegram. `auto` follows the Home Assistant locale: `de` / `de-*` stay German; any other locale is English. A missing HA language is treated as German. `en` and `de` force that language. |
+| `notify_entity` | `str?` | no | `''` | Full `notify.*` entity id (e.g. `notify.mobile_app_pixel`). Used by the HA Notify column in Settings → Notifications. |
 
 `telegram_allowed_user_ids` accepts a comma-separated string (`"123,456"`), a YAML list, or
 a single number; all three are normalised to a numeric array.
@@ -79,6 +81,8 @@ still work — only the `ha_*` tools fail.
 | `TELEGRAM_BOT_TOKEN` | fallback only | `''` |
 | `TELEGRAM_ALLOWED_USER_IDS` | fallback only | `''` |
 | `LOG_LEVEL` | fallback only | `info` |
+| `HA_CLAW_LANGUAGE` | fallback only | `auto` |
+| `HA_CLAW_NOTIFY_ENTITY` | fallback only | `''` |
 
 "Fallback only" means the variable is ignored when `/data/options.json` or
 `dev-options.json` exists.
@@ -95,7 +99,8 @@ dashboard.
 
 | Section | What it controls |
 | --- | --- |
-| **Profile** | Bot name, your name, and the personality dimensions (directness, formality, humour, verbosity) that get injected into the system prompt. |
+| **Profile** | Bot name, your name, the personality dimensions (directness, formality, humour, verbosity) that get injected into the system prompt, and a JSON export of conversations, memory, tasks and the action log (no API keys). |
+| **Notifications** | A matrix of event × channel (Telegram, Chat, HA Notify, persistent_notification). Persisted to `store/notify-matrix.json`. |
 | **Model Forge** | The default model plus one model per complexity tier. |
 | **Tool Vault** | Enable/disable individual tools. Persisted to `store/disabled-tools.json`, so it survives restarts. A disabled tool is not offered to the model at all. |
 
@@ -153,7 +158,7 @@ Everything is JSON or JSONL under `<dataPath>/store/`. In the add-on that is
 | --- | --- | --- |
 | `store/profile.json` | Bot/user names, personality, model overrides, Telegram chat ID | `core/profile.ts` |
 | `store/notes/` | User notes | `storage/json-store.ts` |
-| `store/conversations/` | Chat history — Web UI and Telegram share the `web` record | `storage/conversation.ts` |
+| `store/conversations/` | Chat history — Web UI and Telegram share the `web` record. Capped at 100 messages on disk. | `storage/conversation.ts` |
 | `store/memory/`, `store/memory-cards/` | Long-term memory cards with version history | `storage/memory-cards.ts` |
 | `store/backlog/` | Improvement tasks, one file per task | `storage/backlog.ts` |
 | `store/learning/` | Corrections, prompt patches, usage patterns, error history | `storage/learning.ts` |
@@ -161,6 +166,7 @@ Everything is JSON or JSONL under `<dataPath>/store/`. In the add-on that is
 | `store/usage/` | Cumulative token counts and cost estimate | `storage/usage-tracker.ts` |
 | `store/actions.jsonl` | Append-only action log with service-call and config-snapshot rollback payloads, pruned after 7 days | `storage/action-log.ts` |
 | `store/disabled-tools.json` | Tools switched off in the Tool Vault | `tools/registry.ts` |
+| `store/notify-matrix.json` | Which proactive events go to Telegram, Chat, HA Notify and persistent_notification | `core/notify-matrix.ts` |
 | `store/system-health.json` | Last-seen count/severity per health check (UI trend) and last-notified values (Telegram regressions) | `core/system-health.ts` |
 | `store/system-health-report.json` | Last full health report served to the Status screen | `core/system-health.ts` |
 

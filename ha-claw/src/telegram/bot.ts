@@ -6,9 +6,6 @@
  * Dangerous tool calls trigger an inline keyboard for confirmation.
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { Bot, InlineKeyboard } from 'grammy';
 import { appConfig } from '../core/config.js';
 import * as ha from '../core/ha-client.js';
@@ -35,27 +32,13 @@ import {
   getSystemHealth,
   formatHealthSummary,
 } from '../core/system-health.js';
+import { loadMainPrompt } from '../core/prompts.js';
+import { dateLocale, t } from '../core/strings.js';
 import { whitelistGuard } from './whitelist.js';
 import { setupConfirmationHandler, createTelegramConfirmFn } from './confirmation.js';
 import { processVoiceMessage } from './voice.js';
 
 const log = createLogger('telegram');
-
-function loadMainPrompt(): string {
-  try {
-    const dir = dirname(fileURLToPath(import.meta.url));
-    const mdPath = resolve(dir, '../../agents/main.md');
-    let prompt = readFileSync(mdPath, 'utf-8');
-    return prompt;
-  } catch {
-    return [
-      'Du bist HA-Claw, ein lokaler KI-Assistent für Smart Home und Produktivität.',
-      'Du läufst als Home Assistant Add-on.',
-      'Du antwortest knapp, hilfreich und auf Deutsch.',
-      'Du hast Zugriff auf Tools – nutze sie, wenn nötig.',
-    ].join('\n');
-  }
-}
 
 function buildAgent() {
   const profile = getProfile();
@@ -63,7 +46,7 @@ function buildAgent() {
   const personality = personalityPrompt();
   return {
     name: 'main',
-    systemPrompt: `${basePrompt}\n\n## Persoenlichkeit & Profil\n${personality}${getSchedulerSummary()}`,
+    systemPrompt: `${basePrompt}\n\n## ${t('prompt.personalityHeading')}\n${personality}${getSchedulerSummary()}`,
     model: profile.modelOverride || undefined,
   };
 }
@@ -95,16 +78,14 @@ export function createBot(): Bot {
 
   // ── Commands ────────────────────────────────────────────
   bot.command('start', async ctx => {
-    await ctx.reply(
-      '🤖 *HA-Claw online.*\n\nSchreib mir einfach, was du brauchst.\n\n' +
-        '`/status` – Systemstatus\n`/ping` – Lebenszeichen',
-      { parse_mode: 'Markdown' },
-    );
+    await ctx.reply(t('telegram.start'), { parse_mode: 'Markdown' });
   });
 
   bot.command('ping', async ctx => {
     const s = process.uptime();
-    await ctx.reply(`🏓 Pong! Uptime: ${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`);
+    await ctx.reply(
+      t('telegram.pong', { hours: Math.floor(s / 3600), minutes: Math.floor((s % 3600) / 60) }),
+    );
   });
 
   bot.command('status', async ctx => {
@@ -113,47 +94,41 @@ export function createBot(): Bot {
 
     let usageMsg = '';
     if (stats) {
-      usageMsg =
-        `• Anfragen: ${stats.numRequests}\n` +
-        `• Tokens: ${stats.totalTokens.toLocaleString()}\n` +
-        `• Kosten (Schätzung): $${stats.totalCostUsd.toFixed(4)}\n`;
+      usageMsg = t('telegram.statusUsage', {
+        requests: stats.numRequests,
+        tokens: stats.totalTokens.toLocaleString(),
+        cost: stats.totalCostUsd.toFixed(4),
+      });
     }
 
     let healthMsg;
     try {
       const health = (await getCachedSystemHealth()) ?? (await getSystemHealth());
-      const when = new Date(health.checkedAt).toLocaleString('de-DE', {
+      const when = new Date(health.checkedAt).toLocaleString(dateLocale(), {
         dateStyle: 'short',
         timeStyle: 'short',
       });
-      healthMsg = `\n🩺 *Systemzustand* (${when})\n${formatHealthSummary(health)}`;
+      healthMsg = `\n🩺 *${t('telegram.statusHealthHead')}* (${when})\n${formatHealthSummary(health)}`;
     } catch (err) {
       log.warn('Health check for /status failed', { error: String(err) });
-      healthMsg = '\n🩺 *Systemzustand*\nNicht abrufbar.';
+      healthMsg = `\n🩺 *${t('telegram.statusHealthHead')}*\n${t('telegram.statusHealthFail')}`;
     }
 
     await ctx.reply(
-      `📊 *HA-Claw Status*\n\n` +
-        `• Uptime: ${Math.floor(process.uptime() / 60)}m\n` +
-        `• Memory: ${(mem.heapUsed / 1024 / 1024).toFixed(1)} MB\n` +
-        `• Mode: ${appConfig.isAddon ? 'HA Add-on' : 'Standalone'}\n` +
-        `• Node: ${process.version}\n\n` +
-        `🌍 *LLM Nutzung (Global)*\n${usageMsg}` +
-        healthMsg,
+      t('telegram.statusBody', {
+        uptime: Math.floor(process.uptime() / 60),
+        heap: (mem.heapUsed / 1024 / 1024).toFixed(1),
+        mode: appConfig.isAddon ? 'HA Add-on' : 'Standalone',
+        node: process.version,
+        usage: usageMsg,
+        health: healthMsg,
+      }),
       { parse_mode: 'Markdown' },
     );
   });
 
   bot.command('help', async ctx => {
-    await ctx.reply(
-      '📖 *Hilfe & Befehle*\n\n' +
-        '• *Text*: Schreib einfach, was du brauchst (z.B. "Licht aus", "Termin morgen um 8").\n' +
-        '• `/status` – Systemstatus & Kosten\n' +
-        '• `/rooms` – Räume anzeigen\n' +
-        '• `/ping` – Antwort-Test\n' +
-        '• `/help` – Diese Übersicht',
-      { parse_mode: 'Markdown' },
-    );
+    await ctx.reply(t('telegram.help'), { parse_mode: 'Markdown' });
   });
 
   bot.command('rooms', async ctx => {
@@ -162,7 +137,7 @@ export function createBot(): Bot {
       const areas = Object.keys(areaMap).sort();
 
       if (areas.length === 0) {
-        return await ctx.reply('Keine Räume in Home Assistant gefunden.');
+        return await ctx.reply(t('telegram.noRooms'));
       }
 
       const keyboard = new InlineKeyboard();
@@ -171,13 +146,13 @@ export function createBot(): Bot {
         if ((i + 1) % 2 === 0) keyboard.row();
       }
 
-      await ctx.reply('📂 *Räume & Bereiche*\n\nWähle einen Raum aus:', {
+      await ctx.reply(t('telegram.roomsTitle'), {
         parse_mode: 'Markdown',
         reply_markup: keyboard,
       });
     } catch (err) {
       log.error('Failed to list rooms', { error: String(err) });
-      await ctx.reply('Fehler beim Laden der Räume.');
+      await ctx.reply(t('telegram.roomsFail'));
     }
   });
 
@@ -190,7 +165,7 @@ export function createBot(): Bot {
     // Same path as typing "Status von OG Bad" in the Web UI – shared history,
     // shared cache lookup, no empty throwaway context.
     await ctx.replyWithChatAction('typing');
-    await handleAgenticLoop(ctx, chatId, ctx.from?.id ?? null, `Status von ${room}`);
+    await handleAgenticLoop(ctx, chatId, ctx.from?.id ?? null, t('telegram.roomStatus', { room }));
   });
 
   // ── Agentic Loop Entry Point ────────────────────────────
@@ -204,7 +179,7 @@ export function createBot(): Bot {
         const transcript = await processVoiceMessage(ctx);
         if (!transcript) return;
         text = transcript;
-        await ctx.reply(`🎙️ _Voice erkannt:_ "${text}"`, { parse_mode: 'Markdown' });
+        await ctx.reply(t('telegram.voiceHeard', { text }), { parse_mode: 'Markdown' });
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         await ctx.reply(`❌ ${errMsg}`);
@@ -250,7 +225,7 @@ export function createBot(): Bot {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         log.error('Onboarding error', { error: errMsg });
-        await ctx.reply(`❌ Fehler: ${errMsg.slice(0, 200)}`);
+        await ctx.reply(t('telegram.onboardingError', { error: errMsg.slice(0, 200) }));
       }
       return;
     }
@@ -259,7 +234,7 @@ export function createBot(): Bot {
   });
 
   bot.callbackQuery('retry:loop', async ctx => {
-    await ctx.answerCallbackQuery('Starte neu...');
+    await ctx.answerCallbackQuery(t('telegram.retryStart'));
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
@@ -267,7 +242,7 @@ export function createBot(): Bot {
     const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
 
     if (!lastUserMsg || typeof lastUserMsg.content !== 'string') {
-      await ctx.reply('Keine vorherige Nachricht für Retry gefunden.');
+      await ctx.reply(t('telegram.retryNone'));
       return;
     }
 
@@ -308,8 +283,10 @@ export function createBot(): Bot {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       log.error('Agentic loop error', { error: errMsg });
-      const keyboard = new InlineKeyboard().text('🔄 Nochmal versuchen', 'retry:loop');
-      await ctx.reply(`❌ Fehler: ${errMsg.slice(0, 200)}`, { reply_markup: keyboard });
+      const keyboard = new InlineKeyboard().text(t('telegram.retryBtn'), 'retry:loop');
+      await ctx.reply(t('telegram.loopError', { error: errMsg.slice(0, 200) }), {
+        reply_markup: keyboard,
+      });
     }
   }
 
@@ -356,10 +333,10 @@ export async function startBot(bot: Bot): Promise<void> {
 
   // Set command menu
   await bot.api.setMyCommands([
-    { command: 'help', description: 'Hilfe anzeigen' },
-    { command: 'rooms', description: 'Alle Räume anzeigen' },
-    { command: 'status', description: 'Systemstatus & Kosten' },
-    { command: 'ping', description: 'Antwort-Test' },
+    { command: 'help', description: t('telegram.cmdHelp') },
+    { command: 'rooms', description: t('telegram.cmdRooms') },
+    { command: 'status', description: t('telegram.cmdStatus') },
+    { command: 'ping', description: t('telegram.cmdPing') },
   ]);
 
   bot.start({ onStart: () => log.info('Long-polling active') });

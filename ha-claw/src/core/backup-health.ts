@@ -14,6 +14,8 @@ import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
 import type { HealthCheck, HealthItem, Severity } from './system-health.js';
 import { HA_PATH } from './health-links.js';
+import { backupCopy, healthCopy } from './health-copy.js';
+import { dateLocale } from './strings.js';
 
 const log = createLogger('health');
 
@@ -141,15 +143,16 @@ function attrNumber(attrs: Record<string, unknown>, ...keys: string[]): number {
 }
 
 function formatBackupAge(days: number): string {
-  if (days <= 0) return 'heute';
-  if (days === 1) return 'vor 1 Tag';
-  return `vor ${days} Tagen`;
+  const c = backupCopy();
+  if (days <= 0) return c.today;
+  if (days === 1) return c.ageOne;
+  return c.ageMany(days);
 }
 
 function formatBackupDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  return d.toLocaleString(dateLocale(), { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function addPlace(places: string[], place: string): void {
@@ -195,9 +198,10 @@ function backupIncludesHomeAssistant(backup: ha.SupervisorBackup): boolean {
 }
 
 function backupKind(type: string, name: string): string {
+  const c = backupCopy();
   const blob = `${type} ${name}`.toLowerCase();
-  if (blob.includes('partial') || blob.includes('teil')) return 'Teilbackup';
-  if (type === 'full' || blob.includes('full') || blob.includes('voll')) return 'Vollbackup';
+  if (blob.includes('partial') || blob.includes('teil')) return c.partial;
+  if (type === 'full' || blob.includes('full') || blob.includes('voll')) return c.full;
   return 'Backup';
 }
 
@@ -205,9 +209,9 @@ function formatSizeSuffix(b: UnifiedBackup): string {
   if (b.sizeBytes != null && Number.isFinite(b.sizeBytes)) {
     const mb = b.sizeBytes / 1_048_576;
     if (mb >= 1024) {
-      return ` · ${(mb / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} GB`;
+      return ` · ${(mb / 1024).toLocaleString(dateLocale(), { maximumFractionDigits: 1 })} GB`;
     }
-    return ` · ${mb.toLocaleString('de-DE', { maximumFractionDigits: 0 })} MB`;
+    return ` · ${mb.toLocaleString(dateLocale(), { maximumFractionDigits: 0 })} MB`;
   }
   if (b.size == null || b.size === '') return '';
   const text = String(b.size);
@@ -215,7 +219,11 @@ function formatSizeSuffix(b: UnifiedBackup): string {
 }
 
 function formatUnifiedLabel(b: UnifiedBackup): string {
-  const loc = b.places.length > 0 ? b.places.join(' + ') : LOCAL_PLACE;
+  const c = backupCopy();
+  const loc =
+    b.places.length > 0
+      ? b.places.map(p => (p === LOCAL_PLACE ? c.local : p)).join(' + ')
+      : c.local;
   return `${formatBackupDate(b.date)} · ${backupKind(b.type, b.name)} · ${loc}${formatSizeSuffix(b)}`;
 }
 
@@ -426,30 +434,26 @@ function offsitePlacesOf(b: UnifiedBackup): string[] {
 function backupCheck(partial: Omit<HealthCheck, 'key' | 'label' | 'entities'>): HealthCheck {
   return {
     key: 'backup',
-    label: 'Backup',
+    label: healthCopy().backup.label,
     entities: partial.items.map(i => i.label),
     ...partial,
   };
 }
 
-const GENERIC_HINT =
-  'Unter Einstellungen → System → Backups einen Zeitplan und einen Speicherort ausserhalb dieses Geräts einrichten (NAS, Google Drive, OneDrive oder Home Assistant Cloud). Ein Backup nur auf der SD-Karte rettet bei Hardware-Tod nicht.';
+function genericHint(): string {
+  return backupCopy().genericHint;
+}
 
 function backupHint(opts: {
   driveStale: boolean;
   sambaFailed: boolean;
   officialFailed: boolean;
 }): string {
-  if (opts.driveStale) {
-    return `Im Add-on „Home Assistant Google Drive Backup“ Zeitplan und Uploads prüfen. ${GENERIC_HINT}`;
-  }
-  if (opts.sambaFailed) {
-    return `Im Add-on „Samba Backup“ die Freigabe prüfen. ${GENERIC_HINT}`;
-  }
-  if (opts.officialFailed) {
-    return `Unter Einstellungen → System → Backups den letzten Lauf prüfen. ${GENERIC_HINT}`;
-  }
-  return GENERIC_HINT;
+  const c = backupCopy();
+  if (opts.driveStale) return c.hintDrive;
+  if (opts.sambaFailed) return c.hintSamba;
+  if (opts.officialFailed) return c.hintOfficial;
+  return c.genericHint;
 }
 
 /**
@@ -464,9 +468,9 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
       severity: 'ok',
       count: 0,
       short: 'n/a',
-      detail: 'Backup-Prüfung läuft nur im Home Assistant Add-on (Supervisor).',
+      detail: backupCopy().standalone,
       items: [],
-      hint: GENERIC_HINT,
+      hint: genericHint(),
     });
   }
 
@@ -513,14 +517,15 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
   const officialFailed = usesOfficial && official.failed;
 
   if (!core && !info && !hasAddonSignal && !hasOfficialSignal) {
-    const err = superOutcome.status === 'rejected' ? String(superOutcome.reason) : 'unbekannt';
+    const err =
+      superOutcome.status === 'rejected' ? String(superOutcome.reason) : backupCopy().unknown;
     return backupCheck({
       severity: 'warn',
       count: 0,
-      short: 'nicht lesbar',
-      detail: `Backup-Liste nicht lesbar: ${err.slice(0, 160)}`,
+      short: backupCopy().unreadShort,
+      detail: backupCopy().unreadDetail(err),
       items: [],
-      hint: GENERIC_HINT,
+      hint: genericHint(),
     });
   }
 
@@ -536,20 +541,29 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
   }));
 
   if (items.length === 0 && drive && (drive.inDrive > 0 || drive.lastBackup || drive.lastUpload)) {
+    const c = backupCopy();
     const when = drive.lastBackup ?? drive.lastUpload ?? '';
-    const countLabel = drive.inDrive === 1 ? '1 Backup' : `${drive.inDrive} Backups`;
+    const countLabel = drive.inDrive === 1 ? c.oneBackup : c.nBackups(drive.inDrive);
     items.push({
       id: 'google-drive',
-      label: `Google Drive – ${when ? formatBackupDate(when) : 'vorhanden'} · ${countLabel}${drive.sizeDrive ? ` · ${drive.sizeDrive}` : ''}`,
+      label: c.driveLabel(
+        when ? formatBackupDate(when) : c.present,
+        countLabel,
+        drive.sizeDrive ?? '',
+      ),
       entities: [],
       href: HA_PATH.backup,
     });
   }
   if (items.length === 0 && samba && (samba.remote > 0 || samba.lastBackup)) {
-    const countLabel = samba.remote === 1 ? '1 Backup' : `${samba.remote} Backups`;
+    const c = backupCopy();
+    const countLabel = samba.remote === 1 ? c.oneBackup : c.nBackups(samba.remote);
     items.push({
       id: 'samba',
-      label: `Samba-Share – ${samba.lastBackup ? formatBackupDate(samba.lastBackup) : 'vorhanden'} · ${countLabel} remote`,
+      label: c.sambaLabel(
+        samba.lastBackup ? formatBackupDate(samba.lastBackup) : c.present,
+        countLabel,
+      ),
       entities: [],
       href: HA_PATH.backup,
     });
@@ -580,21 +594,22 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
       return backupCheck({
         severity: 'critical',
         count: 0,
-        short: 'keins',
-        detail: 'Keine Backups vorhanden.',
+        short: backupCopy().noneShort,
+        detail: backupCopy().noneDetail,
         items: [],
         hint,
       });
     }
     const latest = latestListed;
     const latestAge = latest ? daysSince(now, parseIsoDate(latest.date) ?? now) : 0;
+    const c = backupCopy();
     return backupCheck({
       severity: 'critical',
       count: latestAge,
-      short: 'kein HA-Backup',
+      short: c.noHaShort,
       detail: latest
-        ? `Kein Backup enthält Home Assistant. Zuletzt: ${latest.name} (${formatBackupAge(latestAge)}). ${unified.length} Backups insgesamt.`
-        : 'Kein Backup enthält Home Assistant.',
+        ? c.noHaDetail(latest.name, formatBackupAge(latestAge), unified.length)
+        : c.noHaNone,
       items,
       hint,
     });
@@ -614,11 +629,10 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
   if (sambaFailed && severity === 'ok') severity = 'warn';
   if (officialFailed && severity === 'ok') severity = 'warn';
 
-  const parts = [
-    `Letztes Backup mit Home Assistant ${formatBackupAge(ageDays)} (${latestHaName}).`,
-  ];
+  const c = backupCopy();
+  const parts = [c.lastWithHa(formatBackupAge(ageDays), latestHaName)];
   if (latestListed && latestHaListed && latestListed.slug !== latestHaListed.slug) {
-    parts.push(`Neuester Stand ist ein Teilbackup ohne HA (${latestListed.name}).`);
+    parts.push(c.newestPartial(latestListed.name));
   }
   const total = Math.max(
     unified.length,
@@ -627,18 +641,18 @@ export async function checkBackup(now: Date, states: HAState[]): Promise<HealthC
     supervisorBackups.length,
     core?.backups.length ?? 0,
   );
-  parts.push(`${total} Backup${total === 1 ? '' : 's'} insgesamt.`);
+  parts.push(c.total(total));
   if (offsite) {
-    parts.push(`Offsite: ${[...places].join(', ')}.`);
+    parts.push(c.offsite([...places].join(', ')));
   } else {
-    parts.push('Alle nur lokal – bei Platten-/SD-Tod weg.');
+    parts.push(c.localOnly);
   }
-  if (driveStale) parts.push('Google Drive Backup meldet veraltete Backups.');
+  if (driveStale) parts.push(c.driveStale);
   else if (usesDriveAddon && drive?.sensorState === 'error') {
-    parts.push('Google Drive Backup meldet gerade einen Fehler.');
+    parts.push(c.driveError);
   }
-  if (sambaFailed) parts.push('Samba Backup ist fehlgeschlagen.');
-  if (officialFailed) parts.push('Der letzte automatische Backup-Lauf ist fehlgeschlagen.');
+  if (sambaFailed) parts.push(c.sambaFailed);
+  if (officialFailed) parts.push(c.officialFailed);
 
   return backupCheck({
     severity,

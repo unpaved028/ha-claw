@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { atomicWriteJson, withPathLock } from '../storage/atomic-write.js';
+import { t } from './strings.js';
 
 const log = createLogger('profile');
 
@@ -134,26 +135,22 @@ export function personalityPrompt(): string {
   const p = currentProfile.personality;
   const traits: string[] = [];
 
-  // Directness
-  if (p.directness <= 2) traits.push('Sei diplomatisch und indirekt in deinen Formulierungen.');
-  else if (p.directness >= 4) traits.push('Sei direkt und auf den Punkt. Keine Umschweife.');
+  if (p.directness <= 2) traits.push(t('prompt.directLow'));
+  else if (p.directness >= 4) traits.push(t('prompt.directHigh'));
 
-  // Formality
-  if (p.formality <= 2) traits.push('Sprich locker und casual, duze den Nutzer.');
-  else if (p.formality >= 4) traits.push('Sprich professionell und formell.');
+  if (p.formality <= 2) traits.push(t('prompt.formalLow'));
+  else if (p.formality >= 4) traits.push(t('prompt.formalHigh'));
 
-  // Humor
-  if (p.humor <= 2) traits.push('Bleib sachlich, wenig Humor.');
-  else if (p.humor >= 4) traits.push('Sei humorvoll, nutze trockenen Witz und smarte Kommentare.');
+  if (p.humor <= 2) traits.push(t('prompt.humorLow'));
+  else if (p.humor >= 4) traits.push(t('prompt.humorHigh'));
 
-  // Verbosity
-  if (p.verbosity <= 2) traits.push('Antworte so knapp wie moeglich. Kurze Saetze.');
-  else if (p.verbosity >= 4) traits.push('Erklaere ausfuehrlich und gib Details und Kontext.');
+  if (p.verbosity <= 2) traits.push(t('prompt.verboseLow'));
+  else if (p.verbosity >= 4) traits.push(t('prompt.verboseHigh'));
 
-  const intro =
-    `Dein Name ist **${currentProfile.botName}**. ` +
-    `Der Nutzer heisst **${currentProfile.userName}**. ` +
-    `Sprich den Nutzer mit seinem Namen an wenn es passt.`;
+  const intro = t('prompt.nameIntro', {
+    bot: currentProfile.botName,
+    user: currentProfile.userName,
+  });
 
   return intro + (traits.length > 0 ? '\n\n' + traits.join('\n') : '');
 }

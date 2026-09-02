@@ -1,14 +1,15 @@
 /**
- * notifications.ts – Proactive Push Notifications via Telegram
+ * notifications.ts – Telegram side of proactive push (including task buttons).
  *
- * Handles sending fast-track approval messages to the user and
- * executing callbacks when the user clicks 'Approve' or 'Reject'.
+ * Routing across Telegram / chat / HA notify / persistent_notification lives
+ * in notify-dispatch.ts and the Settings matrix.
  */
 
 import { Bot, InlineKeyboard } from 'grammy';
 import { createLogger } from '../core/logger.js';
 import { getProfile } from '../core/profile.js';
 import { updateTask, getTask } from '../storage/backlog.js';
+import { t } from '../core/strings.js';
 
 const log = createLogger('notifications');
 
@@ -39,7 +40,7 @@ export function setupProactiveNotifications(bot: Bot): void {
         actual: ctx.chat?.id,
       });
       await ctx.answerCallbackQuery({
-        text: 'Diese Aufgabe gehört zu einem anderen Chat.',
+        text: t('notify.foreignChat'),
         show_alert: true,
       });
       return;
@@ -48,12 +49,12 @@ export function setupProactiveNotifications(bot: Bot): void {
     // Fast-Track Approve
     if (data.startsWith('task:fast_track:')) {
       const taskId = data.slice('task:fast_track:'.length);
-      await ctx.answerCallbackQuery('Task wird im Hintergrund ausgeführt...');
+      await ctx.answerCallbackQuery(t('notify.fastTrackCb'));
       try {
         await ctx.editMessageReplyMarkup({ reply_markup: undefined });
         const existing = await getTask(taskId);
         if (existing) {
-          await ctx.reply(`⏳ Bestätigt: ${existing.title}. Ich kümmere mich darum.`);
+          await ctx.reply(t('notify.fastTrackReply', { title: existing.title }));
           await updateTask(taskId, { status: 'fast_track_approved' });
         }
       } catch (err) {
@@ -65,11 +66,11 @@ export function setupProactiveNotifications(bot: Bot): void {
     // Fast-Track Reject
     if (data.startsWith('task:reject:')) {
       const taskId = data.slice('task:reject:'.length);
-      await ctx.answerCallbackQuery('Task wurde ignoriert.');
+      await ctx.answerCallbackQuery(t('notify.rejectCb'));
       try {
         await ctx.editMessageReplyMarkup({ reply_markup: undefined });
         await updateTask(taskId, { status: 'rejected' });
-        await ctx.reply('❌ Aufgabe wurde ignoriert.');
+        await ctx.reply(t('notify.rejectReply'));
       } catch (err) {
         log.error('Failed to process task rejection', { error: String(err) });
       }
@@ -81,16 +82,13 @@ export function setupProactiveNotifications(bot: Bot): void {
 }
 
 /**
- * Send a proactive push notification to the configured telegramChatId.
+ * Telegram only. The matrix decides whether this runs.
  */
-export async function sendProactiveMessage(
+export async function sendTelegramProactive(
   text: string,
   replyMarkup?: InlineKeyboard,
 ): Promise<void> {
-  if (!telegramBot) {
-    log.debug('Proactive notification skipped: Telegram bot not initialized');
-    return;
-  }
+  if (!telegramBot) return;
 
   const profile = getProfile();
   if (!profile.telegramChatId) {
@@ -98,13 +96,19 @@ export async function sendProactiveMessage(
     return;
   }
 
+  const chatId = profile.telegramChatId;
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += 4096) chunks.push(text.slice(i, i + 4096));
+
   try {
-    await telegramBot.api.sendMessage(profile.telegramChatId, text, {
-      parse_mode: 'Markdown',
-      ...(replyMarkup && { reply_markup: replyMarkup }),
-    });
-    log.info('Proactive notification sent successfully');
+    for (let i = 0; i < chunks.length; i++) {
+      const extra = i === 0 && replyMarkup ? { reply_markup: replyMarkup } : {};
+      await telegramBot.api
+        .sendMessage(chatId, chunks[i]!, { parse_mode: 'Markdown', ...extra })
+        .catch(() => telegramBot!.api.sendMessage(chatId, chunks[i]!, extra));
+    }
+    log.info('Proactive notification sent via Telegram');
   } catch (err) {
-    log.error('Failed to send proactive notification', { error: String(err) });
+    log.error('Failed to send Telegram notification', { error: String(err) });
   }
 }

@@ -34,3 +34,13 @@ configuration:
     description: >-
       How much detail to write to the add-on log. Set to debug when reporting a problem;
       this includes full tool arguments and results.
+  language:
+    name: Language
+    description: >-
+      Language of the system prompt, Web UI and Telegram. auto follows the Home Assistant
+      locale (German stays German; anything else is English). en and de force that language.
+  notify_entity:
+    name: Notify entity
+    description: >-
+      Optional. Full entity id such as notify.mobile_app_pixel. Used by the HA Notify column
+      in Settings → Notifications. Leave empty to disable that column.

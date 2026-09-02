@@ -31,6 +31,8 @@ import {
   findStoppedAddons,
 } from './health-signals.js';
 import { HA_PATH, haFrontendBase, hrefForEntity } from './health-links.js';
+import { dateLocale } from './strings.js';
+import { fill, formatLocaleNumber, healthCopy } from './health-copy.js';
 
 const log = createLogger('health');
 
@@ -72,7 +74,7 @@ export interface HealthCheck {
     | 'restored'
     | 'backup'
     | 'storage';
-  /** Short German label for the UI. */
+  /** Short UI label. */
   label: string;
   /** What this card measures — always shown, expandable. */
   about?: string;
@@ -329,135 +331,82 @@ function buildCheck(
 // ── Checks ────────────────────────────────────────────────
 
 function checkUnavailable(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
-  return buildCheck(
-    'unavailable',
-    'Geräte nicht erreichbar',
-    groupByDevice(entityIds, info),
-    'Alle Geräte antworten.',
-    'Ein Gerät erscheint einmal, auch wenn es viele Entities mitbringt (Batterie, Firmware, Identifizieren, …). Strom, Funk und Integration prüfen. Geräte, die es nicht mehr gibt – inklusive Altlasten vom Neu-Anlernen – aus Home Assistant entfernen.',
-    3,
-    15,
-  );
+  const c = healthCopy().unavailable;
+  return buildCheck('unavailable', c.label, groupByDevice(entityIds, info), c.ok, c.hint, 3, 15);
 }
 
 function checkStaleSensors(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  const c = healthCopy().stale_sensors;
   return buildCheck(
     'stale_sensors',
-    `Sensoren seit ${STALE_HOURS}h ohne Meldung`,
+    fill(c.label, { hours: STALE_HOURS }),
     groupByDevice(entityIds, info),
-    'Die Sensoren, die sich regelmässig melden sollten, tun das.',
-    'Nur Temperatur, Luftfeuchte, Luftdruck und Luftqualität. Ein Fenster das tagelang zu bleibt, ist kein Defekt. Batterie und Integration prüfen, oder das Gerät aus Home Assistant entfernen.',
+    c.ok,
+    c.hint,
     5,
     25,
   );
 }
 
 function checkLowBattery(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  const c = healthCopy().low_battery;
   return buildCheck(
     'low_battery',
-    `Batterie unter ${LOW_BATTERY_PCT}%`,
+    fill(c.label, { pct: LOW_BATTERY_PCT }),
     groupByDevice(entityIds, info),
-    'Keine schwachen Batterien.',
-    'Batterien zeitnah wechseln.',
+    c.ok,
+    c.hint,
     1,
     8,
   );
 }
 
 function checkOrphans(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  const c = healthCopy().orphans;
   return buildCheck(
     'orphans',
-    `Seit ${ORPHAN_DAYS} Tagen nicht erreichbar`,
+    fill(c.label, { days: ORPHAN_DAYS }),
     groupByDevice(entityIds, info),
-    'Keine Altlasten – nichts hängt seit Wochen auf unavailable.',
-    'Das Gerät gibt es vermutlich nicht mehr. In Home Assistant entfernen, sonst bleibt es für immer in der Liste der Unerreichbaren.',
+    c.ok,
+    c.hint,
     1,
     8,
   );
 }
 
 function checkBrokenRefs(items: HealthItem[]): HealthCheck {
-  return buildCheck(
-    'broken_refs',
-    'Kaputte Referenzen',
-    items,
-    'Automationen, Skripte und Szenen zeigen auf Entities, die es noch gibt.',
-    'Entity umbenannt oder gelöscht. Die Automation, das Skript oder die Szene auf die neue ID umstellen, oder den Eintrag entfernen.',
-    1,
-    8,
-  );
+  const c = healthCopy().broken_refs;
+  return buildCheck('broken_refs', c.label, items, c.ok, c.hint, 1, 8);
 }
 
 function checkFailedAutomations(items: HealthItem[]): HealthCheck {
-  return buildCheck(
-    'failed_automations',
-    'Automationen und Skripte mit Fehler',
-    items,
-    'Kein Automation- oder Skript-Trace mit Fehler.',
-    'Letzten Trace öffnen. Meist eine kaputte Bedingung oder eine Entity, die es nicht mehr gibt.',
-    1,
-    5,
-  );
+  const c = healthCopy().failed_automations;
+  return buildCheck('failed_automations', c.label, items, c.ok, c.hint, 1, 5);
 }
 
 function checkStoppedAddons(items: HealthItem[]): HealthCheck {
-  return buildCheck(
-    'stopped_addons',
-    'Add-ons laufen nicht',
-    items,
-    'Alle Add-ons mit Autostart laufen.',
-    'Add-on starten oder die Logs prüfen. Gestoppte Add-ons mit manuellem Boot werden nicht gezählt.',
-    1,
-    3,
-  );
+  const c = healthCopy().stopped_addons;
+  return buildCheck('stopped_addons', c.label, items, c.ok, c.hint, 1, 3);
 }
 
 function checkRestored(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
-  return buildCheck(
-    'restored',
-    'Nur wiederhergestellt',
-    groupByDevice(entityIds, info),
-    'Keine Entities, die nur aus einem Restore stammen und seit dem Start nicht gesehen wurden.',
-    'Nach einem Restore oder einem neuen Datenträger: Integration neu laden oder die Entity entfernen, wenn das Gerät nicht mehr existiert.',
-    1,
-    15,
-  );
+  const c = healthCopy().restored;
+  return buildCheck('restored', c.label, groupByDevice(entityIds, info), c.ok, c.hint, 1, 15);
 }
 
 function checkPendingUpdates(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
-  return buildCheck(
-    'pending_updates',
-    'Updates liegen bereit',
-    groupByDevice(entityIds, info),
-    'Keine ausstehenden Updates.',
-    'Core, OS und Add-ons zuerst. Firmware an Geräten, die du noch benutzt.',
-    1,
-    8,
-  );
+  const c = healthCopy().pending_updates;
+  return buildCheck('pending_updates', c.label, groupByDevice(entityIds, info), c.ok, c.hint, 1, 8);
 }
 
 function checkFailedIntegrations(items: HealthItem[]): HealthCheck {
-  return buildCheck(
-    'failed_integrations',
-    'Integrationen laden nicht',
-    items,
-    'Alle Integrationen sind geladen.',
-    'Unter Einstellungen → Geräte & Dienste die Integration neu laden oder die Anmeldung prüfen. Home Assistant Repairs zeigt oft denselben Fehler einzeln.',
-    1,
-    3,
-  );
+  const c = healthCopy().failed_integrations;
+  return buildCheck('failed_integrations', c.label, items, c.ok, c.hint, 1, 3);
 }
 
 function checkRadioQuiet(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
-  return buildCheck(
-    'radio_quiet',
-    'Funk wird leise',
-    groupByDevice(entityIds, info),
-    'Keine Zigbee-Geräte mit altem last_seen oder sehr schwachem LQI.',
-    'Nur last_seen / Linkquality. Gerät näher an einen Router, Batterie prüfen, oder Mesh aufräumen. Nicht dasselbe wie „unerreichbar“.',
-    3,
-    10,
-  );
+  const c = healthCopy().radio_quiet;
+  return buildCheck('radio_quiet', c.label, groupByDevice(entityIds, info), c.ok, c.hint, 3, 10);
 }
 
 function hoursSince(iso: string, now: Date): number | null {
@@ -513,7 +462,7 @@ function classifyStorage(totalGb: number): StorageKind {
 
 function formatGb(n: number): string {
   const digits = n < 10 ? 1 : 0;
-  return `${n.toLocaleString('de-DE', { maximumFractionDigits: digits, minimumFractionDigits: 0 })} GB`;
+  return `${formatLocaleNumber(n, digits)} GB`;
 }
 
 function worseSeverity(a: Severity, b: Severity): Severity {
@@ -580,43 +529,43 @@ function checkStorage(disk: ha.HostDiskInfo): HealthCheck {
   const lifeSev = storageLifeSeverity(disk.diskLifeTime);
   const severity = worseSeverity(spaceSev, lifeSev);
 
+  const copy = healthCopy();
   const threshold =
     kind === 'flash'
-      ? `Warnung unter ${FLASH_WARN_GB} GB, kritisch unter ${FLASH_CRITICAL_GB} GB`
-      : 'Warnung unter 10 % frei, kritisch unter 5 %';
+      ? copy.storageWarnFlash(FLASH_WARN_GB, FLASH_CRITICAL_GB)
+      : copy.storageWarnSsd;
 
   const parts: string[] = [
-    `${formatGb(disk.freeGb)} von ${formatGb(disk.totalGb)} frei (${freePct.toLocaleString('de-DE', { maximumFractionDigits: 0 })} %, ${kindLabel}).`,
+    copy.storageFree(
+      formatGb(disk.freeGb),
+      formatGb(disk.totalGb),
+      formatLocaleNumber(freePct, 0),
+      kindLabel,
+    ),
   ];
-  if (spaceSev !== 'ok') parts.push(`Schwellen: ${threshold}.`);
+  if (spaceSev !== 'ok') parts.push(copy.storageThresholds(threshold));
   if (disk.diskLifeTime != null) {
-    parts.push(
-      `Geschaetzte Laufwerk-Lebensdauer zu ${Math.round(disk.diskLifeTime)} % verbraucht.`,
-    );
+    parts.push(copy.storageLife(Math.round(disk.diskLifeTime)));
   }
 
   const hintBits: string[] = [];
   if (spaceSev !== 'ok') {
-    hintBits.push(
-      kind === 'flash'
-        ? 'Backups, Recorder-DB und Updates brauchen Luft. Alte Backups loeschen, History bereinigen, oder groessere Karte.'
-        : 'Recorder-Historie kuerzen, alte Backups entfernen, oder Speicher erweitern.',
-    );
+    hintBits.push(kind === 'flash' ? copy.storageHintFlash : copy.storageHintSsd);
   }
   if (lifeSev !== 'ok') {
-    hintBits.push('Das Laufwerk naehert sich dem Ende seiner Schreibzyklen. Austausch einplanen.');
+    hintBits.push(copy.storageHintLife);
   }
 
   return {
     key: 'storage',
-    label: 'Speicherplatz',
+    label: copy.storage.label,
     severity,
     count: Math.round(disk.freeGb),
     short: formatGb(disk.freeGb),
     detail: parts.join(' '),
     entities: [],
     items: [],
-    hint: hintBits.join(' ') || `${threshold} (${kindLabel}).`,
+    hint: hintBits.join(' ') || copy.storageHintOk(threshold, kindLabel),
   };
 }
 
@@ -632,96 +581,45 @@ function checkRecorder(info: ha.RecorderInfo): HealthCheck {
   else if (backlog >= RECORDER_BACKLOG_CRITICAL) severity = 'critical';
   else if (backlog >= RECORDER_BACKLOG_WARN) severity = 'warn';
 
+  const copy = healthCopy();
   const parts: string[] = [];
-  if (dead) parts.push('Der Recorder schreibt gerade nicht.');
-  else parts.push('Der Recorder läuft.');
-  if (info.migration) parts.push('Eine Migration ist offen.');
-  if (info.backlog != null) parts.push(`Rückstau: ${info.backlog}.`);
+  if (dead) parts.push(copy.recorderDead);
+  else parts.push(copy.recorderOk);
+  if (info.migration) parts.push(copy.recorderMigration);
+  if (info.backlog != null) parts.push(copy.recorderBacklog(info.backlog));
 
   return {
     key: 'recorder',
-    label: 'Recorder / Historie',
+    label: copy.recorder.label,
     severity,
     count: dead ? 1 : backlog,
-    short: dead ? 'aus' : info.backlog != null ? String(info.backlog) : 'ok',
+    short: dead
+      ? copy.recorderShortOff
+      : info.backlog != null
+        ? String(info.backlog)
+        : copy.recorderShortOk,
     detail: parts.join(' '),
     entities: [],
     items: [],
-    hint: dead
-      ? 'Einstellungen → System → Protokolle und die Recorder-Integration prüfen. Oft eine volle oder gesperrte Datenbank.'
-      : 'Historie unter Entwicklerwerkzeuge → Statistik. Rückstau baut sich nach einem Neustart oft von selbst ab.',
+    hint: dead ? copy.recorderHintDead : copy.recorderHintOk,
   };
 }
 
-const CHECK_META: Record<HealthCheck['key'], { about: string; href?: string }> = {
-  unavailable: {
-    about:
-      'Geräte, die seit weniger als 30 Tagen auf unavailable stehen. Ein physisches Gerät zählt einmal, auch mit vielen Entities.',
-    href: HA_PATH.entities,
-  },
-  orphans: {
-    about:
-      'Geräte, die seit 30 Tagen oder länger unavailable sind. Meist Hardware, die es nicht mehr gibt.',
-    href: HA_PATH.entities,
-  },
-  stale_sensors: {
-    about:
-      'Nur Periodicsensoren (Temperatur, Luftfeuchte, Luftdruck, Luftqualität), die sich 48 Stunden nicht gemeldet haben. Ein geschlossenes Fenster ist kein Defekt.',
-    href: HA_PATH.entities,
-  },
-  low_battery: {
-    about: 'Geräte, deren Batterie unter 20 % gemeldet wird.',
-    href: HA_PATH.entities,
-  },
-  broken_refs: {
-    about:
-      'Automationen, Skripte und Szenen, die eine Entity oder ein Gerät nennen, das Home Assistant nicht mehr kennt. Klassiker nach dem Umbenennen.',
-    href: '/config/automation/dashboard',
-  },
-  failed_automations: {
-    about:
-      'Automationen und Skripte, deren letzter Trace einen Fehler hat, oder die selbst unavailable sind.',
-    href: '/config/automation/dashboard',
-  },
-  pending_updates: {
-    about: 'update.*-Entities mit verfügbarem Update. Core, OS und Supervisor zählen kritisch.',
-    href: HA_PATH.updates,
-  },
-  failed_integrations: {
-    about:
-      'Config Entries im Setup-Fehler oder Retry. Overlap mit Home Assistant Repairs — hier die Summe.',
-    href: '/config/integrations',
-  },
-  radio_quiet: {
-    about:
-      'Zigbee last_seen älter als 48 Stunden oder Linkqualität 20 oder weniger. Schon unavailable zählt hier nicht nochmal.',
-    href: HA_PATH.entities,
-  },
-  stopped_addons: {
-    about:
-      'Add-ons mit Autostart, die nicht laufen, oder im Fehlerzustand. Manuell gestoppte zählen nicht.',
-    href: HA_PATH.addons,
-  },
-  recorder: {
-    about:
-      'Ob der Recorder Historie schreibt und wie groß der Rückstau ist. Unabhängig vom freien Speicherplatz.',
-    href: HA_PATH.recorder,
-  },
-  restored: {
-    about:
-      'Entities mit restored=true — nach einem Restore gesehen, seit diesem Start aber nie wieder. Weder unavailable noch 30-Tage-Waise.',
-    href: HA_PATH.entities,
-  },
-  backup: {
-    about:
-      'Alter des neuesten Backups, das Home Assistant enthält. Eine Offsite-Kopie reicht; nur lokal bleibt gelb.',
-    href: HA_PATH.backup,
-  },
-  storage: {
-    about:
-      'Freier Platz auf der HA-Datenpartition. SD/eMMC in Gigabyte, SSD in Prozent. Optional die gemeldete Laufwerk-Lebensdauer.',
-    href: HA_PATH.storage,
-  },
+const CHECK_HREF: Record<HealthCheck['key'], string | undefined> = {
+  unavailable: HA_PATH.entities,
+  orphans: HA_PATH.entities,
+  stale_sensors: HA_PATH.entities,
+  low_battery: HA_PATH.entities,
+  broken_refs: '/config/automation/dashboard',
+  failed_automations: '/config/automation/dashboard',
+  pending_updates: HA_PATH.updates,
+  failed_integrations: '/config/integrations',
+  radio_quiet: HA_PATH.entities,
+  stopped_addons: HA_PATH.addons,
+  recorder: HA_PATH.recorder,
+  restored: HA_PATH.entities,
+  backup: HA_PATH.backup,
+  storage: HA_PATH.storage,
 };
 
 function isCountInverted(key: HealthCheck['key']): boolean {
@@ -738,19 +636,22 @@ function checkGotWorse(check: HealthCheck, prev: { severity: Severity; count: nu
 function sortChecks(checks: HealthCheck[]): HealthCheck[] {
   return [...checks].sort((a, b) => {
     const sd = SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity];
-    return sd !== 0 ? sd : a.label.localeCompare(b.label, 'de');
+    return sd !== 0 ? sd : a.label.localeCompare(b.label, dateLocale());
   });
 }
 
+function checkAbout(key: HealthCheck['key']): string {
+  const copy = healthCopy();
+  const block = (copy as Record<HealthCheck['key'], { about: string }>)[key];
+  return block.about;
+}
+
 function decorateChecks(checks: HealthCheck[]): HealthCheck[] {
-  return checks.map(c => {
-    const meta = CHECK_META[c.key];
-    return {
-      ...c,
-      about: c.about ?? meta.about,
-      href: c.href ?? meta.href,
-    };
-  });
+  return checks.map(c => ({
+    ...c,
+    about: c.about ?? checkAbout(c.key),
+    href: c.href ?? CHECK_HREF[c.key],
+  }));
 }
 
 // ── Report cache ──────────────────────────────────────────

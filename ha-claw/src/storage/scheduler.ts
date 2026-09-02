@@ -26,6 +26,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
+import { dateLocale, t } from '../core/strings.js';
 import { getCircuitBreakerState } from '../core/openrouter.js';
 import { atomicWriteJson, withPathLock } from './atomic-write.js';
 
@@ -396,12 +397,12 @@ export function getSchedulerSummary(): string {
   const active = jobs.filter(j => j.enabled);
   if (active.length === 0) return '';
   const lines = active.map(j => {
-    const type = j.oneshot ? 'einmalig' : 'wiederkehrend';
+    const type = j.oneshot ? t('scheduler.once') : t('scheduler.recurring');
     const nextInfo = j.nextRunAt
-      ? ' | naechster Lauf: ' +
-        new Date(j.nextRunAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })
+      ? ` | ${t('scheduler.next')}: ` +
+        new Date(j.nextRunAt).toLocaleString(dateLocale(), { timeZone: 'Europe/Berlin' })
       : '';
     return `- [${j.id}] "${j.name}" (${j.schedule}, ${type}) → "${j.message}"${nextInfo}`;
   });
-  return `\n## Aktive Scheduled Jobs\n${lines.join('\n')}`;
+  return `\n## ${t('scheduler.heading')}\n${lines.join('\n')}`;
 }

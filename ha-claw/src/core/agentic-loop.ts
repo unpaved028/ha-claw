@@ -19,6 +19,7 @@
 
 import { callLLM } from './openrouter.js';
 import { createLogger } from './logger.js';
+import { t } from './strings.js';
 import {
   getToolDefinitions,
   executeTool,
@@ -123,11 +124,11 @@ function selectModel(agent: AgentConfig, level: 1 | 2 | 3): string | undefined {
  * hide tools that do – the hand-maintained list in main.md had drifted by 11.
  */
 function buildToolInventory(defs: ToolDefinition[]): string {
-  if (defs.length === 0) return '_(keine Tools verfügbar)_';
+  if (defs.length === 0) return t('prompt.noTools');
   return defs
     .map(d => {
       const name = d.function.name;
-      return isDangerous(name) ? `- \`${name}\` (erfordert Bestätigung)` : `- \`${name}\``;
+      return isDangerous(name) ? `- \`${name}\` ${t('prompt.needsConfirm')}` : `- \`${name}\``;
     })
     .join('\n');
 }
@@ -166,7 +167,7 @@ export async function runAgenticLoop(
 
   // 1. Memory cards (relevant to this query)
   try {
-    const memResults = (await searchCards(lookupQuery, 5)).filter(c => c.score >= 0.1);
+    const memResults = await searchCards(lookupQuery, 5);
     const memContext = buildMemoryContext(memResults);
     if (memContext) {
       systemPrompt += '\n\n' + memContext;

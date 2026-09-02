@@ -80,14 +80,16 @@ Voraussetzung: Home Assistant OS oder Supervised auf `aarch64` oder `amd64`.
 
 Im Reiter **Konfiguration** des Add-ons.
 
-| Option                      | Pflicht       | Standard                     | Wozu                                                                                                       |
-| --------------------------- | ------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `openrouter_api_key`        | **ja**        | —                            | Dein Key von [openrouter.ai](https://openrouter.ai). Ohne startet das Add-on nicht.                        |
-| `openrouter_default_model`  | nein          | `anthropic/claude-haiku-4.5` | Welches Sprachmodell benutzt wird. Später auch in der Web-UI änderbar, ohne Neustart.                      |
-| `openai_api_key`            | nein          | —                            | Eigener OpenAI-Key. **Nur** für die Transkription von Telegram-Sprachnachrichten nötig. Sonst leer lassen. |
-| `telegram_bot_token`        | nein          | —                            | Aktiviert den Telegram-Bot.                                                                                |
-| `telegram_allowed_user_ids` | siehe Hinweis | —                            | Wer den Bot benutzen darf. **Pflicht**, sobald ein Token gesetzt ist — sonst startet das Add-on nicht.     |
-| `log_level`                 | nein          | `info`                       | Für Fehlermeldungen auf `debug` stellen.                                                                   |
+| Option                      | Pflicht       | Standard                     | Wozu                                                                                                                                                                     |
+| --------------------------- | ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `openrouter_api_key`        | **ja**        | —                            | Dein Key von [openrouter.ai](https://openrouter.ai). Ohne startet das Add-on nicht.                                                                                      |
+| `openrouter_default_model`  | nein          | `anthropic/claude-haiku-4.5` | Welches Sprachmodell benutzt wird. Später auch in der Web-UI änderbar, ohne Neustart.                                                                                    |
+| `openai_api_key`            | nein          | —                            | Eigener OpenAI-Key. **Nur** für die Transkription von Telegram-Sprachnachrichten nötig. Sonst leer lassen.                                                               |
+| `telegram_bot_token`        | nein          | —                            | Aktiviert den Telegram-Bot.                                                                                                                                              |
+| `telegram_allowed_user_ids` | siehe Hinweis | —                            | Wer den Bot benutzen darf. **Pflicht**, sobald ein Token gesetzt ist — sonst startet das Add-on nicht.                                                                   |
+| `log_level`                 | nein          | `info`                       | Für Fehlermeldungen auf `debug` stellen.                                                                                                                                 |
+| `language`                  | nein          | `auto`                       | Sprache von Prompt, Web-UI und Telegram. `auto` folgt der Home-Assistant-Locale (Deutsch bleibt Deutsch; alles andere wird Englisch). `en` / `de` erzwingen die Sprache. |
+| `notify_entity`             | nein          | —                            | Volle `notify.*`-Entity (z. B. `notify.mobile_app_pixel`). Ziel der Spalte HA Notify unter Settings → Benachrichtigungen.                                                |
 
 ### Modellwahl
 
@@ -114,7 +116,9 @@ zuweisen: ein günstiges zum Nachschlagen, ein stärkeres zum Schreiben von Auto
 
 ## Telegram einrichten
 
-Optional, aber es ist der Weg zu Benachrichtigungen — und zu deinem Zuhause von unterwegs.
+Optional. Telegram ist der Weg zu deinem Zuhause von unterwegs. Welche proaktiven Hinweise
+wohin gehen (Telegram, Dashboard-Chat, eine `notify_entity` oder Home-Assistant-persistent
+notifications) steht in der Matrix unter **Settings → Benachrichtigungen**.
 
 **1. Bot anlegen.** [@BotFather](https://t.me/BotFather) in Telegram öffnen, `/newbot`
 schicken, den Fragen folgen. Das Token kommt in `telegram_bot_token`.
@@ -137,6 +141,7 @@ deine Haustür aufschliessen kann.
 Telegram-Sprachnachrichten werden mit OpenAI Whisper transkribiert. Dafür braucht es einen
 eigenen Key in `openai_api_key` — das läuft **nicht** über OpenRouter. Ohne den Key antwortet
 der Bot auf Sprachnachrichten mit einem Hinweis; Textnachrichten sind davon unberührt.
+Whisper verwendet dieselbe Sprache wie die Oberfläche (`de` oder `en`).
 
 ## Erster Start
 
@@ -203,23 +208,29 @@ gut HA-Claw dein Zuhause versteht.
 Drei Bereiche in der oberen Navigation.
 
 **Chat** — das Gespräch. Der Fortschritt ist live sichtbar: welches Werkzeug gerade läuft, was
-es gefunden hat, wann es fertig ist. Es gibt einen Mikrofon-Knopf für Spracheingabe
-(browserbasiert, deutsch).
+es gefunden hat, wann es fertig ist. Zuerst laden die letzten 30 Nachrichten; **Ältere
+Nachrichten laden** holt weiter zurück. Auf der Platte bleiben höchstens 100 Nachrichten. Es
+gibt einen Mikrofon-Knopf für Spracheingabe (browserbasiert; Sprache folgt der Oberfläche).
 
 **Status** — vier Reiter:
 
 - _System Health_ — die unten beschriebenen Dauerprüfungen.
-- _Pflege_ — Automationslücken, Namensvorschläge und aktuelle Leistung, als ein Bericht.
+- _Pflege_ (Care in der englischen Oberfläche) — Automationslücken, Namensvorschläge und aktuelle Leistung, als ein Bericht.
 - _Tasks_ — Verbesserungsvorschläge, die auf deine Entscheidung warten.
 - _Logs_ — das Add-on-Protokoll und unter Actions jeder Dienstaufruf mit Rückgängig-Knopf.
 
-**Settings** — drei Bereiche:
+**Settings** — vier Bereiche:
 
 - _Model Forge_ — Standardmodell und ein Modell je Komplexitätsstufe.
 - _Tool Vault_ — einzelne Fähigkeiten an- und abschalten. Ein abgeschaltetes Werkzeug wird dem
   Assistenten gar nicht erst angeboten. Schaltest du die gefährlichen ab, wird HA-Claw
   schreibgeschützt.
-- _Profile_ — Namen und Gesprächsstil.
+- _Benachrichtigungen_ — welche Hinweise an Telegram, den Dashboard-Chat, eine Home-Assistant-
+  `notify`-Entity oder `persistent_notification` gehen. Telegram bleibt für die bisherigen
+  Ereignisse an; die anderen Spalten starten aus. Die einzelnen Health-Zeilen starten aus,
+  damit sie den Sammelhinweis nicht doppelt schicken.
+- _Profile_ — Namen, Gesprächsstil und ein JSON-Export von Gesprächen, Memory, Tasks und
+  Aktionsprotokoll (ohne API-Keys).
 
 Änderungen wirken ab der nächsten Nachricht. Kein Neustart nötig.
 
@@ -285,10 +296,11 @@ Geräte sind in vielen Installationen der Normalzustand und würden als Aufgabe 
 Liste stehen bleiben. Deshalb werden diese Prüfungen bei Bedarf berechnet und als Zustand
 angezeigt. Du findest sie auch in `/status` im Telegram-Bot.
 
-Telegram meldet sich nur, wenn sich etwas **verschlechtert** — wenn eine Prüfung ihre Stufe
-wechselt (grün → gelb → rot) oder sich ihr Wert seit der letzten Meldung mindestens verdoppelt
-hat. Die zweite Regel fängt einen echten neuen Ausfall auch in einer Installation, die
-dauerhaft rot steht. Verbesserungen werden still vermerkt.
+Telegram (und die anderen Kanäle unter **Settings → Benachrichtigungen**) melden sich nur,
+wenn sich etwas **verschlechtert** — wenn eine Prüfung ihre Stufe wechselt (grün → gelb → rot)
+oder sich ihr Wert seit der letzten Meldung mindestens verdoppelt hat. Die zweite Regel fängt
+einen echten neuen Ausfall auch in einer Installation, die dauerhaft rot steht. Verbesserungen
+werden still vermerkt.
 
 Bleiben Geräte dauerhaft in der Liste, sind es meist Reste entfernter Hardware. Die Karte
 **Seit 30 Tagen nicht erreichbar** hat **Entfernen** / **Alle entfernen**. Das löscht das
@@ -307,8 +319,9 @@ bestätigen — es gibt kein Rückgängig.
 - **Leistung** — vorhandene `device_class: power` / `energy`-Sensoren, Summe in Watt.
 
 Ein Job **Wochenbericht** wird automatisch angelegt (`weekly sun 10:00`). Er schickt diesen
-Bericht per Telegram, wenn der Bot eingerichtet ist. Der Assistent läuft dafür nicht. Du
-kannst den Job wie jeden anderen Zeitplan abschalten oder löschen.
+Bericht an die Kanäle, die unter **Settings → Benachrichtigungen** für den Wochenbericht
+angehakt sind (Telegram ist an). Der Assistent läuft dafür nicht. Du kannst den Job wie jeden
+anderen Zeitplan abschalten oder löschen.
 
 ## Aufgaben
 
@@ -350,8 +363,9 @@ unangetastet.
 > Schalte in 10 Minuten das Kellerlicht aus.
 > Sag mir um 14:30, dass der Kuchen fertig ist.
 
-Die Zustellung läuft über Telegram. Relative Angaben (`5m`, `2h`, `1h30m`) und feste Uhrzeiten
-(`14:30`, heute oder morgen) funktionieren beide.
+Die Zustellung läuft über die Kanäle, die unter **Settings → Benachrichtigungen** für andere
+Zeitpläne angehakt sind (Telegram ist an). Relative Angaben (`5m`, `2h`, `1h30m`) und feste
+Uhrzeiten (`14:30`, heute oder morgen) funktionieren beide.
 
 **Wiederkehrende Jobs** laufen durch den Assistenten und können damit alles, was auch eine
 Nachricht kann:
@@ -461,7 +475,7 @@ Alles liegt in `/data/store/` und wird von Home-Assistant-Backups automatisch mi
 
 | Ordner                      | Inhalt                                                                                            |
 | --------------------------- | ------------------------------------------------------------------------------------------------- |
-| `conversations/`            | Chat-Verlauf, gemeinsam für Web-UI und Telegram                                                   |
+| `conversations/`            | Chat-Verlauf, gemeinsam für Web-UI und Telegram. Höchstens 100 Nachrichten.                       |
 | `memory/`                   | Langzeit-Gedächtniskarten                                                                         |
 | `notes/`                    | Notizen                                                                                           |
 | `backlog/`                  | Aufgaben                                                                                          |
@@ -469,6 +483,7 @@ Alles liegt in `/data/store/` und wird von Home-Assistant-Backups automatisch mi
 | `scheduler.json`            | Erinnerungen und wiederkehrende Jobs                                                              |
 | `actions.jsonl`             | Aktionsprotokoll mit Rückgängig-Daten, 7 Tage aufbewahrt                                          |
 | `profile.json`              | Namen, Gesprächsstil, Modellwahl                                                                  |
+| `notify-matrix.json`        | Welche Hinweise an Telegram, Chat, HA Notify und persistent_notification gehen                    |
 | `system-health.json`        | Zuletzt gesehene Werte (die Oberfläche zeigt, was sich bewegt hat) und zuletzt gemeldeter Zustand |
 | `system-health-report.json` | Letzter vollständiger System-Health-Bericht für die Status-Oberfläche                             |
 

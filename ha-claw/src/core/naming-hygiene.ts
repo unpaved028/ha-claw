@@ -8,6 +8,7 @@
 
 import * as ha from './ha-client.js';
 import { logAction } from '../storage/action-log.js';
+import { t } from './strings.js';
 
 export interface NamingProposal {
   entityId: string;
@@ -21,16 +22,16 @@ export interface NamingReport {
   proposals: NamingProposal[];
 }
 
-const DOMAIN_LABEL: Record<string, string> = {
-  light: 'Licht',
-  switch: 'Schalter',
-  binary_sensor: 'Sensor',
-  sensor: 'Sensor',
-  cover: 'Cover',
-  climate: 'Heizung',
-  fan: 'Lüfter',
-  media_player: 'Media',
-  lock: 'Schloss',
+const DOMAIN_LABEL_KEYS: Record<string, string> = {
+  light: 'naming.light',
+  switch: 'naming.switch',
+  binary_sensor: 'naming.binary_sensor',
+  sensor: 'naming.sensor',
+  cover: 'naming.cover',
+  climate: 'naming.climate',
+  fan: 'naming.fan',
+  media_player: 'naming.media_player',
+  lock: 'naming.lock',
 };
 
 function titleCase(s: string): string {
@@ -51,7 +52,8 @@ export function proposeFriendlyName(entityId: string, area: string): string {
   const stem = stemName(entityId);
   const areaBit = area && area !== 'Ohne Bereich' ? area.trim() : '';
   if (areaBit && !stem.toLowerCase().includes(areaBit.toLowerCase())) {
-    const kind = DOMAIN_LABEL[domain];
+    const kindKey = DOMAIN_LABEL_KEYS[domain];
+    const kind = kindKey ? t(kindKey) : undefined;
     if (kind && !stem.toLowerCase().includes(kind.toLowerCase())) {
       return `${areaBit} ${kind} ${stem}`.replace(/\s+/g, ' ').trim();
     }
@@ -73,7 +75,7 @@ export async function buildNamingReport(): Promise<NamingReport> {
   const proposals: NamingProposal[] = [];
   for (const s of states) {
     const domain = s.entity_id.split('.')[0] ?? '';
-    if (!DOMAIN_LABEL[domain]) continue;
+    if (!DOMAIN_LABEL_KEYS[domain]) continue;
     const current = String(s.attributes['friendly_name'] ?? '').trim();
     const area = areaOf.get(s.entity_id) ?? 'Ohne Bereich';
     const proposed = proposeFriendlyName(s.entity_id, area);

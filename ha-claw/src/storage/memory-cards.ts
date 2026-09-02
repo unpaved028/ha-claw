@@ -53,6 +53,9 @@ export interface CardSearchResult {
   score: number;
 }
 
+/** Minimum total score for a card to be returned. Keyword overlap is required first. */
+export const MIN_MEMORY_SCORE = 0.5;
+
 // ── Init ──────────────────────────────────────────────────
 
 export async function initMemoryCards(): Promise<void> {
@@ -169,68 +172,82 @@ export async function listCards(): Promise<MemoryCard[]> {
   }
 }
 
-// ── Hybrid Retrieval ──────────────────────────────────────
+// ── Retrieval ─────────────────────────────────────────────
 
 /**
- * Search memory cards using hybrid retrieval:
- * 1. Keyword matching (tags + content)
- * 2. Relevance scoring (TF-IDF-like)
- * 3. Recency boost
- * 4. Access frequency boost
- *
- * Returns top-N cards sorted by relevance score.
+ * Whole-token keyword retrieval with recency / access / category boosts.
+ * A card with no tag, title or content token overlap scores 0, regardless of
+ * boosts. `searchCards` is the only cutoff the agentic loop uses.
  */
+export function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-zäöüß0-9\s-]/g, '')
+    .split(/\s+/)
+    .filter(t => t.length > 2);
+}
+
+export function keywordScore(
+  card: Pick<MemoryCard, 'title' | 'content' | 'tags'>,
+  queryTokens: string[],
+): number {
+  let score = 0;
+
+  const tagSet = new Set(card.tags.map(t => t.toLowerCase()));
+  for (const qt of queryTokens) {
+    if (tagSet.has(qt)) score += 3.0;
+  }
+
+  const titleTokens = tokenize(card.title);
+  for (const qt of queryTokens) {
+    if (titleTokens.includes(qt)) score += 2.0;
+  }
+
+  const contentTokens = tokenize(card.content);
+  for (const qt of queryTokens) {
+    let occurrences = 0;
+    for (const token of contentTokens) {
+      if (token === qt) occurrences++;
+    }
+    score += Math.min(occurrences * 0.5, 2.0);
+  }
+
+  return score;
+}
+
+export function scoreCard(card: MemoryCard, queryTokens: string[], now = Date.now()): number {
+  const keyword = keywordScore(card, queryTokens);
+  if (keyword === 0) return 0;
+
+  let score = keyword;
+  const ageDays = (now - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+  score += Math.max(0, 1.0 - ageDays / 30);
+  score += Math.log2(1 + card.accessCount) * 0.3;
+  if (card.category === 'preference') score += 0.5;
+  if (card.category === 'routine') score += 0.5;
+  return score;
+}
+
+export function rankCards(
+  cards: MemoryCard[],
+  query: string,
+  maxResults = 5,
+  now = Date.now(),
+): CardSearchResult[] {
+  const queryTokens = tokenize(query);
+  return cards
+    .map(card => ({ card, score: scoreCard(card, queryTokens, now) }))
+    .filter(r => r.score >= MIN_MEMORY_SCORE)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxResults);
+}
+
 export async function searchCards(query: string, maxResults = 5): Promise<CardSearchResult[]> {
   const cards = await listCards();
   if (cards.length === 0) return [];
 
-  const queryTokens = tokenize(query);
-  const now = Date.now();
+  const relevant = rankCards(cards, query, maxResults);
 
-  const scored: CardSearchResult[] = cards.map(card => {
-    let score = 0;
-
-    // 1. Tag match (high weight)
-    const tagSet = new Set(card.tags.map(t => t.toLowerCase()));
-    for (const qt of queryTokens) {
-      if (tagSet.has(qt)) score += 3.0;
-    }
-
-    // 2. Title match
-    const titleTokens = tokenize(card.title);
-    for (const qt of queryTokens) {
-      if (titleTokens.includes(qt)) score += 2.0;
-    }
-
-    // 3. Content keyword match
-    const contentLower = card.content.toLowerCase();
-    for (const qt of queryTokens) {
-      const occurrences = contentLower.split(qt).length - 1;
-      score += Math.min(occurrences * 0.5, 2.0); // Cap at 2.0
-    }
-
-    // 4. Recency boost (newer = higher, decays over 30 days)
-    const ageMs = now - new Date(card.updatedAt).getTime();
-    const ageDays = ageMs / (1000 * 60 * 60 * 24);
-    score += Math.max(0, 1.0 - ageDays / 30);
-
-    // 5. Access frequency boost (logarithmic)
-    score += Math.log2(1 + card.accessCount) * 0.3;
-
-    // 6. Category boost for preferences/routines (often relevant)
-    if (card.category === 'preference') score += 0.5;
-    if (card.category === 'routine') score += 0.5;
-
-    return { card, score };
-  });
-
-  // Filter cards with score > 0 and sort by score
-  const relevant = scored
-    .filter(r => r.score > 0.5)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxResults);
-
-  // Update access counts for retrieved cards
   for (const r of relevant) {
     r.card.accessCount++;
     r.card.lastAccessedAt = new Date().toISOString();
@@ -259,14 +276,6 @@ export function buildMemoryContext(results: CardSearchResult[]): string {
 }
 
 // ── Helpers ───────────────────────────────────────────────
-
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-zäöüß0-9\s-]/g, '')
-    .split(/\s+/)
-    .filter(t => t.length > 2);
-}
 
 function extractKeywords(text: string): string[] {
   // Stop words (German)

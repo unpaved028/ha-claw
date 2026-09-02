@@ -83,8 +83,10 @@ conversation record, so a question asked in the sidebar can be followed up from 
     │   ├── entrypoint.sh        # chown /data, drop to user node
     │   └── run-tests.mjs
     ├── agents/
-    │   ├── main.md              # Main system prompt
-    │   ├── onboarding.md        # Setup conversation prompt
+    │   ├── main.md              # German system prompt
+    │   ├── main.en.md           # English system prompt
+    │   ├── onboarding.md        # German setup conversation prompt
+    │   ├── onboarding.en.md     # English setup conversation prompt
     │   ├── cie.md               # Continuous Improvement Engine prompt
     │   ├── KI-Systemarchitekt.md
     │   └── skills/ha-best-practices/   # 7 reference files (incl. blueprints.md)
@@ -93,6 +95,14 @@ conversation record, so a question asked in the sidebar can be followed up from 
         ├── core/
         │   ├── agentic-loop.ts  # LLM loop with tool calling
         │   ├── config.ts        # Config loader (Supervisor + dev fallback)
+        │   ├── locale.ts        # UI/prompt language from option + HA locale
+        │   ├── strings.ts       # Server-side copy (Telegram, digest, prompts)
+        │   ├── health-copy.ts   # System Health / backup strings
+        │   ├── prompts.ts       # Loads main.md or main.en.md
+        │   ├── data-export.ts   # JSON dump of user data
+        │   ├── ha-notify.ts     # HA notify.entity + persistent_notification
+        │   ├── notify-matrix.ts # Event × channel routing, persisted
+        │   ├── notify-dispatch.ts # Fan-out according to the matrix
         │   ├── context-manager.ts # Token estimation and history pruning
         │   ├── entity-cache.ts  # Entity discovery, grouped by floor and area
         │   ├── ha-client.ts     # Home Assistant REST client
@@ -118,7 +128,7 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── atomic-write.ts  # Per-path lock + unique temp-and-rename
         │   ├── json-store.ts    # Generic JSON store, atomic writes
         │   ├── conversation.ts  # Shared Web + Telegram history
-        │   ├── memory-cards.ts  # Long-term memory, keyword retrieval
+        │   ├── memory-cards.ts  # Long-term memory, whole-token keyword retrieval
         │   ├── backlog.ts       # Task CRUD, one file per task
         │   ├── backlog-processor.ts # Event-driven task pipeline
         │   ├── action-log.ts    # JSONL action log with rollback payloads
@@ -137,7 +147,7 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── server.ts        # Fastify routes, SSE, web safety gate
         │   ├── ingress-allow.ts # Add-on source-IP allowlist
         │   ├── dashboard.ts     # GENERATED — do not edit
-        │   └── ui/              # dashboard.html · style.css · client.js
+        │   └── ui/              # dashboard.html · style.css · i18n.js · client.js
         └── telegram/
             ├── bot.ts           # Grammy setup, commands, message handling
             ├── confirmation.ts  # Inline-keyboard safety gate
@@ -154,7 +164,7 @@ Home Assistant Ingress serves the add-on under a rotating `/api/hassio_ingress/<
 prefix. The browser cannot resolve relative `<link>` or `<script src>` paths under it, so the
 entire UI has to arrive inlined in a single HTML response.
 [`scripts/bundle-dashboard.cjs`](../ha-claw/scripts/bundle-dashboard.cjs) assembles
-`src/web/ui/{dashboard.html,style.css,client.js}` into that file.
+`src/web/ui/{dashboard.html,style.css,i18n.js,client.js}` into that file.
 
 ```bash
 npm run bundle          # regenerate
@@ -177,11 +187,12 @@ runtime, which removes the failure class rather than fixing its instances.
 OpenRouter, parses tool calls, executes them, feeds results back. Hard limit of **10
 iterations**.
 
-Before the first call it assembles the system prompt from `agents/main.md` plus:
+Before the first call it assembles the system prompt from `agents/main.md` (German) or
+`agents/main.en.md` (English), plus:
 
 | Placeholder | Filled with |
 | --- | --- |
-| `{{TOOL_LIST}}` | Generated from the registry at runtime, with `(erfordert Bestätigung)` appended to dangerous tools |
+| `{{TOOL_LIST}}` | Generated from the registry at runtime, with a language-specific confirmation marker appended to dangerous tools (`(erfordert Bestätigung)` / `(requires confirmation)`) |
 | `{{ENTITY_CACHE}}` | The pruned entity cache for this request |
 
 `{{TOOL_LIST}}` is generated rather than maintained by hand because the hand-written list in
@@ -306,7 +317,7 @@ rejected and deferred tasks are left alone.
 [`src/core/system-health.ts`](../ha-claw/src/core/system-health.ts) evaluates **standing
 conditions**. These never reach "done" — in many installations a handful of devices are
 permanently unreachable — so they are never written to the backlog. A full check runs
-shortly after start, every hour (for Telegram regressions), and when the user clicks
+shortly after start, every hour (for outbound regressions), and when the user clicks
 Refresh. `GET /api/system-health` returns the last report so the Status screen does not
 wait on Home Assistant.
 
@@ -351,11 +362,13 @@ survive the hardware it lives in.
 
 `store/system-health.json` holds last-seen values (so the UI can show "was 1") and separate
 notify fields. `store/system-health-report.json` holds the last full report the UI serves.
-`findHealthRegressions()` pushes to Telegram only when a check's severity
+`findHealthRegressions()` is the gate: a check is offered for notify only when its severity
 escalated or its count at least doubled since the last message. `storage` and `recorder`
 skip the doubling rule — those counts shrink as the problem grows. A permanently broken
 installation therefore does not generate hourly notifications, while a genuine new outage
-still gets through. Recovery is recorded silently.
+still gets through. Recovery is recorded silently. Which channels receive that text is the
+Settings notification matrix (`store/notify-matrix.json`): Telegram, the dashboard
+conversation, a Home Assistant `notify` entity, and/or `persistent_notification`.
 
 The `orphans` card offers one-click remove (`POST /api/system-health/orphans/remove`).
 Ids are the same `dev:…` / `stem:…` keys the card already lists.
@@ -413,9 +426,9 @@ automatically. The full path table is in
 
 [`atomic-write.ts`](../ha-claw/src/storage/atomic-write.ts) is the shared helper: one lock
 per path, a unique temp file, then rename. `json-store.ts`, `learning.ts`, `scheduler.ts`,
-`profile.ts`, the disabled-tools list and the health snapshot all go through it. Concurrent
-`upsert` on the same record is serialised so the second writer reads the first writer's
-result.
+`profile.ts`, the disabled-tools list, the notify matrix and the health snapshot all go
+through it. Concurrent `upsert` on the same record is serialised so the second writer reads
+the first writer's result.
 
 ## Data flow
 
@@ -426,7 +439,7 @@ User message (Web UI or Telegram)
 Agentic loop
     │
     ├─ System prompt
-    │    main.md + {{TOOL_LIST}} + {{ENTITY_CACHE}}
+    │    main.md or main.en.md + {{TOOL_LIST}} + {{ENTITY_CACHE}}
     │    + personality + memory cards + corrections + patches + patterns + errors
     │
     ├─ LLM call (OpenRouter) ──▶ tool call

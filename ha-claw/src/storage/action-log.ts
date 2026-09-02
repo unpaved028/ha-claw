@@ -125,6 +125,25 @@ async function pruneOldActions(): Promise<void> {
   }
 }
 
+/** Every stored action, oldest first. Used by data export. */
+export async function listAllActions(): Promise<ActionEntry[]> {
+  try {
+    const raw = await readFile(ACTIONS_PATH, 'utf-8');
+    const lines = raw.trim().split('\n').filter(Boolean);
+    const entries: ActionEntry[] = [];
+    for (const line of lines) {
+      try {
+        entries.push(JSON.parse(line) as ActionEntry);
+      } catch {
+        // skip malformed lines
+      }
+    }
+    return entries;
+  } catch {
+    return [];
+  }
+}
+
 /** List recent actions. */
 export interface ActionListOptions {
   limit?: number;

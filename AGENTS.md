@@ -31,7 +31,7 @@ any code for a new capability.
 ## Hard rules
 
 **1. Never edit `ha-claw/src/web/dashboard.ts`.** It is generated. Edit
-`ha-claw/src/web/ui/{dashboard.html,style.css,client.js}` and run `npm run bundle`. CI fails
+`ha-claw/src/web/ui/{dashboard.html,style.css,i18n.js,client.js}` and run `npm run bundle`. CI fails
 if the artefact drifts from its sources. The 0.8.1–0.8.5 bug series happened because the
 generated file was patched by hand.
 
@@ -75,9 +75,10 @@ ha-claw/                 The add-on. npm lives here.
   README.md              Add-on store description.
   CHANGELOG.md           Version history.
   translations/          Option labels for the HA config UI (en, de).
-  agents/main.md         The system prompt. German. Contains {{TOOL_LIST}}, {{ENTITY_CACHE}}.
+  agents/main.md         German system prompt. Contains {{TOOL_LIST}}, {{ENTITY_CACHE}}.
+  agents/main.en.md      English system prompt. Same placeholders.
   src/                   TypeScript source.
-  src/web/ui/            Dashboard sources — edit these.
+  src/web/ui/            Dashboard sources — edit these (including i18n.js).
   src/web/dashboard.ts   GENERATED — never edit.
 ```
 
@@ -144,13 +145,15 @@ appear in the product, and that is the only exception.
 | `docs/`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `AGENTS.md` | English |
 | `ha-claw/DOCS.md`, `ha-claw/README.md` | English |
 | `README.de.md`, `ha-claw/DOCS.de.md`, `translations/de.yaml` | German |
-| `ha-claw/agents/*.md` system prompts | German — this shapes what the end user reads |
-| Web UI strings in `src/web/ui/` | German |
+| `ha-claw/agents/main.md`, `onboarding.md` | German |
+| `ha-claw/agents/main.en.md`, `onboarding.en.md` | English |
+| Web UI strings in `src/web/ui/i18n.js` | German **and** English — add both keys |
+| HTML fallback copy in `src/web/ui/dashboard.html` | German (shown until `/api/settings` arrives) |
 | `CHANGELOG.md` | English for new entries; existing German entries stay as written |
 
-Making the prompt and UI multilingual is a [roadmap item](docs/roadmap.md#v13--reach). Until
-that lands, do not translate them piecemeal — a half-English prompt is worse than a German
-one.
+A new UI string is not finished until it exists in both `I18N.de` and `I18N.en`. A prompt
+behaviour change is not finished until `main.md` and `main.en.md` (or the onboarding pair)
+say the same thing.
 
 ## Before you finish a task
 

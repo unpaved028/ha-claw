@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.2.0**. Last reviewed: 2026-09-01.
+Current version: **1.3.0**. Last reviewed: 2026-09-02.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -12,7 +12,7 @@ roadmap that lists every possible feature is not a roadmap.
 - [Now — 0.9.x](#now--09x)
 - [v1.0.0 — Trust and hardening](#v100--trust-and-hardening)
 - [v1.1 / v1.2 — shipped](#v11--v12--shipped)
-- [v1.3 — Reach](#v13--reach)
+- [v1.3 — shipped](#v13--shipped)
 - [Exploratory](#exploratory)
 - [Deliberately not doing](#deliberately-not-doing)
 - [Open questions](#open-questions)
@@ -75,7 +75,9 @@ and a second implementation of it would help nobody.
 only useful if you are willing to let it. The safety-policy table test pins the allowlist;
 [v1.0.0](#v100--trust-and-hardening) shipped the rest of that trust work.
 [v1.2.0](../ha-claw/CHANGELOG.md#120) shipped safe config writes and the maintenance
-layer. Product work resumes at [v1.3](#v13--reach).
+layer. [v1.3.0](../ha-claw/CHANGELOG.md#130) shipped language, notifications, export and
+pagination. Product work continues from [Exploratory](#exploratory) and the
+[open questions](#open-questions).
 
 ---
 
@@ -88,7 +90,9 @@ stopped add-ons, recorder, restored-only entities, disabled-entity count, failed
 and a YAML coverage note on broken references — shipped in
 [v0.10.0](../ha-claw/CHANGELOG.md#0100). The trust cut shipped in
 [v1.0.0](../ha-claw/CHANGELOG.md#100). Safe writes and the maintenance layer shipped in
-[v1.2.0](../ha-claw/CHANGELOG.md#120). Next is [v1.3](#v13--reach).
+[v1.2.0](../ha-claw/CHANGELOG.md#120). Language, Home Assistant notifications, data export
+and chat history pagination shipped in [v1.3.0](../ha-claw/CHANGELOG.md#130). Next is
+[Exploratory](#exploratory).
 
 ## v1.0.0 — Trust and hardening
 
@@ -108,25 +112,12 @@ Config validation is structural (required keys, known fields, valid `mode`). Hom
 automation. Do not reopen "run check_config before save" without a new HA API that can
 validate a UI config that has not been written yet.
 
-## v1.3 — Reach
+## v1.3 — shipped
 
-Currently HA-Claw is reachable from its own sidebar panel and from Telegram, and speaks German
-only. Both limit who can use it.
-
-- [ ] **Multi-language system prompt.** `agents/main.md` is German. That is a hard barrier for
-      most of the Home Assistant community. Extract the language-dependent parts, ship English
-      first, and pick the language from the Home Assistant locale.
-- [ ] **English Web UI**, same reasoning.
-- [ ] **Home Assistant notifications** as a channel alongside Telegram, via `notify` services.
-      Telegram should be an option, not a prerequisite for proactive messages.
-- [ ] **Expose HA-Claw as a conversation agent.** An add-on cannot register one directly; a
-      thin companion integration could forward Assist conversations to the add-on's HTTP API.
-      That makes HA-Claw reachable from voice hardware and the Assist dialog without building
-      a parallel voice stack. Evaluate whether the complexity is worth it — the answer depends
-      on whether people want to *talk* to a maintenance agent or *read* it.
-- [ ] **Data export.** Conversations, memory, tasks and the action log as JSON. It is your
-      data.
-- [ ] **Chat history pagination.** Load the last 30 messages with a "load more" button.
+Shipped in [v1.3.0](../ha-claw/CHANGELOG.md#130): German and English system prompts and Web
+UI keyed off the Home Assistant locale (with an `en` / `de` override), a Settings
+notification matrix (Telegram, Chat, HA notify, `persistent_notification`), JSON data
+export, and chat history pagination (last 30 on screen, 100 on disk).
 
 ## Exploratory
 
@@ -144,9 +135,8 @@ Not scheduled. Listed so they are not rediscovered as new ideas.
 - **Multi-user.** Whitelisted Telegram users are all-or-nothing today. Per-user permissions
   only matter once households actually share an installation.
 - **Memory vector search.** Worth doing at roughly 1,000 cards. Realistic counts are dozens.
-  The current keyword search has cheaper, more concrete defects: substring matching means
-  `art` matches `start`, and the score threshold in `searchCards` (0.5) contradicts the one in
-  `agentic-loop.ts` (0.1), making the second one dead code. Fix those first.
+  Keyword search matches whole tokens in title, tags and content and ranks those hits; it
+  does not do stemming or compound matching.
 - **HA state cache with a short TTL.** `tool-cache.ts` exists. Fix its invalidation, then
   measure whether repeated reads inside one loop are actually a problem.
 
@@ -157,7 +147,7 @@ Saying no is the useful half of a roadmap.
 | Not doing | Why |
 | --- | --- |
 | **Local wake word, STT and TTS** | Home Assistant Voice does this properly, with hardware built for it. A parallel stack would duplicate work that is already done better. |
-| **Replacing Assist as the voice interface** | An add-on cannot be invoked per utterance the way a conversation agent can. Bridging *to* Assist is the sensible path; competing with it is not. |
+| **Exposing HA-Claw as a conversation agent** | An add-on cannot register one. A companion integration that forwards Assist into the HTTP API would be a second codebase for a maintenance agent people read more than they talk to. Assist stays the voice interface; HA-Claw stays the sidebar and Telegram. |
 | **Generating a Lovelace dashboard** | The sidebar panel is enough, and dashboards are something Home Assistant users generally prefer to build themselves. |
 | **Supporting every LLM provider directly** | OpenRouter is the abstraction. One integration, every model. |
 | **Cloud sync, accounts, hosted anything** | The whole point is that it runs on your hardware. |

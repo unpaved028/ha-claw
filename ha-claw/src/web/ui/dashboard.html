@@ -26,9 +26,9 @@
         <span class="brand">HA-CLAW</span>
       </div>
       <div class="nav-center">
-        <button class="nav-item active" data-page="chat">Chat</button>
-        <button class="nav-item" data-page="status">Status</button>
-        <button class="nav-item" data-page="settings">Settings</button>
+        <button class="nav-item active" data-page="chat" data-i18n="nav.chat">Chat</button>
+        <button class="nav-item" data-page="status" data-i18n="nav.status">Status</button>
+        <button class="nav-item" data-page="settings" data-i18n="nav.settings">Settings</button>
       </div>
       <div class="nav-right">
         <div class="theme-switcher">
@@ -43,20 +43,23 @@
     <div class="main">
       <div class="page active" id="page-chat">
         <div class="welcome" id="welcome-block">
-          <h1>Willkommen, <strong id="welcome-name">...</strong></h1>
-          <p class="welcome-sub">Alle Systeme synchronisiert. Was darf ich steuern?</p>
+          <h1><span data-i18n="welcome.hello">Willkommen,</span> <strong id="welcome-name">...</strong></h1>
+          <p class="welcome-sub" data-i18n="welcome.sub">Alle Systeme synchronisiert. Was darf ich steuern?</p>
           <div class="quick-actions" id="quick-actions">
-            <button class="quick-chip cie-chip" onclick="triggerCIE()" title="KI-gestützte Tiefenanalyse deines Zuhauses starten">
+            <button class="quick-chip cie-chip" onclick="triggerCIE()" data-i18n-title="welcome.cieTitle" title="KI-gestützte Tiefenanalyse deines Zuhauses starten">
               <span class="quick-chip-icon">🧠</span>
-              <span>Zuhause analysieren</span>
+              <span data-i18n="welcome.cie">Zuhause analysieren</span>
             </button>
           </div>
+        </div>
+        <div class="history-more" id="history-more">
+          <button type="button" onclick="loadMoreHistory()" data-i18n="chat.loadMore">Ältere Nachrichten laden</button>
         </div>
         <div id="messages"></div>
         <div class="input-area">
           <div class="input-container">
-            <input id="input" placeholder="Nachricht eingeben..." autocomplete="off" />
-            <button class="input-btn" id="mic" title="Spracheingabe" onclick="toggleMic()">
+            <input id="input" data-i18n-placeholder="chat.placeholder" placeholder="Nachricht eingeben..." autocomplete="off" />
+            <button class="input-btn" id="mic" data-i18n-title="chat.mic" title="Spracheingabe" onclick="toggleMic()">
               <svg
                 width="18"
                 height="18"
@@ -76,7 +79,7 @@
             <button class="input-btn" id="send" onclick="sendMsg()">&#10148;</button>
           </div>
           <div class="statusbar">
-            <span><span class="dot"></span>Online</span>
+            <span><span class="dot"></span><span data-i18n="chat.online">Online</span></span>
             <span id="app-version">v...</span>
           </div>
         </div>
@@ -88,7 +91,7 @@
           <div class="settings-sidebar">
             <div class="settings-agent">
               <div class="settings-agent-name">HA-Claw</div>
-              <div class="settings-agent-status">System Status</div>
+              <div class="settings-agent-status" data-i18n="status.system">System Status</div>
             </div>
             <div class="settings-nav">
               <button class="settings-nav-item active" data-status="health">
@@ -105,7 +108,7 @@
                   >
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg
                 ></span>
-                System Health
+                <span data-i18n="status.health">System Health</span>
               </button>
               <button class="settings-nav-item" data-status="care">
                 <span class="settings-nav-icon"
@@ -121,7 +124,7 @@
                   >
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg
                 ></span>
-                Pflege
+                <span data-i18n="status.care">Pflege</span>
               </button>
               <button class="settings-nav-item" data-status="tasks">
                 <span class="settings-nav-icon"
@@ -138,7 +141,7 @@
                     <path d="M9 11l3 3L22 4" />
                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg
                 ></span>
-                Tasks
+                <span data-i18n="status.tasks">Tasks</span>
               </button>
               <button class="settings-nav-item" data-status="logs">
                 <span class="settings-nav-icon"
@@ -158,14 +161,14 @@
                     <line x1="16" y1="17" x2="8" y2="17" />
                     <polyline points="10 9 9 9 8 9" /></svg
                 ></span>
-                Logs
+                <span data-i18n="status.logs">Logs</span>
               </button>
             </div>
           </div>
           <div class="settings-content">
             <div class="settings-header">
-              <h1>System <strong>Status</strong></h1>
-              <p class="settings-header-sub">
+              <h1><span data-i18n="status.header">System </span><strong data-i18n="status.headerStrong">Status</strong></h1>
+              <p class="settings-header-sub" data-i18n="status.headerSub">
                 Geraetezustand, Pflege, Verbesserungsvorschlaege und Aktivitaetsprotokoll.
               </p>
             </div>
@@ -173,7 +176,7 @@
             <!-- System Health -->
             <div class="settings-section active" id="status-health">
               <div class="backlog-header">
-                <div class="settings-section-title">System Health</div>
+                <div class="settings-section-title" data-i18n="status.health">System Health</div>
                 <button
                   type="button"
                   class="backlog-add-btn"
@@ -192,13 +195,13 @@
                     <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
                     <path d="M21 3v5h-5" />
                   </svg>
-                  <span id="health-refresh-label">Neu prüfen</span>
+                  <span id="health-refresh-label" data-i18n="health.refresh">Neu prüfen</span>
                 </button>
               </div>
 
-              <div class="health-intro">
+              <div class="health-intro" data-i18n="health.intro">
                 Erreichbarkeit, tote Sensoren, Batterien, Backups und Speicherplatz sind
-                Dauerzustände und keine Verbesserungsvorschläge &ndash; sie stehen deshalb hier
+                Dauerzustände und keine Verbesserungsvorschläge – sie stehen deshalb hier
                 und nicht unter Tasks. Geräte werden physisch gezählt, nicht jede Entity. Rote
                 und gelbe Karten stehen oben. Jede Karte erklärt sich und verlinkt in Home
                 Assistant. Die letzte Prüfung steht sofort da; Neu prüfen holt auf Wunsch einen
@@ -207,50 +210,51 @@
               </div>
 
               <div class="health-list" id="health-list">
-                <div class="backlog-empty">Lade letzten Stand...</div>
+                <div class="backlog-empty" data-i18n="health.loading">Lade letzten Stand...</div>
               </div>
             </div>
 
             <!-- Care / maintenance -->
             <div class="settings-section" id="status-care">
               <div class="backlog-header">
-                <div class="settings-section-title">Pflege</div>
-                <button type="button" class="backlog-add-btn" onclick="loadCare(true)">
+                <div class="settings-section-title" data-i18n="status.care">Pflege</div>
+                <button type="button" class="backlog-add-btn" onclick="loadCare(true)" data-i18n="care.reload">
                   Neu laden
                 </button>
               </div>
-              <div class="health-intro">
+              <div class="health-intro" data-i18n="care.intro">
                 Automationslücken, Namensvorschläge und aktuelle Leistung — ein Bericht, keine
                 drei Tasks. Der Wochenbericht geht sonntags um 10:00 per Telegram, wenn der Bot
                 eingerichtet ist.
               </div>
               <div id="care-review" class="care-digest"></div>
               <div class="care-block">
-                <div class="settings-section-title">Automationslücken</div>
+                <div class="settings-section-title" data-i18n="care.coverage">Automationslücken</div>
                 <div id="care-coverage" class="care-list">
-                  <div class="backlog-empty">Noch nicht geladen.</div>
+                  <div class="backlog-empty" data-i18n="care.notLoaded">Noch nicht geladen.</div>
                 </div>
               </div>
               <div class="care-block">
                 <div class="backlog-header">
-                  <div class="settings-section-title">Namen</div>
+                  <div class="settings-section-title" data-i18n="care.naming">Namen</div>
                   <button
                     type="button"
                     class="backlog-add-btn"
                     id="naming-apply-btn"
                     onclick="applyNamingSelected()"
+                    data-i18n="care.apply"
                   >
                     Ausgewählte übernehmen
                   </button>
                 </div>
                 <div id="care-naming" class="care-list">
-                  <div class="backlog-empty">Noch nicht geladen.</div>
+                  <div class="backlog-empty" data-i18n="care.notLoaded">Noch nicht geladen.</div>
                 </div>
               </div>
               <div class="care-block">
-                <div class="settings-section-title">Leistung</div>
+                <div class="settings-section-title" data-i18n="care.energy">Leistung</div>
                 <div id="care-energy" class="care-list">
-                  <div class="backlog-empty">Noch nicht geladen.</div>
+                  <div class="backlog-empty" data-i18n="care.notLoaded">Noch nicht geladen.</div>
                 </div>
               </div>
             </div>
@@ -258,7 +262,7 @@
             <!-- Tasks -->
             <div class="settings-section" id="status-tasks">
               <div class="backlog-header">
-                <div class="settings-section-title">Tasks</div>
+                <div class="settings-section-title" data-i18n="status.tasks">Tasks</div>
                 <button class="backlog-add-btn" id="backlog-add-btn" onclick="showBacklogForm()">
                   <svg
                     width="14"
@@ -272,7 +276,7 @@
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  Neuer Task
+                  <span data-i18n="tasks.new">Neuer Task</span>
                 </button>
               </div>
 
@@ -280,17 +284,18 @@
               <div class="backlog-form" id="backlog-form" style="display: none">
                 <div class="backlog-form-grid">
                   <div class="profile-field">
-                    <label class="profile-label">Titel</label>
+                    <label class="profile-label" data-i18n="tasks.title">Titel</label>
                     <input
                       type="text"
                       class="profile-input"
                       id="bl-title"
+                      data-i18n-placeholder="tasks.titlePh"
                       placeholder="Kurze Beschreibung"
                     />
                   </div>
                   <div class="backlog-form-row">
                     <div class="profile-field" style="flex: 1">
-                      <label class="profile-label">Prioritaet</label>
+                      <label class="profile-label" data-i18n="tasks.priority">Prioritaet</label>
                       <select class="profile-input" id="bl-priority">
                         <option value="low">Low</option>
                         <option value="medium" selected>Medium</option>
@@ -298,7 +303,7 @@
                       </select>
                     </div>
                     <div class="profile-field" style="flex: 1">
-                      <label class="profile-label">Kategorie</label>
+                      <label class="profile-label" data-i18n="tasks.category">Kategorie</label>
                       <select class="profile-input" id="bl-category">
                         <option value="energy">Energy</option>
                         <option value="comfort">Comfort</option>
@@ -309,34 +314,37 @@
                     </div>
                   </div>
                   <div class="profile-field">
-                    <label class="profile-label">As-Is (aktueller Zustand)</label>
+                    <label class="profile-label" data-i18n="tasks.asis">As-Is (aktueller Zustand)</label>
                     <textarea
                       class="profile-input backlog-textarea"
                       id="bl-asis"
+                      data-i18n-placeholder="tasks.asisPh"
                       placeholder="Was ist der aktuelle Zustand?"
                     ></textarea>
                   </div>
                   <div class="profile-field">
-                    <label class="profile-label">To-Be (gewuenschter Zustand)</label>
+                    <label class="profile-label" data-i18n="tasks.tobe">To-Be (gewuenschter Zustand)</label>
                     <textarea
                       class="profile-input backlog-textarea"
                       id="bl-tobe"
+                      data-i18n-placeholder="tasks.tobePh"
                       placeholder="Was soll erreicht werden?"
                     ></textarea>
                   </div>
                   <div class="profile-field">
-                    <label class="profile-label">Impact</label>
+                    <label class="profile-label" data-i18n="tasks.impact">Impact</label>
                     <input
                       type="text"
                       class="profile-input"
                       id="bl-impact"
+                      data-i18n-placeholder="tasks.impactPh"
                       placeholder="Erwarteter Nutzen"
                     />
                   </div>
                 </div>
                 <div class="backlog-form-actions">
-                  <button class="profile-save-btn" onclick="submitBacklogTask()">Erstellen</button>
-                  <button class="backlog-cancel-btn" onclick="hideBacklogForm()">Abbrechen</button>
+                  <button class="profile-save-btn" onclick="submitBacklogTask()" data-i18n="tasks.create">Erstellen</button>
+                  <button class="backlog-cancel-btn" onclick="hideBacklogForm()" data-i18n="tasks.cancel">Abbrechen</button>
                 </div>
               </div>
 
@@ -346,6 +354,7 @@
                   class="backlog-filter active"
                   data-filter="all"
                   onclick="filterBacklog('all', this)"
+                  data-i18n="tasks.all"
                 >
                   Alle
                 </button>
@@ -401,17 +410,17 @@
               </div>
 
               <div class="backlog-list" id="backlog-list">
-                <div class="backlog-empty">Lade Tasks...</div>
+                <div class="backlog-empty" data-i18n="tasks.loading">Lade Tasks...</div>
               </div>
 
               <div class="health-maintenance">
-                <div class="backlog-detail-label">Tasks aufraeumen</div>
-                <div class="health-maintenance-text">
+                <div class="backlog-detail-label" data-i18n="tasks.cleanupTitle">Tasks aufraeumen</div>
+                <div class="health-maintenance-text" data-i18n="tasks.cleanupText">
                   Entfernt doppelte Analyse-Eintraege desselben Befunds sowie alte Eintraege der
                   Pruefungen, die jetzt unter System Health stehen. Von dir oder dem Agenten
                   angelegte Tasks bleiben unberuehrt, ebenso deine Entscheidungen.
                 </div>
-                <button class="backlog-action-btn delete" onclick="cleanupBacklog(this)">
+                <button class="backlog-action-btn delete" onclick="cleanupBacklog(this)" data-i18n="tasks.cleanupBtn">
                   Duplikate entfernen
                 </button>
                 <span class="health-cleanup-result" id="health-cleanup-result"></span>
@@ -422,25 +431,25 @@
             <div class="settings-section" id="status-logs">
               <div class="logs-header">
                 <div class="logs-header-left">
-                  <div class="settings-section-title">Logs</div>
-                  <p class="logs-header-sub">Echtzeit-Telemetrie und KI-Audit-Trail von HA-Claw.</p>
+                  <div class="settings-section-title" data-i18n="status.logs">Logs</div>
+                  <p class="logs-header-sub" data-i18n="logs.sub">Echtzeit-Telemetrie und KI-Audit-Trail von HA-Claw.</p>
                 </div>
                 <div class="logs-stats">
-                  <div class="logs-stat-online"><span class="dot"></span> SYSTEM ONLINE</div>
+                  <div class="logs-stat-online"><span class="dot"></span> <span data-i18n="logs.online">SYSTEM ONLINE</span></div>
                   <div class="logs-stat">
-                    <div class="logs-stat-label">Uptime</div>
+                    <div class="logs-stat-label" data-i18n="logs.uptime">Uptime</div>
                     <div class="logs-stat-value" id="logs-uptime">--</div>
                   </div>
                   <div class="logs-stat">
-                    <div class="logs-stat-label">Heap</div>
+                    <div class="logs-stat-label" data-i18n="logs.heap">Heap</div>
                     <div class="logs-stat-value" id="logs-heap">--</div>
                   </div>
                 </div>
               </div>
 
               <div class="logs-subnav">
-                <button class="logs-subnav-item active" data-log-tab="system">System Logs</button>
-                <button class="logs-subnav-item" data-log-tab="actions">Actions</button>
+                <button class="logs-subnav-item active" data-log-tab="system" data-i18n="logs.system">System Logs</button>
+                <button class="logs-subnav-item" data-log-tab="actions" data-i18n="logs.actions">Actions</button>
               </div>
 
               <!-- Tab: System Logs -->
@@ -453,7 +462,7 @@
                       <button class="terminal-action" id="logs-download" title="Download">
                         &#8615;
                       </button>
-                      <button class="terminal-action" id="logs-clear" title="Logs leeren">
+                      <button class="terminal-action" id="logs-clear" data-i18n-title="logs.clearTitle" title="Logs leeren">
                         &#128465;
                       </button>
                     </div>
@@ -462,14 +471,14 @@
                     <div class="log-line">
                       <span class="log-ts">[--:--:--]</span>
                       <span class="log-component">SYSTEM:</span>
-                      <span class="log-msg">Lade Logs...</span>
+                      <span class="log-msg" data-i18n="logs.loading">Lade Logs...</span>
                     </div>
                   </div>
                 </div>
                 <div class="logs-input-area">
                   <div class="logs-input-container">
                     <span class="logs-input-prefix">$</span>
-                    <input id="logs-input" placeholder="Befehl eingeben..." autocomplete="off" />
+                    <input id="logs-input" data-i18n-placeholder="logs.cmdPh" placeholder="Befehl eingeben..." autocomplete="off" />
                     <button class="input-btn" id="logs-send" onclick="runLogsCmd()">&#10148;</button>
                   </div>
                 </div>
@@ -479,20 +488,21 @@
               <div class="log-tab" id="log-tab-actions">
                 <div class="welcome" style="margin-top: 0; padding-top: 0">
                   <div style="display: flex; justify-content: space-between; align-items: center">
-                    <p class="welcome-sub" style="margin: 0">
+                    <p class="welcome-sub" style="margin: 0" data-i18n="logs.audit">
                       Audit-Trail der signifikanten KI-Entscheidungen.
                     </p>
                     <button
                       class="btn-clear"
                       onclick="clearActions()"
                       style="padding: 0.4rem 0.8rem; font-size: 0.75rem"
+                      data-i18n="logs.clearActions"
                     >
                       Verlauf leeren
                     </button>
                   </div>
                 </div>
                 <div class="actions-list" id="actions-list" style="margin-top: 1rem">
-                  <div class="backlog-empty">Lade Aktionen...</div>
+                  <div class="backlog-empty" data-i18n="logs.loadingActions">Lade Aktionen...</div>
                 </div>
               </div>
             </div>
@@ -506,7 +516,7 @@
           <div class="settings-sidebar">
             <div class="settings-agent">
               <div class="settings-agent-name">HA-Claw</div>
-              <div class="settings-agent-status">Active Intelligence</div>
+              <div class="settings-agent-status" data-i18n="settings.agent">Active Intelligence</div>
             </div>
             <div class="settings-nav">
               <button class="settings-nav-item active" data-settings="model">
@@ -526,7 +536,7 @@
                       d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
                     /></svg
                 ></span>
-                Model Forge
+                <span data-i18n="settings.model">Model Forge</span>
               </button>
               <button class="settings-nav-item" data-settings="tools">
                 <span class="settings-nav-icon"
@@ -544,7 +554,24 @@
                       d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                     /></svg
                 ></span>
-                Tool Vault
+                <span data-i18n="settings.tools">Tool Vault</span>
+              </button>
+              <button class="settings-nav-item" data-settings="notify">
+                <span class="settings-nav-icon"
+                  ><svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg
+                ></span>
+                <span data-i18n="settings.notify">Benachrichtigungen</span>
               </button>
               <button class="settings-nav-item" data-settings="profile">
                 <span class="settings-nav-icon"
@@ -561,14 +588,14 @@
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                     <circle cx="12" cy="7" r="4" /></svg
                 ></span>
-                Profile
+                <span data-i18n="settings.profile">Profile</span>
               </button>
             </div>
           </div>
           <div class="settings-content">
             <div class="settings-header">
-              <h1>System <strong>Settings</strong></h1>
-              <p class="settings-header-sub">Konfiguriere Modell, Tools und Profil von HA-Claw.</p>
+              <h1><span data-i18n="settings.header">System </span><strong data-i18n="settings.headerStrong">Settings</strong></h1>
+              <p class="settings-header-sub" data-i18n="settings.headerSub">Modell, Tools, Benachrichtigungen und Profil.</p>
             </div>
 
             <!-- Model Forge -->
@@ -576,24 +603,25 @@
               <div class="settings-grid">
                 <div class="model-card">
                   <div class="model-card-header">
-                    <span class="model-card-title">Model Forge</span>
+                    <span class="model-card-title" data-i18n="settings.model">Model Forge</span>
                     <span class="model-badge" id="active-model-badge">Active Engine</span>
                   </div>
-                  <p class="model-card-sub">Waehle das LLM fuer HA-Claw via OpenRouter.</p>
+                  <p class="model-card-sub" data-i18n="model.sub">Waehle das LLM fuer HA-Claw via OpenRouter.</p>
 
                   <div class="profile-field">
-                    <label class="profile-label">Modell waehlen</label>
+                    <label class="profile-label" data-i18n="model.choose">Modell waehlen</label>
                     <select
                       class="profile-input"
                       id="model-select"
                       onchange="updateModelOverride()"
                     >
-                      <option value="">Standard (Config)</option>
+                      <option value="" data-i18n="model.default">Standard (Config)</option>
                     </select>
-                    <p class="welcome-sub" style="font-size: 0.75rem; margin-top: 0.4rem">
+                    <p class="welcome-sub" style="font-size: 0.75rem; margin-top: 0.4rem" data-i18n="model.override">
                       Aenderungen ueberschreiben den Add-on Standard fuer diesen Browser.
                     </p>
                     <div
+                      data-i18n-html="model.recommendHtml"
                       style="
                         margin-top: 0.8rem;
                         padding: 0.6rem;
@@ -616,8 +644,8 @@
                     </div>
 
                     <div style="margin-top: 1.5rem">
-                      <label class="profile-label">Modell pro Komplexitaetsgrad</label>
-                      <p class="welcome-sub" style="font-size: 0.72rem; margin-bottom: 0.6rem">
+                      <label class="profile-label" data-i18n="model.tier">Modell pro Komplexitaetsgrad</label>
+                      <p class="welcome-sub" style="font-size: 0.72rem; margin-bottom: 0.6rem" data-i18n="model.tierHelp">
                         Ordne verschiedene Modelle den Tool-Komplexitaetsstufen zu. Leer =
                         Standard-Modell.
                       </p>
@@ -625,7 +653,7 @@
                         <div style="display: flex; align-items: center; gap: 0.6rem">
                           <span
                             style="font-size: 0.75rem; min-width: 90px; color: var(--text-muted)"
-                            >&#9733;&#9734;&#9734; Einfach</span
+                            >&#9733;&#9734;&#9734; <span data-i18n="model.simple">Einfach</span></span
                           >
                           <select
                             class="profile-input"
@@ -633,13 +661,13 @@
                             onchange="saveComplexityModels()"
                             style="flex: 1; font-size: 0.8rem"
                           >
-                            <option value="">Standard</option>
+                            <option value="" data-i18n="model.standard">Standard</option>
                           </select>
                         </div>
                         <div style="display: flex; align-items: center; gap: 0.6rem">
                           <span
                             style="font-size: 0.75rem; min-width: 90px; color: var(--text-muted)"
-                            >&#9733;&#9733;&#9734; Mittel</span
+                            >&#9733;&#9733;&#9734; <span data-i18n="model.medium">Mittel</span></span
                           >
                           <select
                             class="profile-input"
@@ -647,13 +675,13 @@
                             onchange="saveComplexityModels()"
                             style="flex: 1; font-size: 0.8rem"
                           >
-                            <option value="">Standard</option>
+                            <option value="" data-i18n="model.standard">Standard</option>
                           </select>
                         </div>
                         <div style="display: flex; align-items: center; gap: 0.6rem">
                           <span
                             style="font-size: 0.75rem; min-width: 90px; color: var(--text-muted)"
-                            >&#9733;&#9733;&#9733; Komplex</span
+                            >&#9733;&#9733;&#9733; <span data-i18n="model.complex">Komplex</span></span
                           >
                           <select
                             class="profile-input"
@@ -661,7 +689,7 @@
                             onchange="saveComplexityModels()"
                             style="flex: 1; font-size: 0.8rem"
                           >
-                            <option value="">Standard</option>
+                            <option value="" data-i18n="model.standard">Standard</option>
                           </select>
                         </div>
                       </div>
@@ -680,9 +708,9 @@
                 </div>
                 <div class="stats-col">
                   <div class="stat-card">
-                    <div class="stat-card-label">System Load</div>
+                    <div class="stat-card-label" data-i18n="model.load">System Load</div>
                     <div class="stat-row">
-                      <span class="stat-row-label">Heap Usage</span>
+                      <span class="stat-row-label" data-i18n="model.heap">Heap Usage</span>
                       <span class="stat-row-value" id="settings-heap">--</span>
                     </div>
                     <div class="stat-bar">
@@ -691,14 +719,14 @@
                     <div class="stat-big">
                       <div class="stat-big-icon">&#9201;</div>
                       <div>
-                        <div class="stat-big-label">Uptime</div>
+                        <div class="stat-big-label" data-i18n="logs.uptime">Uptime</div>
                         <div class="stat-big-value" id="settings-uptime">--</div>
                       </div>
                     </div>
                   </div>
                   <div class="security-card">
                     <div class="security-icon">&#9889;</div>
-                    <div class="security-title">Ausfuehrung</div>
+                    <div class="security-title" data-i18n="model.exec">Ausfuehrung</div>
                     <div class="security-desc" id="security-desc">
                       Aktionen werden lokal ausgefuehrt, LLM-Anfragen gehen an Cloud-API.
                     </div>
@@ -710,36 +738,62 @@
             <!-- Tool Vault -->
             <div class="settings-section" id="settings-tools">
               <div class="tools-header">
-                <div class="settings-section-title">Tool Vault</div>
+                <div class="settings-section-title" data-i18n="settings.tools">Tool Vault</div>
               </div>
               <div class="tools-grid" id="tools-grid">
                 <!-- Filled by JS -->
               </div>
             </div>
 
+            <!-- Notifications -->
+            <div class="settings-section" id="settings-notify">
+              <div class="settings-section-title" data-i18n="settings.notify">Benachrichtigungen</div>
+              <p class="notify-help" data-i18n="notify.help">
+                Welche Hinweise über welchen Weg. Telegram-Knöpfe (Ausführen/Ignorieren) bleiben
+                Telegram. Health nur, wenn es schlechter wurde.
+              </p>
+              <p class="notify-hint" id="notify-ha-hint" hidden></p>
+              <div class="notify-matrix-wrap">
+                <table class="notify-matrix" id="notify-matrix">
+                  <thead>
+                    <tr>
+                      <th data-i18n="notify.col.event">Hinweis</th>
+                      <th data-i18n="notify.col.telegram">Telegram</th>
+                      <th data-i18n="notify.col.chat">Chat</th>
+                      <th data-i18n="notify.col.ha">HA Notify</th>
+                      <th data-i18n="notify.col.persistent">HA persistent</th>
+                    </tr>
+                  </thead>
+                  <tbody id="notify-matrix-body"></tbody>
+                </table>
+              </div>
+            </div>
+
             <!-- Profile -->
             <div class="settings-section" id="settings-profile">
-              <div class="settings-section-title">Profile</div>
+              <div class="settings-section-title" data-i18n="settings.profile">Profile</div>
               <div class="profile-grid">
                 <div class="profile-card">
                   <div class="profile-card-header">
-                    <span class="profile-card-title">Identitaet</span>
+                    <span class="profile-card-title" data-i18n="profile.identity">Identitaet</span>
                   </div>
                   <div class="profile-field">
-                    <label class="profile-label">Bot-Name</label>
+                    <label class="profile-label" data-i18n="profile.bot">Bot-Name</label>
                     <input
                       type="text"
                       class="profile-input"
                       id="profile-bot-name"
+                      data-i18n-placeholder="profile.botPh"
                       placeholder="z.B. Jarvis, Alfred..."
                     />
                   </div>
                   <div class="profile-field">
-                    <label class="profile-label">Dein Name</label>
+                    <label class="profile-label" data-i18n="profile.you">Dein Name</label>
                     <input
                       type="text"
                       class="profile-input"
                       id="profile-user-name"
+                      data-i18n-placeholder="profile.youPh"
                       placeholder="Dein Name"
                     />
                   </div>
@@ -747,23 +801,36 @@
                     class="profile-save-btn"
                     id="profile-save-names"
                     onclick="saveProfileNames()"
+                    data-i18n="profile.save"
                   >
                     Speichern
+                  </button>
+                  <p class="welcome-sub" style="font-size: 0.75rem; margin-top: 0.8rem" data-i18n="profile.exportHelp">
+                    Gespräche, Memory, Tasks und Aktionsprotokoll als JSON. Ohne API-Keys.
+                  </p>
+                  <button
+                    class="profile-save-btn"
+                    id="profile-export"
+                    onclick="exportData()"
+                    style="margin-top: 0.5rem"
+                    data-i18n="profile.export"
+                  >
+                    Daten exportieren
                   </button>
                 </div>
                 <div class="profile-card">
                   <div class="profile-card-header">
-                    <span class="profile-card-title">Persoenlichkeit</span>
-                    <span class="profile-card-hint">Aenderungen werden sofort gespeichert</span>
+                    <span class="profile-card-title" data-i18n="profile.personality">Persoenlichkeit</span>
+                    <span class="profile-card-hint" data-i18n="profile.hint">Aenderungen werden sofort gespeichert</span>
                   </div>
                   <div class="profile-slider-group">
                     <div class="profile-slider-row">
                       <div class="profile-slider-label">
-                        <span>Direktheit</span>
+                        <span data-i18n="profile.directness">Direktheit</span>
                         <span class="profile-slider-value" id="val-directness">4</span>
                       </div>
                       <div class="profile-slider-desc">
-                        <span>Diplomatisch</span><span>Direkt</span>
+                        <span data-i18n="profile.diplomatic">Diplomatisch</span><span data-i18n="profile.direct">Direkt</span>
                       </div>
                       <input
                         type="range"
@@ -776,10 +843,10 @@
                     </div>
                     <div class="profile-slider-row">
                       <div class="profile-slider-label">
-                        <span>Formalitaet</span>
+                        <span data-i18n="profile.formality">Formalitaet</span>
                         <span class="profile-slider-value" id="val-formality">3</span>
                       </div>
-                      <div class="profile-slider-desc"><span>Casual</span><span>Formell</span></div>
+                      <div class="profile-slider-desc"><span data-i18n="profile.casual">Casual</span><span data-i18n="profile.formal">Formell</span></div>
                       <input
                         type="range"
                         class="profile-slider"
@@ -791,11 +858,11 @@
                     </div>
                     <div class="profile-slider-row">
                       <div class="profile-slider-label">
-                        <span>Humor</span>
+                        <span data-i18n="profile.humor">Humor</span>
                         <span class="profile-slider-value" id="val-humor">3</span>
                       </div>
                       <div class="profile-slider-desc">
-                        <span>Sachlich</span><span>Humorvoll</span>
+                        <span data-i18n="profile.matter">Sachlich</span><span data-i18n="profile.funny">Humorvoll</span>
                       </div>
                       <input
                         type="range"
@@ -808,11 +875,11 @@
                     </div>
                     <div class="profile-slider-row">
                       <div class="profile-slider-label">
-                        <span>Ausfuehrlichkeit</span>
+                        <span data-i18n="profile.verbosity">Ausfuehrlichkeit</span>
                         <span class="profile-slider-value" id="val-verbosity">2</span>
                       </div>
                       <div class="profile-slider-desc">
-                        <span>Knapp</span><span>Ausfuehrlich</span>
+                        <span data-i18n="profile.brief">Knapp</span><span data-i18n="profile.verbose">Ausfuehrlich</span>
                       </div>
                       <input
                         type="range"
@@ -854,8 +921,10 @@
         "
       >
         &copy; 2026 HA-Claw &bull; Made with &hearts; for Home Assistant.<br />
-        <strong>Disclaimer:</strong> Dies ist ein KI-Backend. Alle Aktionen werden lokal
+        <span data-i18n="footer.disclaimer">
+        Disclaimer: Dies ist ein KI-Backend. Alle Aktionen werden lokal
         ausgefuehrt. Nutzung auf eigene Gefahr. KI-generierte Antworten koennen ungenau sein.
+        </span>
       </div>
     </footer>
 
@@ -867,10 +936,10 @@
           <button class="modal-close" onclick="closeToolModal()">&#10005;</button>
         </div>
         <div class="modal-body">
-          <div class="detail-label">Beschreibung</div>
+          <div class="detail-label" data-i18n="modal.desc">Beschreibung</div>
           <div class="detail-text" id="tool-detail-desc">--</div>
 
-          <div class="detail-label" style="margin-top: 1rem">Parameter</div>
+          <div class="detail-label" style="margin-top: 1rem" data-i18n="modal.params">Parameter</div>
           <div id="tool-params-list" class="params-list">
             <!-- Filled by JS -->
           </div>

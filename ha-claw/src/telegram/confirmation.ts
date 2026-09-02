@@ -15,6 +15,7 @@ import { InlineKeyboard } from 'grammy';
 import { createLogger } from '../core/logger.js';
 import type { ConfirmationFn } from '../core/agentic-loop.js';
 import { formatPreviewText, type ConfirmPreview } from '../core/config-change.js';
+import { t } from '../core/strings.js';
 
 const log = createLogger('safety-gate');
 
@@ -66,7 +67,7 @@ export function setupConfirmationHandler(bot: Bot): void {
 
     const entry = callbackId ? pendingConfirmations.get(callbackId) : undefined;
     if (!callbackId || !entry) {
-      await ctx.answerCallbackQuery({ text: '⏰ Abgelaufen.' });
+      await ctx.answerCallbackQuery({ text: t('confirm.expired') });
       return;
     }
 
@@ -78,7 +79,7 @@ export function setupConfirmationHandler(bot: Bot): void {
         actual: ctx.from?.id,
       });
       await ctx.answerCallbackQuery({
-        text: 'Nur wer die Aktion ausgelöst hat, kann sie bestätigen.',
+        text: t('confirm.wrongUser'),
         show_alert: true,
       });
       return;
@@ -86,7 +87,7 @@ export function setupConfirmationHandler(bot: Bot): void {
 
     settle(callbackId, decision);
 
-    const verdict = decision ? '✅ Genehmigt' : '❌ Abgelehnt';
+    const verdict = decision ? t('confirm.yes') : t('confirm.no');
     await ctx.answerCallbackQuery({ text: verdict });
 
     // Purely cosmetic: the decision is already applied, so a failed edit
@@ -117,15 +118,15 @@ export function createTelegramConfirmFn(
 
     const previewBlock = preview ? formatPreviewText(preview, 2200) : '';
     const text = previewBlock
-      ? `⚠️ Gefährliche Aktion\n\nTool: ${toolName}\n\n${previewBlock}\n\nGenehmigen?`
-      : `⚠️ *Gefährliche Aktion*\n\n` +
+      ? `${t('confirm.title')}\n\nTool: ${toolName}\n\n${previewBlock}\n\n${t('confirm.approveQ')}`
+      : `${t('confirm.title')}\n\n` +
         `Tool: \`${toolName}\`\n` +
         `Args: \`${JSON.stringify(args).slice(0, 200)}\`\n\n` +
-        `Genehmigen?`;
+        t('confirm.approveQ');
 
     const keyboard = new InlineKeyboard()
-      .text('✅ Ja', `confirm:${callbackId}:yes`)
-      .text('❌ Nein', `confirm:${callbackId}:no`);
+      .text(t('confirm.btnYes'), `confirm:${callbackId}:yes`)
+      .text(t('confirm.btnNo'), `confirm:${callbackId}:no`);
 
     // Tool arguments can contain backticks or underscores that break Telegram's
     // Markdown parser. Losing the safety prompt would be worse than losing the

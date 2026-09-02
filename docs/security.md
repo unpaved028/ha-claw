@@ -141,6 +141,18 @@ This is the honest version. HA-Claw is not local inference.
 messages, for Whisper transcription. This does not route through OpenRouter.
 
 **Sent to Telegram, only if you configured a bot:** the conversation, as Telegram messages.
+Proactive texts (and, for new high-priority tasks, inline Run/Ignore buttons) only when the
+matching Settings → Notifications cell is on.
+
+**Sent to a Home Assistant notify service, only if you set `notify_entity` and the matrix
+cell is on:** the same text, no buttons.
+
+**Sent as `persistent_notification.create`, only if that matrix cell is on:** the same text,
+replacing a stable `notification_id` per event (weekly digest and health cards update in
+place; tasks use the task id).
+
+**Written into the dashboard conversation, only if the Chat cell is on:** the same text as
+an assistant message.
 
 **Stays local:** every service call, all storage, the scheduler, system health checks, the
 action log. The reasoning is remote; the acting is local.

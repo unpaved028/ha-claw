@@ -4,5 +4,7 @@
   "openai_api_key": "",
   "telegram_bot_token": "",
   "telegram_allowed_user_ids": [],
-  "log_level": "debug"
+  "log_level": "debug",
+  "language": "auto",
+  "notify_entity": ""
 }

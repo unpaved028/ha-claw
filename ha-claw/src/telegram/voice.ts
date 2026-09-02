@@ -1,5 +1,7 @@
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
+import { getLanguage } from '../core/locale.js';
+import { t } from '../core/strings.js';
 import type { Context } from 'grammy';
 
 const log = createLogger('voice');
@@ -10,18 +12,18 @@ const log = createLogger('voice');
  */
 export async function processVoiceMessage(ctx: Context): Promise<string | null> {
   if (!appConfig.openaiApiKey) {
-    throw new Error('OpenAI API Key (openai_api_key) ist nicht konfiguriert.');
+    throw new Error(t('voice.noKey'));
   }
 
   const voice = ctx.message?.voice;
   if (!voice) {
-    throw new Error('Keine Sprachnachricht gefunden.');
+    throw new Error(t('voice.noVoice'));
   }
 
   try {
     const file = await ctx.getFile();
     if (!file.file_path) {
-      throw new Error('Dateipfad von Telegram fehlt.');
+      throw new Error(t('voice.noPath'));
     }
 
     const url = `https://api.telegram.org/file/bot${appConfig.telegramBotToken}/${file.file_path}`;
@@ -41,7 +43,7 @@ export async function processVoiceMessage(ctx: Context): Promise<string | null> 
     const blob = new Blob([arrayBuffer], { type: 'audio/ogg' });
     formData.append('file', blob, 'voice.ogg');
     formData.append('model', 'whisper-1');
-    formData.append('language', 'de'); // Optimize for German
+    formData.append('language', getLanguage());
 
     const sttRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -63,6 +65,6 @@ export async function processVoiceMessage(ctx: Context): Promise<string | null> 
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     log.error('STT conversion error', { error: errorMsg });
-    throw new Error(`Spracherkennung fehlgeschlagen: ${errorMsg}`, { cause: err });
+    throw new Error(t('voice.failed', { error: errorMsg }), { cause: err });
   }
 }

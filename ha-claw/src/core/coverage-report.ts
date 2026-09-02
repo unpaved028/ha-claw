@@ -7,6 +7,7 @@
  */
 
 import * as ha from './ha-client.js';
+import { t } from './strings.js';
 
 export type CoverageKind = 'motion_light' | 'cover_sun' | 'leak_notify';
 
@@ -93,7 +94,7 @@ export async function buildCoverageReport(): Promise<CoverageReport> {
           key: `motion_light:${area}`,
           kind: 'motion_light',
           area,
-          detail: `${motion.length} Bewegungsmelder und ${lights.length} Lichter, aber keine Automation die sie verbindet.`,
+          detail: t('coverage.motion', { motion: motion.length, lights: lights.length }),
           entities: involved.slice(0, 12),
           suggestedBlueprint: BLUEPRINT.motion_light,
         });
@@ -118,7 +119,7 @@ export async function buildCoverageReport(): Promise<CoverageReport> {
           key: `cover_sun:${area}`,
           kind: 'cover_sun',
           area,
-          detail: `${covers.length} Cover ohne Sonnen-/Beschattungs-Automation.`,
+          detail: t('coverage.cover', { covers: covers.length }),
           entities: covers.map(s => s.entity_id).slice(0, 12),
           suggestedBlueprint: BLUEPRINT.cover_sun,
         });
@@ -146,7 +147,7 @@ export async function buildCoverageReport(): Promise<CoverageReport> {
           key: `leak_notify:${area}`,
           kind: 'leak_notify',
           area,
-          detail: `${leaks.length} Leck-/Feuchtesensoren ohne Benachrichtigungs-Automation.`,
+          detail: t('coverage.leak', { leaks: leaks.length }),
           entities: leaks.map(s => s.entity_id).slice(0, 12),
           suggestedBlueprint: BLUEPRINT.leak_notify,
         });

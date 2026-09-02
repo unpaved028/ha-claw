@@ -9,6 +9,7 @@ const micBtn = document.getElementById('mic');
   try {
     const r = await fetch(base + '/api/settings');
     const d = await r.json();
+    if (d.language) setUiLang(d.language);
     if (d.profile) {
       if (d.profile.userName) {
         document.getElementById('welcome-name').textContent = d.profile.userName + '.';
@@ -25,18 +26,57 @@ const micBtn = document.getElementById('mic');
   } catch (e) {}
 })();
 
+let historyOffset = 0;
+let historyHasMore = false;
+
+function setHistoryMoreVisible(show) {
+  const el = document.getElementById('history-more');
+  if (!el) return;
+  el.classList.toggle('visible', !!show);
+}
+
 async function loadChatHistory() {
   try {
     const r = await fetch(base + '/api/chat/history');
-    const ms = await r.json();
-    if (ms && ms.length > 0) {
-      msgs.innerHTML = ''; // Clear/Reset
-      ms.forEach(m => {
+    const d = await r.json();
+    const list = Array.isArray(d) ? d : d.messages || [];
+    historyOffset = Array.isArray(d) ? 0 : d.offset ?? 0;
+    historyHasMore = Array.isArray(d) ? false : !!d.hasMore;
+    if (list.length > 0) {
+      msgs.innerHTML = '';
+      list.forEach(m => {
         if (m.role === 'user') addMsg(m.content, 'user', true);
         else if (m.role === 'assistant' && m.content) addMsg(m.content, 'bot', true);
       });
       msgs.scrollTop = msgs.scrollHeight;
     }
+    setHistoryMoreVisible(historyHasMore);
+  } catch (e) {}
+}
+
+async function loadMoreHistory() {
+  if (!historyHasMore || historyOffset <= 0) return;
+  const nextOffset = Math.max(0, historyOffset - 30);
+  const limit = historyOffset - nextOffset;
+  try {
+    const r = await fetch(base + '/api/chat/history?offset=' + nextOffset + '&limit=' + limit);
+    const d = await r.json();
+    const older = d.messages || [];
+    const prevHeight = msgs.scrollHeight;
+    const prevTop = msgs.scrollTop;
+    const existing = msgs.innerHTML;
+    msgs.innerHTML = '';
+    older.forEach(m => {
+      if (m.role === 'user') addMsg(m.content, 'user', true);
+      else if (m.role === 'assistant' && m.content) addMsg(m.content, 'bot', true);
+    });
+    const marker = document.createElement('div');
+    marker.innerHTML = existing;
+    while (marker.firstChild) msgs.appendChild(marker.firstChild);
+    msgs.scrollTop = msgs.scrollHeight - prevHeight + prevTop;
+    historyOffset = d.offset ?? nextOffset;
+    historyHasMore = !!d.hasMore;
+    setHistoryMoreVisible(historyHasMore);
   } catch (e) {}
 }
 
@@ -119,6 +159,9 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 
     if (btn.dataset.page === 'settings') {
       loadSettings();
+    }
+    if (btn.dataset.page === 'chat' && !sendBtn.disabled) {
+      loadChatHistory();
     }
   });
 });
@@ -354,7 +397,7 @@ let isListening = false;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
-  recognition.lang = 'de-DE';
+  recognition.lang = uiLang === 'en' ? 'en-US' : 'de-DE';
   recognition.interimResults = true;
   recognition.continuous = false;
   recognition.maxAlternatives = 1;
@@ -369,12 +412,12 @@ if (SpeechRecognition) {
   recognition.onend = () => {
     isListening = false;
     micBtn.classList.remove('listening');
-    micBtn.title = 'Spracheingabe';
+    micBtn.title = uiT('chat.mic');
   };
   recognition.onerror = e => {
     isListening = false;
     micBtn.classList.remove('listening');
-    if (e.error !== 'aborted') addMsg('Mikrofon-Fehler: ' + e.error, 'bot');
+    if (e.error !== 'aborted') addMsg(uiT('chat.micError') + e.error, 'bot');
   };
 } else {
   micBtn.classList.add('unsupported');
@@ -388,15 +431,15 @@ function toggleMic() {
   }
   isListening = true;
   micBtn.classList.add('listening');
-  micBtn.title = 'Aufnahme... (Klick zum Stoppen)';
+  micBtn.title = uiT('chat.micListen');
   inp.value = '';
-  inp.placeholder = 'Hoere zu...';
+  inp.placeholder = uiT('chat.listening');
   recognition.start();
   recognition.onend = () => {
     isListening = false;
     micBtn.classList.remove('listening');
-    inp.placeholder = 'Nachricht eingeben...';
-    micBtn.title = 'Spracheingabe';
+    inp.placeholder = uiT('chat.placeholder');
+    micBtn.title = uiT('chat.mic');
     if (inp.value.trim()) sendMsg();
   };
 }
@@ -415,7 +458,9 @@ function showTyping() {
   const bubble = document.createElement('div');
   bubble.className = 'msg bot typing';
   bubble.innerHTML =
-    '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">denkt nach...</span></div>';
+    '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">' +
+    uiT('chat.thinking') +
+    '</span></div>';
   group.appendChild(bubble);
   msgs.appendChild(group);
   msgs.scrollTop = msgs.scrollHeight;
@@ -475,7 +520,9 @@ function showConfirmModal(id, toolName, args, preview) {
   if (preview && preview.kind === 'config_write') {
     const blast =
       preview.blastRadius && preview.blastRadius.length
-        ? '<div class="confirm-blast">Wird auch referenziert von:<ul>' +
+        ? '<div class="confirm-blast">' +
+          uiT('confirm.blast') +
+          '<ul>' +
           preview.blastRadius
             .slice(0, 12)
             .map(b => '<li>' + escHtml(b.label) + '</li>')
@@ -483,13 +530,15 @@ function showConfirmModal(id, toolName, args, preview) {
           '</ul></div>'
         : '';
     const missing = preview.currentMissing
-      ? '<p class="confirm-blast">Keine aktuelle Config gefunden (neu oder nur YAML).</p>'
+      ? '<p class="confirm-blast">' + uiT('confirm.missing') + '</p>'
       : '';
     body =
       'Tool <strong>' +
       escHtml(toolName) +
-      '</strong> schreibt ' +
-      escHtml(preview.title || 'eine Config') +
+      '</strong> ' +
+      uiT('confirm.writes') +
+      ' ' +
+      escHtml(preview.title || uiT('confirm.config')) +
       '.' +
       missing +
       renderYamlDiff(preview.yamlDiff) +
@@ -501,23 +550,31 @@ function showConfirmModal(id, toolName, args, preview) {
     body =
       'Tool <strong>' +
       escHtml(toolName) +
-      '</strong> moechte ausgefuehrt werden:<pre>' +
+      '</strong> ' +
+      uiT('confirm.generic') +
+      '<pre>' +
       escHtml(argsStr) +
       '</pre>';
   }
   overlay.innerHTML =
     '<div class="confirm-modal">' +
-    '<div class="confirm-title">Sicherheitsabfrage</div>' +
+    '<div class="confirm-title">' +
+    uiT('confirm.title') +
+    '</div>' +
     '<div class="confirm-body">' +
     body +
     '</div>' +
     '<div class="confirm-actions">' +
     '<button class="confirm-btn approve" onclick="respondConfirm(\'' +
     id +
-    '\',true)">Ausfuehren</button>' +
+    '\',true)">' +
+    uiT('confirm.run') +
+    '</button>' +
     '<button class="confirm-btn deny" onclick="respondConfirm(\'' +
     id +
-    '\',false)">Ablehnen</button>' +
+    '\',false)">' +
+    uiT('confirm.deny') +
+    '</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
 }
@@ -536,7 +593,7 @@ async function respondConfirm(id, approved) {
 
 // ── CIE Deep Analysis quick action ──────────────────────
 function triggerCIE() {
-  inp.value = 'Analysiere mein Zuhause (CIE Deep Analysis)';
+  inp.value = uiT('cie.prompt');
   sendMsg();
 }
 
@@ -557,7 +614,7 @@ function sendMsg(isRetry) {
   sendBtn.disabled = true;
   inp.disabled = true;
 
-  const group = addMsg('<i>Start...</i>', 'bot');
+  const group = addMsg('<i>' + uiT('chat.start') + '</i>', 'bot');
   const bubble = group.querySelector('.msg.bot');
 
   startConfirmPolling();
@@ -571,13 +628,13 @@ function sendMsg(isRetry) {
       bubble.innerHTML =
         '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🤔 ' +
         escHtml(data.message) +
-        ' (Iteration ' +
-        data.iteration +
-        ')...</span></div>';
+        uiT('chat.iteration', { n: data.iteration }) +
+        '</span></div>';
       msgs.scrollTop = msgs.scrollHeight;
     } else if (data.type === 'tool_call') {
       bubble.innerHTML =
-        '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🔧 Führe Tool aus: ' +
+        '<div class="typing-wrap"><div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">🔧 ' +
+        uiT('chat.tool') +
         escHtml(data.toolName) +
         '...</span></div>';
       msgs.scrollTop = msgs.scrollHeight;
@@ -589,7 +646,7 @@ function sendMsg(isRetry) {
       if (data.toolCalls && data.toolCalls.length > 0) {
         const m = document.createElement('div');
         m.className = 'meta';
-        m.textContent = data.toolCalls.length + ' Tool-Aufruf(e)';
+        m.textContent = data.toolCalls.length + uiT('chat.toolCalls');
         bubble.appendChild(m);
       }
       es.close();
@@ -614,9 +671,12 @@ function sendMsg(isRetry) {
       }, 100);
     } else if (data.type === 'error') {
       bubble.innerHTML =
-        '❌ Fehler: ' +
+        '❌ ' +
+        uiT('chat.error') +
         escHtml(data.message) +
-        '<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 Nochmal versuchen</button>';
+        '<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 ' +
+        uiT('chat.retry') +
+        '</button>';
       es.close();
       cleanup();
     }
@@ -625,7 +685,11 @@ function sendMsg(isRetry) {
   es.onerror = function () {
     if (es.readyState === EventSource.CLOSED) return;
     bubble.innerHTML =
-      '❌ Verbindungsfehler zum Server.<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 Nochmal versuchen</button>';
+      '❌ ' +
+      uiT('chat.netFail') +
+      '<br><button style="margin-top:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;" onclick="sendMsg(true)">🔄 ' +
+      uiT('chat.retry') +
+      '</button>';
     es.close();
     cleanup();
   };
@@ -763,42 +827,9 @@ const TOOL_ICONS = {
     '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   ),
 };
-const TOOL_DESCS = {
-  ha_call_service: 'Alltagsgeraete steuern (Licht, Klima, Schalter)',
-  ha_call_service_dangerous: 'Sicherheitskritische Aktionen (Schloss, Alarm)',
-  ha_get_state: 'Zustand eines Geraets abfragen',
-  ha_search_entities: 'Geraete nach Name/Domain suchen',
-  ha_get_config: 'HA Systemkonfiguration lesen',
-  ha_get_all_entities: 'Uebersicht aller Entitaeten',
-  ha_list_areas: 'Alle Bereiche und Stockwerke anzeigen',
-  ha_resolve_group: 'Gruppen in Einzelgeraete aufloesen',
-  ha_get_automation_config: 'Automation-Details lesen (Trigger, Aktionen)',
-  get_current_time: 'Aktuelle Uhrzeit und Datum',
-  get_system_info: 'CPU, RAM, Uptime',
-  store_list: 'Notizen und Eintraege auflisten',
-  store_read: 'Einzelnen Eintrag lesen',
-  store_write: 'Eintrag erstellen oder aktualisieren',
-  store_delete: 'Eintrag loeschen',
-  memory_remember: 'Fakten und Kontext merken',
-  memory_recall: 'Erinnerungen durchsuchen',
-  memory_update: 'Erinnerung aktualisieren',
-  memory_forget: 'Erinnerung loeschen',
-  memory_list: 'Alle Erinnerungen anzeigen',
-  backlog_propose: 'Optimierungsvorschlag erstellen',
-  backlog_list: 'Backlog-Tasks auflisten',
-  backlog_update: 'Backlog-Task aktualisieren',
-  backlog_detail: 'Backlog-Task Details anzeigen',
-  backlog_delete: 'Backlog-Task loeschen',
-  schedule_create: 'Zeitgesteuerten Job erstellen',
-  schedule_list: 'Alle geplanten Jobs anzeigen',
-  schedule_toggle: 'Job aktivieren/deaktivieren',
-  schedule_delete: 'Geplanten Job loeschen',
-  analyze_home: 'Proaktive Smart Home Analyse',
-  learn_correction: 'Korrektur speichern (aus Fehlern lernen)',
-  learn_rule: 'Dauerhafte Regel hinzufuegen',
-  detect_patterns: 'Nutzungsmuster erkennen',
-  list_learned: 'Gelerntes anzeigen (Korrekturen, Regeln, Muster)',
-};
+function toolLabel(name, fallback) {
+  return toolDesc(name) || fallback || uiT('tool.fallback');
+}
 const DANGEROUS_TOOLS = new Set([
   'ha_call_service_dangerous',
   'store_delete',
@@ -811,6 +842,7 @@ async function loadSettings() {
   try {
     const r = await fetch(base + '/api/settings');
     const d = await r.json();
+    if (d.language) setUiLang(d.language);
 
     // Version
     if (d.version) {
@@ -860,7 +892,7 @@ async function loadSettings() {
       }
     }
     if (saved) {
-      document.getElementById('active-model-badge').textContent = 'Browser Override';
+      document.getElementById('active-model-badge').textContent = uiT('model.browserOverride');
       document.getElementById('active-model-badge').style.background = 'var(--success)';
     }
 
@@ -869,7 +901,7 @@ async function loadSettings() {
       [1, 2, 3].forEach(function (lvl) {
         const cSel = document.getElementById('complexity-model-' + lvl);
         if (!cSel) return;
-        cSel.innerHTML = '<option value="">Standard</option>';
+        cSel.innerHTML = '<option value="">' + uiT('model.standard') + '</option>';
         d.availableModels.forEach(function (mid) {
           const opt = document.createElement('option');
           opt.value = mid;
@@ -897,15 +929,13 @@ async function loadSettings() {
 
     // Security
     const secParts = [];
-    if (d.haAvailable) secParts.push('HA API verbunden');
-    else secParts.push('HA API nicht verfuegbar');
-    if (d.telegramConfigured) secParts.push('Telegram aktiv');
-    document.getElementById('security-desc').textContent =
-      'Modus: ' +
-      (d.mode === 'addon' ? 'HA Add-on' : 'Standalone') +
-      '. ' +
-      secParts.join(', ') +
-      '. Aktionen werden lokal ausgefuehrt, LLM-Anfragen gehen an Cloud-API.';
+    if (d.haAvailable) secParts.push(uiT('model.haOk'));
+    else secParts.push(uiT('model.haNo'));
+    if (d.telegramConfigured) secParts.push(uiT('model.tgOk'));
+    document.getElementById('security-desc').textContent = uiT('model.mode', {
+      mode: d.mode === 'addon' ? 'HA Add-on' : 'Standalone',
+      parts: secParts.join(', '),
+    });
 
     // Tools
     const grid = document.getElementById('tools-grid');
@@ -914,7 +944,7 @@ async function loadSettings() {
       const name = tool.name || tool;
       const enabled = tool.enabled !== false;
       const icon = TOOL_ICONS[name] || '&#128295;';
-      const desc = TOOL_DESCS[name] || tool.description || 'Registriertes Tool';
+      const desc = toolLabel(name, tool.description);
       const isDanger = tool.dangerous || DANGEROUS_TOOLS.has(name);
       const complexity = tool.complexity || 1;
       const complexStars = '&#9733;'.repeat(complexity) + '&#9734;'.repeat(3 - complexity);
@@ -933,7 +963,7 @@ async function loadSettings() {
         '" onclick="toggleTool(\'' +
         name +
         '\',this)" title="' +
-        (enabled ? 'Deaktivieren' : 'Aktivieren') +
+        (enabled ? uiT('tool.toggleOn') : uiT('tool.toggleOff')) +
         '"></button>' +
         '</div>' +
         '<div class="tool-card-name">' +
@@ -946,16 +976,18 @@ async function loadSettings() {
         '<span class="tool-card-badge' +
         (isDanger ? ' danger' : '') +
         '">' +
-        (isDanger ? 'Bestaetigung noetig' : 'Safe') +
+        (isDanger ? uiT('tool.confirmNeed') : uiT('tool.safe')) +
         '</span>' +
-        '<span style="font-size:0.7rem;color:var(--accent);letter-spacing:0.1em" title="Komplexitaet ' +
-        complexity +
+        '<span style="font-size:0.7rem;color:var(--accent);letter-spacing:0.1em" title="' +
+        uiT('tool.complexity', { n: complexity }) +
         '">' +
         complexStars +
         '</span>' +
         '<a href="#" onclick="showToolDetails(\'' +
         name +
-        '\');return false" style="font-size:0.65rem;color:var(--text-dim);text-decoration:none;opacity:0.7">Details &rarr;</a>' +
+        '\');return false" style="font-size:0.65rem;color:var(--text-dim);text-decoration:none;opacity:0.7">' +
+        uiT('tool.details') +
+        '</a>' +
         '</div>' +
         '</div>';
     }
@@ -980,9 +1012,85 @@ async function loadSettings() {
       const agentName = document.querySelector('.settings-agent-name');
       if (agentName && d.profile.botName) agentName.textContent = d.profile.botName;
     }
+    loadNotifyMatrix();
   } catch (e) {
     console.error('Settings load failed', e);
   }
+}
+
+let notifyMatrixState = null;
+let notifyEventOrder = [];
+let notifyMatrixMeta = { notifyEntity: null, telegramConfigured: false };
+const NOTIFY_CHANNELS_UI = ['telegram', 'chat', 'ha_notify', 'persistent'];
+
+async function loadNotifyMatrix() {
+  try {
+    const r = await fetch(base + '/api/notify-matrix');
+    const d = await r.json();
+    notifyMatrixState = d.matrix || null;
+    notifyEventOrder = Array.isArray(d.events) ? d.events : Object.keys(d.matrix || {});
+    notifyMatrixMeta = {
+      notifyEntity: d.notifyEntity || null,
+      telegramConfigured: !!d.telegramConfigured,
+    };
+    renderNotifyMatrix();
+  } catch (e) {}
+}
+
+function renderNotifyMatrix() {
+  const body = document.getElementById('notify-matrix-body');
+  if (!body || !notifyMatrixState) return;
+  const hint = document.getElementById('notify-ha-hint');
+  if (hint) {
+    const parts = [];
+    if (!notifyMatrixMeta.telegramConfigured) parts.push(uiT('notify.needTelegram'));
+    parts.push(
+      notifyMatrixMeta.notifyEntity
+        ? uiT('notify.entitySet', { entity: notifyMatrixMeta.notifyEntity })
+        : uiT('notify.needEntity'),
+    );
+    hint.textContent = parts.join(' ');
+    hint.hidden = false;
+  }
+  body.innerHTML = notifyEventOrder
+    .map(function (id) {
+      const flags = notifyMatrixState[id];
+      if (!flags) return '';
+      const sub = id.indexOf('health.') === 0;
+      const cells = NOTIFY_CHANNELS_UI.map(function (ch) {
+        return (
+          '<td><input type="checkbox"' +
+          (flags[ch] ? ' checked' : '') +
+          ' onchange="toggleNotifyCell(\'' +
+          id +
+          '\',\'' +
+          ch +
+          '\',this.checked)"></td>'
+        );
+      }).join('');
+      return (
+        '<tr class="' +
+        (sub ? 'notify-row-sub' : '') +
+        '"><th>' +
+        uiT('notify.row.' + id) +
+        '</th>' +
+        cells +
+        '</tr>'
+      );
+    })
+    .join('');
+}
+
+async function toggleNotifyCell(eventId, channel, on) {
+  if (!notifyMatrixState || !notifyMatrixState[eventId]) return;
+  notifyMatrixState[eventId][channel] = on;
+  try {
+    await fetch(base + '/api/notify-matrix', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matrix: notifyMatrixState }),
+    });
+  } catch (e) {}
 }
 
 // Profile: slider live update + auto-save
@@ -1029,10 +1137,10 @@ async function saveProfileNames() {
     });
     window.botName = botName.toUpperCase();
     window.userName = userName.toUpperCase();
-    btn.textContent = 'Gespeichert!';
+    btn.textContent = uiT('profile.saved');
     btn.classList.add('saved');
     setTimeout(() => {
-      btn.innerHTML = '<span class="icon">&#128190;</span> Speichern';
+      btn.innerHTML = '<span class="icon">&#128190;</span> ' + uiT('profile.save');
       btn.classList.remove('saved');
     }, 1500);
     const agentName = document.querySelector('.settings-agent-name');
@@ -1066,9 +1174,11 @@ function renderBacklog() {
       : allBacklogTasks.filter(t => t.status === backlogFilter);
   if (filtered.length === 0) {
     list.innerHTML =
-      '<div class="backlog-empty">Keine Tasks' +
-      (backlogFilter !== 'all' ? ' mit Status "' + backlogFilter + '"' : '') +
-      ' vorhanden.</div>';
+      '<div class="backlog-empty">' +
+      (backlogFilter !== 'all'
+        ? uiT('tasks.emptyStatus', { status: backlogFilter })
+        : uiT('tasks.empty')) +
+      '</div>';
     return;
   }
   list.innerHTML = filtered
@@ -1121,17 +1231,23 @@ function renderBacklog() {
         '</div></div>' +
         '</div>' +
         (t.solution
-          ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">Vorgeschlagene Loesung</div><pre style="background:var(--bg-input);padding:0.75rem;border-radius:8px;overflow-x:auto;font-size:0.72rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:var(--text-muted)">' +
+          ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">' +
+            uiT('tasks.solution') +
+            '</div><pre style="background:var(--bg-input);padding:0.75rem;border-radius:8px;overflow-x:auto;font-size:0.72rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:var(--text-muted)">' +
             esc(t.solution) +
             '</pre></div>'
           : '') +
         (t.previewResult
-          ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">Vorschau (ohne Schreiben)</div><pre style="background:var(--bg-input);padding:0.75rem;border-radius:8px;overflow-x:auto;font-size:0.72rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:var(--text-muted)">' +
+          ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">' +
+            uiT('tasks.previewLabel') +
+            '</div><pre style="background:var(--bg-input);padding:0.75rem;border-radius:8px;overflow-x:auto;font-size:0.72rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:var(--text-muted)">' +
             esc(t.previewResult) +
             '</pre></div>'
           : '') +
         (t.executionResult
-          ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">Ergebnis</div><div class="backlog-detail-text">' +
+          ? '<div style="margin-top:0.5rem"><div class="backlog-detail-label">' +
+            uiT('tasks.result') +
+            '</div><div class="backlog-detail-text">' +
             esc(t.executionResult) +
             '</div></div>'
           : '') +
@@ -1166,7 +1282,7 @@ function setHealthRefreshBusy(busy) {
   const btn = document.getElementById('health-refresh-btn');
   const label = document.getElementById('health-refresh-label');
   if (btn) btn.disabled = busy;
-  if (label) label.textContent = busy ? 'Prüft…' : 'Neu prüfen';
+  if (label) label.textContent = busy ? uiT('health.refreshing') : uiT('health.refresh');
 }
 
 function scheduleHealthPoll() {
@@ -1190,7 +1306,7 @@ function scheduleHealthPoll() {
         const empty = document.getElementById('health-list');
         if (empty && !empty.querySelector('.health-card')) {
           empty.innerHTML =
-            '<div class="backlog-empty">Noch keine Prüfung. Neu prüfen holt einen frischen Stand.</div>';
+            '<div class="backlog-empty">' + uiT('health.empty') + '</div>';
         }
       }
     } catch (e) {
@@ -1206,7 +1322,7 @@ async function loadSystemHealth(force) {
   if (!hasCards) {
     list.innerHTML =
       '<div class="backlog-empty">' +
-      (force ? 'Prüfe…' : 'Lade letzten Stand…') +
+      (force ? uiT('health.checking') : uiT('health.loading')) +
       '</div>';
   }
   if (force) {
@@ -1224,18 +1340,18 @@ async function loadSystemHealth(force) {
       if (d.checking && !force) scheduleHealthPoll();
       else stopHealthPoll();
     } else if (d.checking) {
-      list.innerHTML = '<div class="backlog-empty">Prüfung läuft im Hintergrund…</div>';
+      list.innerHTML = '<div class="backlog-empty">' + uiT('health.background') + '</div>';
       scheduleHealthPoll();
     } else {
       stopHealthPoll();
       list.innerHTML =
-        '<div class="backlog-empty">Noch keine Prüfung. Neu prüfen holt einen frischen Stand.</div>';
+        '<div class="backlog-empty">' + uiT('health.empty') + '</div>';
     }
   } catch (e) {
     console.error('Health load failed', e);
     if (!hasCards) {
       list.innerHTML =
-        '<div class="backlog-empty">Systemzustand nicht abrufbar. Ist Home Assistant erreichbar?</div>';
+        '<div class="backlog-empty">' + uiT('health.unavailable') + '</div>';
     }
   } finally {
     if (force) setHealthRefreshBusy(false);
@@ -1243,26 +1359,10 @@ async function loadSystemHealth(force) {
 }
 
 function healthItemsSummary(key, n) {
-  const one = {
-    backup: ' letztes Backup',
-    broken_refs: ' Eintrag anzeigen',
-    failed_automations: ' Automation oder Skript anzeigen',
-    failed_integrations: ' Integration anzeigen',
-    pending_updates: ' Update anzeigen',
-    stopped_addons: ' Add-on anzeigen',
-    recorder: ' Hinweis anzeigen',
-  };
-  const many = {
-    backup: ' letzte Backups',
-    broken_refs: ' Einträge anzeigen',
-    failed_automations: ' Automationen und Skripte anzeigen',
-    failed_integrations: ' Integrationen anzeigen',
-    pending_updates: ' Updates anzeigen',
-    stopped_addons: ' Add-ons anzeigen',
-    recorder: ' Hinweise anzeigen',
-  };
-  if (one[key]) return n === 1 ? one[key] : many[key];
-  return n === 1 ? ' Gerät anzeigen' : ' Geräte anzeigen';
+  const kind = ['backup', 'broken_refs', 'failed_automations', 'failed_integrations', 'pending_updates', 'stopped_addons', 'recorder'].includes(key)
+    ? key
+    : 'device';
+  return uiT(n === 1 ? 'health.item.' + kind + '.one' : 'health.item.' + kind + '.many');
 }
 
 function healthHref(base, path) {
@@ -1292,7 +1392,7 @@ function renderHealthItem(item, haBase, orphan) {
   const remove = orphan && item.id
     ? '<button type="button" class="health-orphan-btn" onclick="removeOrphans(JSON.parse(decodeURIComponent(\'' +
       encodeURIComponent(JSON.stringify([item.id])) +
-      "')), this)\">Entfernen</button>"
+      "')), this)\">" + uiT('health.remove') + "</button>"
     : '';
   if (entities.length <= 1) {
     return '<div class="health-device">' + title + remove + '</div>';
@@ -1314,7 +1414,7 @@ function formatHealthWhen(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  return d.toLocaleString(uiDateLocale(), { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function renderHealthTrend(check) {
@@ -1328,7 +1428,7 @@ function renderHealthTrend(check) {
     '<div class="health-trend' +
     (check.worse ? ' worse' : '') +
     '">' +
-    (check.worse ? 'Schlechter als zuvor' : 'Zuletzt anders') +
+    (check.worse ? uiT('health.worse') : uiT('health.changed')) +
     ': ' +
     esc(sevLabel) +
     ' / ' +
@@ -1344,7 +1444,7 @@ function renderHealth(health, checking) {
   const haBase = typeof health.haBase === 'string' ? health.haBase : '';
 
   const checkedAt =
-    formatHealthWhen(health.checkedAt) || new Date(health.checkedAt).toLocaleTimeString('de-DE');
+    formatHealthWhen(health.checkedAt) || new Date(health.checkedAt).toLocaleTimeString(uiDateLocale());
   const cards = health.checks
     .map(c => {
       const items =
@@ -1363,7 +1463,7 @@ function renderHealth(health, checking) {
           : '';
       const cardHref = healthHref(haBase, c.href);
       const openHa = cardHref
-        ? healthLink(cardHref, 'In Home Assistant öffnen', 'health-card-open')
+        ? healthLink(cardHref, uiT('health.openHa'), 'health-card-open')
         : '';
       const aboutBits = [c.about, c.hint, c.note].filter(Boolean);
       const about =
@@ -1396,7 +1496,7 @@ function renderHealth(health, checking) {
         (c.key === 'orphans' && items.length
           ? '<div class="health-orphan-bar"><button type="button" class="health-orphan-btn" onclick="removeOrphans(JSON.parse(decodeURIComponent(\'' +
             encodeURIComponent(JSON.stringify(items.map(i => i.id).filter(Boolean))) +
-            "')), this)\">Alle entfernen</button></div>"
+            "')), this)\">" + uiT('health.removeAll') + '</button></div>'
           : '') +
         about +
         nested +
@@ -1407,9 +1507,10 @@ function renderHealth(health, checking) {
 
   list.innerHTML =
     cards +
-    '<div class="health-meta">Geprüft um ' +
+    '<div class="health-meta">' +
+    uiT('health.checked') +
     checkedAt +
-    (checking ? ' · Prüfung läuft…' : '') +
+    (checking ? uiT('health.running') : '') +
     ' &middot; ' +
     health.totalEntities +
     ' Entities insgesamt</div>';
@@ -1418,23 +1519,21 @@ function renderHealth(health, checking) {
 async function cleanupBacklog(btn) {
   const out = document.getElementById('health-cleanup-result');
   btn.disabled = true;
-  if (out) out.textContent = 'Raeume auf...';
+  if (out) out.textContent = uiT('tasks.cleaning');
   try {
     const r = await fetch(base + '/api/backlog/cleanup', { method: 'POST' });
     const d = await r.json();
     if (out) {
-      out.textContent =
-        d.duplicatesRemoved +
-        ' Duplikate und ' +
-        d.retiredRemoved +
-        ' alte Zustands-Eintraege entfernt, ' +
-        d.remaining +
-        ' Tasks verbleiben.';
+      out.textContent = uiT('tasks.cleanupResult', {
+        dup: d.duplicatesRemoved,
+        retired: d.retiredRemoved,
+        remaining: d.remaining,
+      });
     }
     await loadBacklog();
   } catch (e) {
     console.error('Backlog cleanup failed', e);
-    if (out) out.textContent = 'Aufraeumen fehlgeschlagen.';
+    if (out) out.textContent = uiT('tasks.cleanupFail');
   } finally {
     btn.disabled = false;
   }
@@ -1445,8 +1544,8 @@ async function removeOrphans(itemIds, btn) {
   if (
     !confirm(
       itemIds.length === 1
-        ? 'Dieses Geraet bzw. diese Entities aus Home Assistant entfernen?'
-        : itemIds.length + ' Altlasten aus Home Assistant entfernen?',
+        ? uiT('health.removeConfirmOne')
+        : uiT('health.removeConfirmMany', { n: itemIds.length }),
     )
   ) {
     return;
@@ -1460,12 +1559,12 @@ async function removeOrphans(itemIds, btn) {
     });
     const d = await r.json();
     if (!r.ok) {
-      alert(d.error || 'Entfernen fehlgeschlagen.');
+      alert(d.error || uiT('health.removeFail'));
       return;
     }
     await loadSystemHealth(true);
   } catch (e) {
-    alert('Netzwerkfehler beim Entfernen.');
+    alert(uiT('health.removeNet'));
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -1474,7 +1573,7 @@ async function removeOrphans(itemIds, btn) {
 async function previewBacklogTask(id, btn) {
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'Vorschau...';
+    btn.textContent = uiT('tasks.previewing');
   }
   try {
     const r = await fetch(base + '/api/backlog/' + encodeURIComponent(id) + '/preview', {
@@ -1482,16 +1581,16 @@ async function previewBacklogTask(id, btn) {
     });
     const d = await r.json();
     if (!r.ok) {
-      alert(d.error || 'Vorschau fehlgeschlagen.');
+      alert(d.error || uiT('tasks.previewFail'));
       return;
     }
     await loadBacklog();
   } catch (e) {
-    alert('Netzwerkfehler bei der Vorschau.');
+    alert(uiT('tasks.previewNet'));
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'Vorschau';
+      btn.textContent = uiT('tasks.preview');
     }
   }
 }
@@ -1503,10 +1602,10 @@ async function loadCare(force) {
   const enEl = document.getElementById('care-energy');
   if (!covEl) return;
   if (force || !covEl.dataset.loaded) {
-    if (digestEl) digestEl.textContent = 'Lade Bericht...';
-    covEl.innerHTML = '<div class="backlog-empty">Lade...</div>';
-    namEl.innerHTML = '<div class="backlog-empty">Lade...</div>';
-    enEl.innerHTML = '<div class="backlog-empty">Lade...</div>';
+    if (digestEl) digestEl.textContent = uiT('care.loadingReview');
+    covEl.innerHTML = '<div class="backlog-empty">' + uiT('care.loading') + '</div>';
+    namEl.innerHTML = '<div class="backlog-empty">' + uiT('care.loading') + '</div>';
+    enEl.innerHTML = '<div class="backlog-empty">' + uiT('care.loading') + '</div>';
   }
   try {
     const [review, coverage, naming, energy] = await Promise.all([
@@ -1530,9 +1629,10 @@ async function loadCare(force) {
                 '</div></div></div>',
             )
             .join('')
-        : '<div class="backlog-empty">Keine Luecken in den zugeordneten Bereichen.</div>';
+        : '<div class="backlog-empty">' + uiT('care.noGaps') + '</div>';
     } else {
-      covEl.innerHTML = '<div class="backlog-empty">' + esc(coverage.error || 'Fehler') + '</div>';
+      covEl.innerHTML =
+        '<div class="backlog-empty">' + esc(coverage.error || uiT('care.error')) + '</div>';
     }
     if (naming.proposals) {
       namEl.innerHTML = naming.proposals.length
@@ -1549,17 +1649,18 @@ async function loadCare(force) {
                 esc(p.entityId) +
                 ' · ' +
                 esc(p.area) +
-                (p.currentName ? ' · jetzt: ' + esc(p.currentName) : '') +
+                (p.currentName ? uiT('care.now', { name: esc(p.currentName) }) : '') +
                 '</div></div></label>',
             )
             .join('')
-        : '<div class="backlog-empty">Alle relevanten Entities haben einen Namen.</div>';
+        : '<div class="backlog-empty">' + uiT('care.namedOk') + '</div>';
     } else {
-      namEl.innerHTML = '<div class="backlog-empty">' + esc(naming.error || 'Fehler') + '</div>';
+      namEl.innerHTML =
+        '<div class="backlog-empty">' + esc(naming.error || uiT('care.error')) + '</div>';
     }
     if (energy.rows) {
       const head =
-        '<div class="care-meta">Summe ' + Math.round(energy.totalWatts || 0) + ' W</div>';
+        '<div class="care-meta">' + uiT('care.energySum', { n: Math.round(energy.totalWatts || 0) }) + '</div>';
       enEl.innerHTML =
         head +
         (energy.rows.length
@@ -1575,13 +1676,14 @@ async function loadCare(force) {
                   '</div></div></div>',
               )
               .join('')
-          : '<div class="backlog-empty">Keine Power-/Energy-Sensoren gefunden.</div>');
+          : '<div class="backlog-empty">' + uiT('care.noEnergy') + '</div>');
     } else {
-      enEl.innerHTML = '<div class="backlog-empty">' + esc(energy.error || 'Fehler') + '</div>';
+      enEl.innerHTML =
+        '<div class="backlog-empty">' + esc(energy.error || uiT('care.error')) + '</div>';
     }
     covEl.dataset.loaded = '1';
   } catch (e) {
-    if (digestEl) digestEl.textContent = 'Pflege konnte nicht geladen werden.';
+    if (digestEl) digestEl.textContent = uiT('care.fail');
   }
 }
 
@@ -1591,10 +1693,10 @@ async function applyNamingSelected() {
     name: el.dataset.name,
   }));
   if (!picks.length) {
-    alert('Nichts ausgewaehlt.');
+    alert(uiT('care.noPick'));
     return;
   }
-  if (!confirm(picks.length + ' Namen in der Entity-Registry setzen?')) return;
+  if (!confirm(uiT('care.applyConfirm', { n: picks.length }))) return;
   const btn = document.getElementById('naming-apply-btn');
   if (btn) btn.disabled = true;
   try {
@@ -1605,12 +1707,12 @@ async function applyNamingSelected() {
     });
     const d = await r.json();
     if (!r.ok) {
-      alert(d.error || 'Uebernehmen fehlgeschlagen.');
+      alert(d.error || uiT('care.applyFail'));
       return;
     }
     await loadCare(true);
   } catch (e) {
-    alert('Netzwerkfehler beim Umbenennen.');
+    alert(uiT('care.renameNet'));
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -1622,27 +1724,37 @@ function buildBacklogActions(t) {
     btns.push(
       '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','approved')\">Genehmigen</button>",
+        "','approved')\">" +
+        uiT('tasks.approve') +
+        '</button>',
     );
     btns.push(
       '<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','deferred')\">Zurueckstellen</button>",
+        "','deferred')\">" +
+        uiT('tasks.defer') +
+        '</button>',
     );
     btns.push(
       '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','rejected')\">Ablehnen</button>",
+        "','rejected')\">" +
+        uiT('tasks.reject') +
+        '</button>',
     );
   }
   if (t.status === 'approved') {
     btns.push(
-      '<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; KI erarbeitet Loesung...</span>',
+      '<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; ' +
+        uiT('tasks.working') +
+        '</span>',
     );
     btns.push(
       '<button class="backlog-action-btn" style="color:#fbbf24;border-color:#fbbf24" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','deferred')\">Zurueckstellen</button>",
+        "','deferred')\">" +
+        uiT('tasks.defer') +
+        '</button>',
     );
   }
   if (t.status === 'solution_proposed') {
@@ -1650,59 +1762,79 @@ function buildBacklogActions(t) {
       btns.push(
         '<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="previewBacklogTask(\'' +
           t.id +
-          "', this)\">Vorschau</button>",
+          "', this)\">" +
+          uiT('tasks.preview') +
+          '</button>',
       );
     }
     btns.push(
       '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','solution_approved')\">Loesung genehmigen</button>",
+        "','solution_approved')\">" +
+        uiT('tasks.approveSolution') +
+        '</button>',
     );
     btns.push(
       '<button class="backlog-action-btn" style="color:#63b3ed;border-color:#63b3ed" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','approved')\">Neue Loesung</button>",
+        "','approved')\">" +
+        uiT('tasks.newSolution') +
+        '</button>',
     );
     btns.push(
       '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','rejected')\">Ablehnen</button>",
+        "','rejected')\">" +
+        uiT('tasks.reject') +
+        '</button>',
     );
   }
   if (t.status === 'solution_approved') {
     btns.push(
-      '<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; Wird ausgefuehrt...</span>',
+      '<span style="color:var(--text-muted);font-size:0.72rem;font-style:italic">&#9881; ' +
+        uiT('tasks.running') +
+        '</span>',
     );
   }
   if (t.status === 'executing') {
     btns.push(
-      '<span style="color:#ed8936;font-size:0.72rem;font-style:italic">&#9881; Ausfuehrung laeuft...</span>',
+      '<span style="color:#ed8936;font-size:0.72rem;font-style:italic">&#9881; ' +
+        uiT('tasks.inProgress') +
+        '</span>',
     );
   }
   if (t.status === 'in_progress') {
     btns.push(
       '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','done')\">Abschliessen</button>",
+        "','done')\">" +
+        uiT('tasks.complete') +
+        '</button>',
     );
   }
   if (t.status === 'deferred') {
     btns.push(
       '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','proposed')\">Reaktivieren</button>",
+        "','proposed')\">" +
+        uiT('tasks.reactivate') +
+        '</button>',
     );
     btns.push(
       '<button class="backlog-action-btn reject" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','rejected')\">Ablehnen</button>",
+        "','rejected')\">" +
+        uiT('tasks.reject') +
+        '</button>',
     );
   }
   if (t.status === 'rejected') {
     btns.push(
       '<button class="backlog-action-btn approve" onclick="updateBacklogStatus(\'' +
         t.id +
-        "','proposed')\">Reaktivieren</button>",
+        "','proposed')\">" +
+        uiT('tasks.reactivate') +
+        '</button>',
     );
   }
   if (t.status === 'failed') {
@@ -1712,13 +1844,17 @@ function buildBacklogActions(t) {
         t.id +
         "','" +
         retry +
-        "')\">Erneut versuchen</button>",
+        "')\">" +
+        uiT('tasks.retry') +
+        '</button>',
     );
   }
   btns.push(
     '<button class="backlog-action-btn delete" onclick="deleteBacklogTask(\'' +
       t.id +
-      '\')">Loeschen</button>',
+      '\')">' +
+      uiT('tasks.delete') +
+      '</button>',
   );
   return btns.join('');
 }
@@ -1773,7 +1909,7 @@ async function submitBacklogTask() {
   const priority = document.getElementById('bl-priority').value;
   const category = document.getElementById('bl-category').value;
   if (!title || !asIs || !toBe || !impact) {
-    alert('Bitte alle Felder ausfuellen.');
+    alert(uiT('tasks.fill'));
     return;
   }
   try {
@@ -1806,7 +1942,7 @@ const LEVEL_LABEL = { debug: 'DEBUG', info: 'INFO', warn: 'WARN', error: 'ERROR'
 function fmtTime(iso) {
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return d.toLocaleTimeString(uiDateLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   } catch (e) {
     return '--:--:--';
   }
@@ -1953,7 +2089,7 @@ async function runLogsCmd() {
 
 // ── Action Log ────────────────────────────────────────────
 async function clearActions() {
-  if (!confirm('Moechten Sie den Aktionsverlauf wirklich leeren?')) return;
+  if (!confirm(uiT('logs.clearConfirm'))) return;
   try {
     await fetch(base + '/api/actions', { method: 'DELETE' });
     loadActions();
@@ -1975,12 +2111,12 @@ async function rollbackAction(event, id) {
     if (r.ok) {
       loadActions();
     } else {
-      alert('Rollback fehlgeschlagen.');
+      alert(uiT('logs.rollbackFail'));
       btn.textContent = originalText;
       btn.disabled = false;
     }
   } catch (e) {
-    alert('Netzwerkfehler beim Rollback.');
+    alert(uiT('logs.rollbackNet'));
     btn.textContent = originalText;
     btn.disabled = false;
   }
@@ -1992,7 +2128,7 @@ async function loadActions() {
     const r = await fetch(base + '/api/actions');
     const d = await r.json();
     if (!d.actions || d.actions.length === 0) {
-      list.innerHTML = '<div class="backlog-empty">Noch keine Aktionen aufgezeichnet.</div>';
+      list.innerHTML = '<div class="backlog-empty">' + uiT('logs.noActions') + '</div>';
       return;
     }
     list.innerHTML = d.actions
@@ -2013,8 +2149,8 @@ async function loadActions() {
 
         const rollbackLabel =
           a.rollback && a.rollback.domain === 'config' && a.rollback.service === 'restore'
-            ? 'Zuruecksetzen'
-            : 'Rollback';
+            ? uiT('logs.restore')
+            : uiT('logs.rollback');
         const rollbackBtn = a.rollback
           ? '<button class="action-rollback" onclick="rollbackAction(event, \'' +
             a.id +
@@ -2048,7 +2184,7 @@ async function loadActions() {
       })
       .join('');
   } catch (e) {
-    list.innerHTML = '<div class="backlog-empty">Fehler beim Laden der Aktionen.</div>';
+    list.innerHTML = '<div class="backlog-empty">' + uiT('logs.actionsFail') + '</div>';
   }
 }
 
@@ -2071,9 +2207,9 @@ async function toggleTool(name, btn) {
     btn.classList.toggle('on', enabling);
     const card = document.getElementById('tc-' + name);
     if (card) card.classList.toggle('disabled', !enabling);
-    btn.title = enabling ? 'Deaktivieren' : 'Aktivieren';
+    btn.title = enabling ? uiT('tool.toggleOn') : uiT('tool.toggleOff');
   } catch (e) {
-    alert('Fehler: ' + e.message);
+    alert(uiT('net.error') + e.message);
   } finally {
     btn.disabled = false;
   }
@@ -2083,9 +2219,9 @@ async function toggleTool(name, btn) {
 async function showToolDetails(name) {
   document.getElementById('tool-detail-name').textContent = name;
   document.getElementById('tool-detail-desc').textContent =
-    TOOL_DESCS[name] || 'Registriertes System-Tool.';
+    toolDesc(name) || uiT('tool.fallback');
   const paramsList = document.getElementById('tool-params-list');
-  paramsList.innerHTML = '<div class="backlog-empty">Lade Parameter...</div>';
+  paramsList.innerHTML = '<div class="backlog-empty">' + uiT('modal.loading') + '</div>';
   document.getElementById('tool-modal').classList.add('active');
 
   try {
@@ -2104,17 +2240,17 @@ async function showToolDetails(name) {
             (info.type || 'any') +
             '</span></div>' +
             '<div class="param-desc">' +
-            (info.description || 'Keine Beschreibung.') +
+            (info.description || uiT('modal.noDesc')) +
             '</div>' +
             '</div>'
           );
         })
         .join('');
     } else {
-      paramsList.innerHTML = '<div class="backlog-empty">Keine Parameter definiert.</div>';
+      paramsList.innerHTML = '<div class="backlog-empty">' + uiT('modal.none') + '</div>';
     }
   } catch (e) {
-    paramsList.innerHTML = '<div class="backlog-empty">Fehler beim Laden der Tool-Details.</div>';
+    paramsList.innerHTML = '<div class="backlog-empty">' + uiT('modal.fail') + '</div>';
   }
 }
 
@@ -2144,12 +2280,30 @@ async function updateModelOverride() {
     body: JSON.stringify({ modelOverride: val }),
   });
   const badge = document.getElementById('active-model-badge');
-  badge.textContent = 'Browser Override';
+  badge.textContent = uiT('model.browserOverride');
   badge.style.background = 'var(--success)';
 
   // Update current display
   document.getElementById('active-model-name').textContent = val.split('/').pop();
   document.getElementById('active-model-id').textContent = val;
+}
+
+async function exportData() {
+  try {
+    const r = await fetch(base + '/api/export');
+    if (!r.ok) throw new Error(String(r.status));
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ha-claw-export.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert(uiT('profile.exportFail'));
+  }
 }
 
 async function saveComplexityModels() {

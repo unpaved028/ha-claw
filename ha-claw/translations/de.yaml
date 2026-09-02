@@ -36,3 +36,13 @@ configuration:
     description: >-
       Wie ausführlich das Add-on protokolliert. Für eine Fehlermeldung auf debug stellen;
       dann stehen auch alle Werkzeug-Parameter und -Ergebnisse im Protokoll.
+  language:
+    name: Sprache
+    description: >-
+      Sprache von System-Prompt, Web-UI und Telegram. auto folgt der Home-Assistant-Locale
+      (Deutsch bleibt Deutsch; alles andere wird Englisch). en und de erzwingen die Sprache.
+  notify_entity:
+    name: Notify-Entity
+    description: >-
+      Optional. Volle Entity-ID, zum Beispiel notify.mobile_app_pixel. Wird von der Spalte
+      HA Notify unter Settings → Benachrichtigungen benutzt. Leer lassen zum Abschalten.

@@ -42,6 +42,12 @@ interface AppConfig {
   // Logging
   logLevel: 'debug' | 'info' | 'warn' | 'error';
 
+  /** `auto` follows Home Assistant locale; `en` / `de` override it. */
+  language: 'auto' | 'en' | 'de';
+
+  /** Full `notify.*` entity id, or null when unset. */
+  notifyEntity: string | null;
+
   // Runtime flags
   isAddon: boolean;
 }
@@ -57,6 +63,8 @@ interface AddonOptions {
   telegram_bot_token: string;
   telegram_allowed_user_ids: string | number[] | number;
   log_level: string;
+  language?: string;
+  notify_entity?: string;
 }
 
 /** Parse user IDs from string "123,456", array [123,456], or single number 123. */
@@ -102,6 +110,8 @@ function loadConfig(): AppConfig {
           .filter(Boolean)
           .map(Number),
         log_level: process.env['LOG_LEVEL'] ?? 'info',
+        language: process.env['HA_CLAW_LANGUAGE'] ?? 'auto',
+        notify_entity: process.env['HA_CLAW_NOTIFY_ENTITY'] ?? '',
       };
     }
   }
@@ -140,6 +150,16 @@ function loadConfig(): AppConfig {
     dataPath: isAddon ? '/data' : (process.env['HA_CLAW_DATA_PATH'] ?? './data'),
 
     logLevel: (options.log_level || 'info') as AppConfig['logLevel'],
+    language: (() => {
+      const s = String(options.language ?? 'auto')
+        .toLowerCase()
+        .trim();
+      return s === 'en' || s === 'de' || s === 'auto' ? s : 'auto';
+    })(),
+    notifyEntity: (() => {
+      const s = String(options.notify_entity ?? '').trim();
+      return s || null;
+    })(),
     isAddon,
   });
 }

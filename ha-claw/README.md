@@ -57,14 +57,16 @@ Full instructions, day-to-day usage, system health explanations and troubleshoot
 
 ## Configuration
 
-| Option                      | Required    | Description                                                |
-| --------------------------- | ----------- | ---------------------------------------------------------- |
-| `openrouter_api_key`        | yes         | API key from [openrouter.ai](https://openrouter.ai)        |
-| `openrouter_default_model`  | no          | Default `anthropic/claude-haiku-4.5`                       |
-| `openai_api_key`            | no          | Separate OpenAI key, only for Telegram voice transcription |
-| `telegram_bot_token`        | no          | Token from [@BotFather](https://t.me/BotFather)            |
-| `telegram_allowed_user_ids` | conditional | Comma-separated user IDs; required with a bot token        |
-| `log_level`                 | no          | `debug`, `info`, `warn`, `error`                           |
+| Option                      | Required    | Description                                                      |
+| --------------------------- | ----------- | ---------------------------------------------------------------- |
+| `openrouter_api_key`        | yes         | API key from [openrouter.ai](https://openrouter.ai)              |
+| `openrouter_default_model`  | no          | Default `anthropic/claude-haiku-4.5`                             |
+| `openai_api_key`            | no          | Separate OpenAI key, only for Telegram voice transcription       |
+| `telegram_bot_token`        | no          | Token from [@BotFather](https://t.me/BotFather)                  |
+| `telegram_allowed_user_ids` | conditional | Comma-separated user IDs; required with a bot token              |
+| `log_level`                 | no          | `debug`, `info`, `warn`, `error`                                 |
+| `language`                  | no          | `auto` (HA locale), `en`, or `de`                                |
+| `notify_entity`             | no          | Full `notify.*` id; HA Notify column in Settings → Notifications |
 
 ## Security
 

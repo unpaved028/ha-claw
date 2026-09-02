@@ -8,6 +8,7 @@ import { buildNamingReport } from './naming-hygiene.js';
 import { buildEnergyReport } from './energy-attribution.js';
 import { listTasks } from '../storage/backlog.js';
 import { createJob, listJobs, updateJob } from '../storage/scheduler.js';
+import { t } from './strings.js';
 
 export const WEEKLY_DIGEST_NAME = 'Wochenbericht';
 
@@ -58,22 +59,26 @@ export async function buildWeeklyDigest(): Promise<HomeReview> {
   const watts = Math.round(energy?.totalWatts ?? 0);
 
   const lines = [
-    'Wöchentlicher Hausbericht',
+    t('digest.title'),
     '',
-    `Systemzustand: ${health?.severity ?? 'n/a'} (${critical} rot, ${warn} gelb)`,
-    `Automationslücken: ${gaps}`,
-    `Namen ohne friendly_name: ${names}`,
-    `Aktuelle Leistung (Summe der Power-Sensoren): ${watts} W`,
-    `Offene Tasks: ${open}`,
+    t('digest.health', {
+      severity: health?.severity ?? 'n/a',
+      critical,
+      warn,
+    }),
+    t('digest.gaps', { n: gaps }),
+    t('digest.names', { n: names }),
+    t('digest.watts', { n: watts }),
+    t('digest.tasks', { n: open }),
   ];
   if (coverage && coverage.gaps.length > 0) {
-    lines.push('', 'Lücken:');
+    lines.push('', t('digest.gapList'));
     for (const g of coverage.gaps.slice(0, 8)) {
       lines.push(`- ${g.area}: ${g.detail}`);
     }
   }
   if (energy && energy.rows[0]?.watts != null) {
-    lines.push('', 'Größte Verbraucher:');
+    lines.push('', t('digest.topLoads'));
     for (const r of energy.rows.filter(x => x.watts != null).slice(0, 5)) {
       lines.push(`- ${r.label}: ${Math.round(r.watts!)} W`);
     }

@@ -6,6 +6,41 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## 1.3.0
+
+Language, Home Assistant notifications, data export and chat history pagination.
+
+### Added
+
+- **Language option** `auto` / `en` / `de`. `auto` follows the Home Assistant locale: German
+  stays German; any other locale is English. Prompt, Web UI, Telegram copy and Whisper
+  transcription follow that choice.
+- **English system prompt** (`agents/main.en.md`, `agents/onboarding.en.md`) and English Web UI.
+- **Notification matrix** under Settings → Notifications. Rows are weekly digest, tasks,
+  other scheduler jobs, a bundled health regression, and one row per System Health card.
+  Columns are Telegram, Chat, HA Notify (`notify_entity`) and `persistent_notification`.
+  Defaults keep Telegram on for the events that already went there; Chat, HA Notify and
+  persistent start off. Per-check health rows start off so they do not duplicate the bundle.
+- **Data export** under Settings → Profile: conversations, memory, tasks and the action log
+  as JSON. No API keys.
+- **Chat history pagination.** The dashboard loads the last 30 messages and offers **Load
+  older messages**. The on-disk cap is 100 (was 20).
+
+### Changed
+
+- `GET /api/chat/history` returns `{ messages, total, offset, limit, hasMore }` instead of a
+  bare array.
+- Proactive messages follow the matrix instead of always fanning out to Telegram and
+  `notify_entity`.
+
+### Fixed
+
+- **Memory search matched substrings and used two score cutoffs.** Query `art` scored a hit
+  inside `start`. Content now uses the same whole-token match as tags and titles. Cards with
+  no keyword overlap are dropped even if recency or category would have pushed them over the
+  threshold. `searchCards` is the only cutoff (0.5); the 0.1 filter in the agentic loop is
+  gone.
+
 ## 1.2.0
 
 Safe change management and the maintenance layer that were listed as v1.1 and v1.2.

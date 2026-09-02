@@ -86,6 +86,7 @@ Local data is written to `ha-claw/data/store/`, mirroring `/data/store/` in the 
 | --- | --- |
 | `src/web/ui/dashboard.html` | `src/web/dashboard.ts` |
 | `src/web/ui/style.css` | ↑ |
+| `src/web/ui/i18n.js` | ↑ |
 | `src/web/ui/client.js` | ↑ |
 
 Then regenerate:

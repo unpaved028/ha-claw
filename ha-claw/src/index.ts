@@ -15,7 +15,7 @@ import { appConfig } from './core/config.js';
 import { createLogger } from './core/logger.js';
 import { isHAAvailable } from './core/ha-client.js';
 import { buildEntityCache } from './core/entity-cache.js';
-import { loadProfile, getProfile } from './core/profile.js';
+import { loadProfile } from './core/profile.js';
 import { initStorage } from './storage/json-store.js';
 import { initMemoryCards } from './storage/memory-cards.js';
 import { initBacklog } from './storage/backlog.js';
@@ -31,11 +31,16 @@ import { getToolNames, applyDisabledTools } from './tools/registry.js';
 import { startWebServer, closeWebServer, buildAgent } from './web/server.js';
 import { runAgenticLoop } from './core/agentic-loop.js';
 import { createBot, startBot } from './telegram/bot.js';
-import { setupProactiveNotifications, sendProactiveMessage } from './telegram/notifications.js';
+import { setupProactiveNotifications } from './telegram/notifications.js';
+import { isHaNotifyConfigured, parseNotifyEntity } from './core/ha-notify.js';
+import { dispatchNotify } from './core/notify-dispatch.js';
+import { isNotifyEventId } from './core/notify-matrix.js';
 import { onNewHighPriorityTask } from './storage/backlog.js';
 import { onExecutionFinished } from './storage/backlog-processor.js';
 import { runAnalysis } from './core/proactive-analysis.js';
 import { getSystemHealth, findHealthRegressions } from './core/system-health.js';
+import { refreshLanguage } from './core/locale.js';
+import { t } from './core/strings.js';
 import { InlineKeyboard } from 'grammy';
 
 const log = createLogger('main');
@@ -98,6 +103,9 @@ async function main(): Promise<void> {
 
   log.info('All tools registered', { tools: getToolNames() });
 
+  const language = await refreshLanguage();
+  log.info('Language resolved', { language, option: appConfig.language });
+
   // Step 5: Web server (always – needed for Ingress)
   await startWebServer();
 
@@ -107,6 +115,14 @@ async function main(): Promise<void> {
     await startBot(telegramBot);
   } else {
     log.info('Telegram not configured – bot disabled');
+  }
+
+  if (appConfig.notifyEntity && !parseNotifyEntity(appConfig.notifyEntity)) {
+    log.warn('notify_entity is set but is not a notify.* entity id — HA notify disabled', {
+      value: appConfig.notifyEntity,
+    });
+  } else if (isHaNotifyConfigured()) {
+    log.info('HA notify configured', { entity: appConfig.notifyEntity });
   }
 
   process.on('SIGINT', () => {
@@ -124,25 +140,10 @@ async function main(): Promise<void> {
         ? (await buildWeeklyDigest()).text
         : (await runAgenticLoop(job.message, buildAgent())).response;
 
-    const currentProfile = getProfile();
-    if (telegramBot && currentProfile.telegramChatId) {
-      try {
-        if (response.length <= 4096) {
-          await telegramBot.api
-            .sendMessage(currentProfile.telegramChatId, response, { parse_mode: 'Markdown' })
-            .catch(() => telegramBot!.api.sendMessage(currentProfile.telegramChatId!, response));
-        } else {
-          for (let i = 0; i < response.length; i += 4096) {
-            await telegramBot.api.sendMessage(
-              currentProfile.telegramChatId,
-              response.slice(i, i + 4096),
-            );
-          }
-        }
-        log.info('Proactive notification sent via Telegram', { jobId: job.id });
-      } catch (err) {
-        log.warn('Failed to send Telegram notification', { jobId: job.id, error: String(err) });
-      }
+    if (job.kind === 'digest') {
+      await dispatchNotify('digest', response, { notificationId: 'ha_claw_digest' });
+    } else {
+      await dispatchNotify('other_jobs', response, { notificationId: `ha_claw_job_${job.id}` });
     }
 
     return response;
@@ -153,32 +154,38 @@ async function main(): Promise<void> {
   initBacklogProcessor(buildAgent);
 
   // Step 9: Proactive Analysis Loop & Push Hooks
-  if (telegramBot) {
-    onNewHighPriorityTask(task => {
-      const kb = new InlineKeyboard()
-        .text('✅ Ausführen', `task:fast_track:${task.id}`)
-        .text('❌ Ignorieren', `task:reject:${task.id}`);
+  // The Settings notify matrix decides which channels fire; hooks always run.
+  onNewHighPriorityTask(task => {
+    const kb = new InlineKeyboard()
+      .text(t('push.taskRun'), `task:fast_track:${task.id}`)
+      .text(t('push.taskIgnore'), `task:reject:${task.id}`);
 
-      const msg = `⚠️ *Proaktive Warnung: ${task.title}*\n\n*Ist-Zustand:* ${task.asIs}\n*Soll-Zustand:* ${task.toBe}`;
-      sendProactiveMessage(msg, kb).catch(err =>
-        log.error('Failed to send push', { error: String(err) }),
+    const msg = t('push.newTask', { title: task.title, asIs: task.asIs, toBe: task.toBe });
+    dispatchNotify('new_task', msg, {
+      telegramMarkup: kb,
+      notificationId: `ha_claw_task_${task.id}`,
+    }).catch(err => log.error('Failed to send push', { error: String(err) }));
+  });
+
+  onExecutionFinished(task => {
+    if (task.status === 'done') {
+      const msg = t('push.taskDone', {
+        title: task.title,
+        result: String(task.executionResult || t('push.noResult')).substring(0, 1000),
+      });
+      dispatchNotify('task_done', msg, { notificationId: `ha_claw_task_${task.id}` }).catch(err =>
+        log.error('Failed to send finish push', { error: String(err) }),
       );
-    });
-
-    onExecutionFinished(task => {
-      if (task.status === 'done') {
-        const msg = `✅ *Aufgabe erledigt:* ${task.title}\n\n*Ergebnis:*\n${String(task.executionResult || 'Ohne Rückmeldung').substring(0, 1000)}`;
-        sendProactiveMessage(msg).catch(err =>
-          log.error('Failed to send finish push', { error: String(err) }),
-        );
-      } else {
-        const msg = `❌ *Fehler bei Aufgabe:* ${task.title}\n\n*Details:*\n${String(task.executionResult || 'Unbekannt').substring(0, 1000)}`;
-        sendProactiveMessage(msg).catch(err =>
-          log.error('Failed to send error push', { error: String(err) }),
-        );
-      }
-    });
-  }
+    } else {
+      const msg = t('push.taskFail', {
+        title: task.title,
+        result: String(task.executionResult || t('push.unknown')).substring(0, 1000),
+      });
+      dispatchNotify('task_fail', msg, { notificationId: `ha_claw_task_${task.id}` }).catch(err =>
+        log.error('Failed to send error push', { error: String(err) }),
+      );
+    }
+  });
 
   analysisTimer = setInterval(
     async () => {
@@ -190,7 +197,7 @@ async function main(): Promise<void> {
       }
 
       try {
-        await reportHealthRegressions(Boolean(telegramBot));
+        await reportHealthRegressions();
       } catch (err) {
         log.error('Health check failed', { error: String(err) });
       }
@@ -215,19 +222,30 @@ async function main(): Promise<void> {
  * hour is noise, so findHealthRegressions only returns checks that escalated
  * in severity or at least doubled since the last message.
  */
-async function reportHealthRegressions(hasTelegram: boolean): Promise<void> {
+async function reportHealthRegressions(): Promise<void> {
   const health = await getSystemHealth();
   const regressions = await findHealthRegressions(health);
 
-  if (regressions.length === 0 || !hasTelegram) return;
+  if (regressions.length === 0) return;
 
   const body = regressions
     .map(r => `*${r.label}: ${r.short ?? r.count}*\n${r.detail}\n_${r.hint}_`)
     .join('\n\n');
 
-  await sendProactiveMessage(`🩺 *Systemzustand verschlechtert*\n\n${body}`).catch(err =>
-    log.error('Failed to send health push', { error: String(err) }),
-  );
+  await dispatchNotify('health_bundle', `${t('push.healthWorse')}\n\n${body}`, {
+    notificationId: 'ha_claw_health',
+  }).catch(err => log.error('Failed to send health push', { error: String(err) }));
+
+  for (const r of regressions) {
+    const text = `*${r.label}: ${r.short ?? r.count}*\n${r.detail}\n_${r.hint}_`;
+    const event = `health.${r.key}`;
+    if (!isNotifyEventId(event)) continue;
+    await dispatchNotify(event, `${t('push.healthWorse')}\n\n${text}`, {
+      notificationId: `ha_claw_health_${r.key}`,
+    }).catch(err =>
+      log.error('Failed to send health-check push', { error: String(err), key: r.key }),
+    );
+  }
 }
 
 async function shutdown(sig: string): Promise<void> {

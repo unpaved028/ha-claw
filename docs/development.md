@@ -105,6 +105,7 @@ model list agreement between `config.yaml` and `src/core/models.ts`.
 | --- | --- |
 | `src/web/ui/dashboard.html` | Structure and placeholders |
 | `src/web/ui/style.css` | Themes and layout |
+| `src/web/ui/i18n.js` | German and English UI copy |
 | `src/web/ui/client.js` | Chat, SSE handling, settings, tasks, health |
 
 ```bash
@@ -120,12 +121,16 @@ must be inlined into one HTML response.
 and the next bundle run rewrites the entire file, producing a 4,400-line phantom diff.
 
 `dashboard.html` and `client.js` are in `.prettierignore`. Formatting them is a legitimate
-change, but it should be its own commit rather than noise inside a feature diff.
+change, but it should be its own commit rather than noise inside a feature diff. `i18n.js` is
+formatted with the rest of the TypeScript/JavaScript sources.
 
 ## Editing the system prompt
 
-[`ha-claw/agents/main.md`](../ha-claw/agents/main.md) is the agent's behaviour. It is written
-in **German**, because it shapes what the end user reads.
+[`ha-claw/agents/main.md`](../ha-claw/agents/main.md) (German) and
+[`ha-claw/agents/main.en.md`](../ha-claw/agents/main.en.md) (English) are the agent's
+behaviour. Which file is loaded follows the `language` option (see
+[configuration.md](configuration.md)). Keep the two in sync for behaviour; only the
+wording differs.
 
 Two placeholders are filled at runtime and must survive any edit:
 
@@ -137,8 +142,8 @@ Two placeholders are filled at runtime and must survive any edit:
 Do not hand-maintain a tool list in the prompt. That is exactly what drifted until v0.9.2,
 when 11 registered tools were missing from it and the model did not know it could use them.
 
-Other prompts: `onboarding.md` (setup conversation, restricted tool set), `cie.md` (deep
-analysis), `KI-Systemarchitekt.md`.
+Other prompts: `onboarding.md` / `onboarding.en.md` (setup conversation, restricted tool set),
+`cie.md` (deep analysis), `KI-Systemarchitekt.md`.
 
 ## Adding a tool
 
@@ -190,6 +195,7 @@ redacted by pattern, which is best-effort — check before pasting a log into an
 | LLM calls refused | `GET /api/status/circuit-breaker` |
 | Costs look wrong | `/status` in Telegram; cost is estimated from a model→price table, not billed usage |
 | System Health looks stale | Last report is cached. `POST /api/system-health/refresh` or Status → Refresh |
+| Proactive message missing | Settings → Notifications matrix, plus `GET /api/notify-matrix` |
 
 The dashboard's Status section surfaces most of this without curl.
 

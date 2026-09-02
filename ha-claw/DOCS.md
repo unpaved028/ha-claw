@@ -76,14 +76,16 @@ Requires Home Assistant OS or Supervised on `aarch64` or `amd64`.
 
 Open the **Configuration** tab of the add-on.
 
-| Option                      | Required | Default                      | What it does                                                                                            |
-| --------------------------- | -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `openrouter_api_key`        | **yes**  | —                            | Your key from [openrouter.ai](https://openrouter.ai). The add-on will not start without it.             |
-| `openrouter_default_model`  | no       | `anthropic/claude-haiku-4.5` | Which language model to use. Changeable later in the Web UI without a restart.                          |
-| `openai_api_key`            | no       | —                            | A separate OpenAI key. **Only** needed for transcribing Telegram voice messages. Leave empty otherwise. |
-| `telegram_bot_token`        | no       | —                            | Enables the Telegram bot.                                                                               |
-| `telegram_allowed_user_ids` | see note | —                            | Who may use the bot. **Required** once a token is set — the add-on refuses to start otherwise.          |
-| `log_level`                 | no       | `info`                       | Set to `debug` when reporting a problem.                                                                |
+| Option                      | Required | Default                      | What it does                                                                                                                                           |
+| --------------------------- | -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `openrouter_api_key`        | **yes**  | —                            | Your key from [openrouter.ai](https://openrouter.ai). The add-on will not start without it.                                                            |
+| `openrouter_default_model`  | no       | `anthropic/claude-haiku-4.5` | Which language model to use. Changeable later in the Web UI without a restart.                                                                         |
+| `openai_api_key`            | no       | —                            | A separate OpenAI key. **Only** needed for transcribing Telegram voice messages. Leave empty otherwise.                                                |
+| `telegram_bot_token`        | no       | —                            | Enables the Telegram bot.                                                                                                                              |
+| `telegram_allowed_user_ids` | see note | —                            | Who may use the bot. **Required** once a token is set — the add-on refuses to start otherwise.                                                         |
+| `log_level`                 | no       | `info`                       | Set to `debug` when reporting a problem.                                                                                                               |
+| `language`                  | no       | `auto`                       | Language of prompt, Web UI and Telegram. `auto` follows the Home Assistant locale (`de` stays German; anything else is English). `en` / `de` force it. |
+| `notify_entity`             | no       | —                            | Full `notify.*` entity (e.g. `notify.mobile_app_pixel`). Target for the HA Notify column in Settings → Notifications.                                  |
 
 ### Choosing a model
 
@@ -109,7 +111,9 @@ Forge**: a cheap model for looking things up, a stronger one for writing automat
 
 ## Setting up Telegram
 
-Optional, but it is how you get notifications and how you reach your home from outside.
+Optional. Telegram is how you reach your home from outside. Which proactive messages go
+where (Telegram, the dashboard chat, a `notify_entity`, or Home Assistant persistent
+notifications) is the matrix under **Settings → Notifications**.
 
 **1. Create the bot.** Open [@BotFather](https://t.me/BotFather) in Telegram, send
 `/newbot`, follow the prompts. Copy the token it gives you into `telegram_bot_token`.
@@ -129,7 +133,8 @@ Prefer a private chat unless you want everyone in a group chat to be able to unl
 
 Telegram voice notes are transcribed with OpenAI Whisper. That needs its own key in
 `openai_api_key` — it does **not** go through OpenRouter. Without the key, the bot replies to
-voice notes with a note explaining that; text messages are unaffected.
+voice notes with a note explaining that; text messages are unaffected. Whisper uses the same
+language as the UI (`de` or `en`).
 
 ## First run
 
@@ -196,21 +201,28 @@ understands your home.
 Three sections in the top navigation.
 
 **Chat** — the conversation. Progress is shown live: which tool is running, what it found,
-when it is done. There is a microphone button for voice input (browser-based, German).
+when it is done. The last 30 messages load first; **Load older messages** fetches earlier
+turns. At most 100 messages are kept on disk. There is a microphone button for voice input
+(browser-based; language follows the UI).
 
 **Status** — four tabs:
 
 - _System Health_ — the standing checks described below.
-- _Pflege_ — coverage gaps, name proposals and live power, as one report.
+- _Pflege_ (Care in the English UI) — coverage gaps, name proposals and live power, as one report.
 - _Tasks_ — improvement proposals awaiting your decision.
 - _Logs_ — the add-on log and, under Actions, every service call with a rollback button.
 
-**Settings** — three sections:
+**Settings** — four sections:
 
 - _Model Forge_ — the default model and one model per complexity tier.
 - _Tool Vault_ — switch individual capabilities on and off. A disabled tool is not offered to
   the assistant at all. Turning off the dangerous ones makes HA-Claw read-only.
-- _Profile_ — names and conversational style.
+- _Notifications_ — which notices go to Telegram, the dashboard chat, a Home Assistant
+  `notify` entity, or `persistent_notification`. Telegram stays on for the events that
+  already went there; the other columns start off. Health per-check rows start off so they
+  do not duplicate the bundled health notice.
+- _Profile_ — names, conversational style, and a JSON export of conversations, memory, tasks
+  and the action log (no API keys).
 
 Changes take effect on your next message. No restart.
 
@@ -274,10 +286,10 @@ A task is something that gets finished. A handful of permanently unreachable dev
 normal state of many installations, and as a task it would sit in the list forever. So these
 are computed live and displayed as conditions instead. They are also in `/status` in Telegram.
 
-Telegram only messages you when something gets **worse** — when a check changes level
-(green → yellow → red) or when its count has at least doubled since the last message. That
-second rule is what catches a genuine new outage in an installation that is permanently red.
-Improvements are recorded silently.
+Telegram (and the other channels ticked under **Settings → Notifications**) only message you
+when something gets **worse** — when a check changes level (green → yellow → red) or when its
+count has at least doubled since the last message. That second rule is what catches a genuine
+new outage in an installation that is permanently red. Improvements are recorded silently.
 
 If devices stay in the list forever, they are usually leftovers from hardware you removed.
 The **Unreachable for 30 days** card has **Remove** / **Remove all**. That deletes the device
@@ -296,8 +308,9 @@ is no undo.
 - **Power** — existing `device_class: power` / `energy` sensors, summed in watts.
 
 A **Wochenbericht** job is created automatically (`weekly sun 10:00`). It sends this digest
-to Telegram when the bot is set up. It does not run the assistant. You can disable or delete
-the job like any other schedule.
+on the channels ticked for the weekly digest under **Settings → Notifications** (Telegram is
+on by default). It does not run the assistant. You can disable or delete the job like any
+other schedule.
 
 ## Tasks
 
@@ -338,7 +351,8 @@ decisions (approved, rejected, deferred) are left untouched.
 > Turn off the basement light in 10 minutes.
 > At 14:30, tell me the cake is done.
 
-Delivered through Telegram. Relative delays (`5m`, `2h`, `1h30m`) and absolute times
+Delivered on the channels ticked for other scheduled jobs under **Settings → Notifications**
+(Telegram is on by default). Relative delays (`5m`, `2h`, `1h30m`) and absolute times
 (`14:30`, today or tomorrow) both work.
 
 **Recurring jobs** run through the assistant, so they can do anything a message can:
@@ -446,7 +460,7 @@ Everything lives in `/data/store/` and is included in Home Assistant backups aut
 
 | Folder                      | Contents                                                                      |
 | --------------------------- | ----------------------------------------------------------------------------- |
-| `conversations/`            | Chat history, shared between the Web UI and Telegram                          |
+| `conversations/`            | Chat history, shared between the Web UI and Telegram. Last 100 messages kept. |
 | `memory/`                   | Long-term memory cards                                                        |
 | `notes/`                    | Notes                                                                         |
 | `backlog/`                  | Tasks                                                                         |
@@ -454,6 +468,7 @@ Everything lives in `/data/store/` and is included in Home Assistant backups aut
 | `scheduler.json`            | Reminders and recurring jobs                                                  |
 | `actions.jsonl`             | Action log with rollback data, kept for 7 days                                |
 | `profile.json`              | Names, conversational style, model choices                                    |
+| `notify-matrix.json`        | Which notices go to Telegram, Chat, HA Notify and persistent_notification     |
 | `system-health.json`        | Last-seen values (so the screen can say what changed) and last notified state |
 | `system-health-report.json` | Last full System Health report shown on the Status screen                     |
 

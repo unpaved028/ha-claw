@@ -118,7 +118,9 @@ Three collections only: `notes`, `conversations`, `memory`.
 
 ### Memory
 
-Long-term memory cards, retrieved by keyword relevance and injected into the system prompt.
+Long-term memory cards, retrieved by whole-token keyword match (title, tags, content) and
+injected into the system prompt. Recency and category only rank cards that already matched a
+token. The cutoff is 0.5 in `searchCards`; the agentic loop does not apply a second threshold.
 
 | Tool | Dangerous | Description |
 | --- | --- | --- |
@@ -171,8 +173,9 @@ closes, overdue jobs are jittered by up to 60 seconds so they do not all hit the
 once.
 
 Jobs may carry `kind: "digest"`. Those skip the agentic loop and send the weekly home
-review (`home-review.ts`). Startup seeds a **Wochenbericht** job (`weekly sun 10:00`) if
-none exists.
+review (`home-review.ts`) through the Settings notification matrix. Startup seeds a
+**Wochenbericht** job (`weekly sun 10:00`) if none exists. The job name stays German so
+existing installs keep matching it.
 
 ### Analysis and learning
 
