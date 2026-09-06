@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "fastify": "^5.2.1",
-    "grammy": "^1.35.0"
+    "grammy": "^1.46.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
