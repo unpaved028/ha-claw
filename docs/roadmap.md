@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.3.0**. Last reviewed: 2026-09-02.
+Current version: **1.3.0**. Last reviewed: 2026-09-06.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -9,13 +9,13 @@ roadmap that lists every possible feature is not a roadmap.
 - [What HA-Claw is for](#what-ha-claw-is-for)
 - [Where it fits](#where-it-fits)
 - [Where the effort goes](#where-the-effort-goes)
-- [Now — 0.9.x](#now--09x)
+- [Now — first hour and discovery](#now--first-hour-and-discovery)
 - [v1.0.0 — Trust and hardening](#v100--trust-and-hardening)
 - [v1.1 / v1.2 — shipped](#v11--v12--shipped)
 - [v1.3 — shipped](#v13--shipped)
 - [Exploratory](#exploratory)
 - [Deliberately not doing](#deliberately-not-doing)
-- [Open questions](#open-questions)
+- [Decided questions](#decided-questions)
 - [How this document is maintained](#how-this-document-is-maintained)
 
 ## What HA-Claw is for
@@ -62,37 +62,50 @@ you about it.
 Everything on this roadmap either extends that caretaking capability or builds the trust
 required to let it run.
 
-**Actively developed** — proactive analysis, system health, the task approval workflow, and
-safe authoring and refactoring of automations. These are the parts that do work you would
-otherwise never get around to.
+**Actively developed** — the first hour: screenshots of Status / Care / the weekly digest,
+a Home Assistant community thread, and pre-built images so install does not compile
+TypeScript on a Raspberry Pi. New analysis modules wait for feedback from people running
+the add-on.
 
-**Maintained rather than expanded** — conversational device control, the chat dashboard and
-the Telegram bot. They work, bugs get fixed, and pull requests improving them are welcome.
-They are simply not where new capability is planned, because Assist covers that ground well
-and a second implementation of it would help nobody.
+**Maintained rather than expanded** — the caretaking stack that shipped in 1.0–1.3
+(health, Care, safe writes, tasks, weekly digest), plus conversational device control, the
+chat dashboard and the Telegram bot. They work, bugs get fixed, and pull requests improving
+them are welcome. Assist already covers "turn on the light"; a second implementation of it
+would help nobody.
 
-**The bottleneck is trust, not capability.** An assistant that can rewrite your automations is
-only useful if you are willing to let it. The safety-policy table test pins the allowlist;
-[v1.0.0](#v100--trust-and-hardening) shipped the rest of that trust work.
-[v1.2.0](../ha-claw/CHANGELOG.md#120) shipped safe config writes and the maintenance
-layer. [v1.3.0](../ha-claw/CHANGELOG.md#130) shipped language, notifications, export and
-pagination. Product work continues from [Exploratory](#exploratory) and the
-[open questions](#open-questions).
+**The bottleneck is discovery, not capability.** Trust work through [v1.0.0](#v100--trust-and-hardening)
+and [v1.2.0](../ha-claw/CHANGELOG.md#120) was the previous bottleneck; that cut shipped.
+A new visitor should understand this is a caretaker, not a second Assist.
+[Now](#now--first-hour-and-discovery) is that gap. [Exploratory](#exploratory) stays parked.
 
 ---
 
-## Now — 0.9.x
+## Now — first hour and discovery
 
-The leftover correctness items shipped in [v0.9.6](../ha-claw/CHANGELOG.md#096). Health
-cards shipped in [v0.9.7](../ha-claw/CHANGELOG.md#097). The rest of that screen — sort
-by severity, expandable explanations, last-seen trend, deep links into Home Assistant,
-stopped add-ons, recorder, restored-only entities, disabled-entity count, failed scripts,
-and a YAML coverage note on broken references — shipped in
-[v0.10.0](../ha-claw/CHANGELOG.md#0100). The trust cut shipped in
-[v1.0.0](../ha-claw/CHANGELOG.md#100). Safe writes and the maintenance layer shipped in
-[v1.2.0](../ha-claw/CHANGELOG.md#120). Language, Home Assistant notifications, data export
-and chat history pagination shipped in [v1.3.0](../ha-claw/CHANGELOG.md#130). Next is
-[Exploratory](#exploratory).
+Capability through [v1.3.0](../ha-claw/CHANGELOG.md#130) is enough to be useful. The next
+problems are not missing analysis modules.
+
+1. **Visitors need to see the product.** The add-on store blurb used to say "Local
+   AI-powered Smart Home Assistant". That was wrong on local and wrong on the product.
+   Copy on the GitHub landing page, the add-on description, GitHub About and the
+   dashboard welcome now state the caretaker job. Screenshots of Status, Care and the
+   weekly digest are still missing.
+
+2. **Install still compiles on the user's machine.** There is no `image:` key, so a
+   Raspberry Pi builds TypeScript on first install.
+
+3. **There is not yet a community.home-assistant.io thread.** Directory listings are not
+   that channel. One Share-your-Projects post is the next distribution step.
+
+Do these before any item under [Exploratory](#exploratory). Local models are the one
+exploratory item that is also an install question; start them after that forum thread
+has replies.
+
+Shipped earlier and recorded in the changelog, not here: health cards and the Status
+screen ([v0.9.6](../ha-claw/CHANGELOG.md#096)–[v0.10.0](../ha-claw/CHANGELOG.md#0100)),
+the trust cut ([v1.0.0](../ha-claw/CHANGELOG.md#100)), safe writes and Care
+([v1.2.0](../ha-claw/CHANGELOG.md#120)), language, notifications, export and pagination
+([v1.3.0](../ha-claw/CHANGELOG.md#130)).
 
 ## v1.0.0 — Trust and hardening
 
@@ -131,7 +144,7 @@ Not scheduled. Listed so they are not rediscovered as new ideas.
   other agents use them. Neither is urgent, both are directionally right.
 - **Local models for tier 1.** Routing cheap state queries to Ollama would cut cost and keep
   routine traffic in the house. Tool-calling quality on small local models is the open
-  question.
+  question. Start this after the community forum thread has replies.
 - **Multi-user.** Whitelisted Telegram users are all-or-nothing today. Per-user permissions
   only matter once households actually share an installation.
 - **Memory vector search.** Worth doing at roughly 1,000 cards. Realistic counts are dozens.
@@ -153,19 +166,22 @@ Saying no is the useful half of a roadmap.
 | **Cloud sync, accounts, hosted anything** | The whole point is that it runs on your hardware. |
 | **A plugin or skill marketplace** | Interesting at ten times the current user base. Maintenance burden today. |
 
-## Open questions
+## Decided questions
 
-Genuinely undecided. Input welcome in
-[Discussions](https://github.com/unpaved028/ha-claw/discussions).
+Decided 2026-09-06. Left here so they are not reopened as new ideas. Further input:
+[Discussions](https://github.com/unpaved028/ha-claw/discussions) or
+[Issues](https://github.com/unpaved028/ha-claw/issues).
 
-1. **Should the conversation stay the primary interface?** If the value is maintenance, the
-   primary surface might be a report you read weekly, with chat as the way to ask follow-up
-   questions. That is a different product shape.
-2. **How autonomous should it be allowed to be?** The task workflow currently requires two
-   approvals. For low-risk fixes — adding a friendly name, enabling an automation that was
-   accidentally disabled — is one approval enough? Is zero, with a good undo?
-3. **Is Telegram the right channel long term?** It works and it reaches you outside the house,
-   but it is a dependency on a third party for something Home Assistant can do natively.
+1. **The conversation is not the primary interface.** Status, Care and the weekly digest
+   are. Chat is how you ask why a card is red and how you approve work. The default tab
+   stays Chat only because onboarding is a conversation; after that, the docs send people
+   to Status.
+2. **Two approvals stay for config writes.** Naming apply and orphan remove stay one-click.
+   Zero-approval automations are out: trust is still the reason someone would let this
+   rewrite YAML, and undo is not a substitute for reading the diff.
+3. **Telegram is optional outbound, not the long-term channel.** [v1.3.0](../ha-claw/CHANGELOG.md#130)
+   shipped HA `notify` and `persistent_notification`. No further Telegram features. Bugs
+   in the existing bot still get fixed.
 
 ## How this document is maintained
 

@@ -2,10 +2,11 @@
 const I18N = {
   de: {
     'welcome.hello': 'Willkommen,',
-    'welcome.sub': 'Alle Systeme synchronisiert. Was darf ich steuern?',
+    'welcome.sub':
+      'Ich halte deine Installation im Blick. Frag nach einem Befund, oder öffne Status → Pflege.',
     'welcome.cie': 'Zuhause analysieren',
     'welcome.cieTitle': 'KI-gestützte Tiefenanalyse deines Zuhauses starten',
-    'chat.placeholder': 'Nachricht eingeben...',
+    'chat.placeholder': 'Nach einem Befund oder einer Lücke fragen…',
     'chat.mic': 'Spracheingabe',
     'chat.micListen': 'Aufnahme... (Klick zum Stoppen)',
     'chat.listening': 'Hoere zu...',
@@ -271,10 +272,11 @@ const I18N = {
   },
   en: {
     'welcome.hello': 'Welcome,',
-    'welcome.sub': 'All systems in sync. What should I control?',
+    'welcome.sub':
+      'I keep an eye on your installation. Ask about a finding, or open Status → Care.',
     'welcome.cie': 'Analyse home',
     'welcome.cieTitle': 'Start an AI-assisted deep analysis of your home',
-    'chat.placeholder': 'Type a message...',
+    'chat.placeholder': 'Ask about a finding or a gap…',
     'chat.mic': 'Voice input',
     'chat.micListen': 'Recording... (click to stop)',
     'chat.listening': 'Listening...',

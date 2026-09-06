@@ -2,7 +2,9 @@
 
 HA-Claw is a TypeScript (ESM) application running as a Home Assistant add-on. It talks to
 Home Assistant through the Supervisor API, serves a Web UI over Ingress, and optionally runs
-a Telegram bot. Two runtime dependencies: `fastify` and `grammy`.
+a Telegram bot. Two runtime dependencies: `fastify` and `grammy`. The product is a caretaker
+for the installation — health, coverage gaps, approved automation edits. Chat and Telegram
+are how you reach it.
 
 - [Runtime shape](#runtime-shape)
 - [Repository layout](#repository-layout)
@@ -88,7 +90,6 @@ conversation record, so a question asked in the sidebar can be followed up from 
     │   ├── onboarding.md        # German setup conversation prompt
     │   ├── onboarding.en.md     # English setup conversation prompt
     │   ├── cie.md               # Continuous Improvement Engine prompt
-    │   ├── KI-Systemarchitekt.md
     │   └── skills/ha-best-practices/   # 7 reference files (incl. blueprints.md)
     └── src/
         ├── index.ts             # Boot sequence

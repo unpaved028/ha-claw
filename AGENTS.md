@@ -18,9 +18,12 @@ Read this before your first edit. The [documentation map](#documentation-map) is
 
 ## What this project is
 
-HA-Claw is a Home Assistant add-on: a TypeScript (ESM) agent that talks to Home Assistant
-through the Supervisor API, serves a Web UI over Ingress, and optionally runs a Telegram bot.
-It has an agentic loop with tool calling, and it can control devices and rewrite automations.
+HA-Claw is a Home Assistant add-on that maintains and improves an installation: health
+checks, coverage gaps, and approved automation edits. Chat and Telegram are how you reach
+it, not the product. It is TypeScript (ESM), talks to Home Assistant through the Supervisor
+API, serves a Web UI over Ingress, and optionally runs a Telegram bot. It has an agentic
+loop with tool calling. Device control exists and is maintained; Assist covers that ground
+better, so do not expand it.
 
 Read [`docs/architecture.md`](docs/architecture.md) before making a structural change and
 [`docs/roadmap.md`](docs/roadmap.md) before proposing a feature. The roadmap says which areas

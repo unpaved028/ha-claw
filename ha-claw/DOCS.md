@@ -24,8 +24,16 @@ _Deutsche Fassung: [DOCS.de.md](DOCS.de.md)_
 
 ## What HA-Claw does
 
-HA-Claw is an AI assistant that lives in your Home Assistant sidebar. You talk to it in
-ordinary language and it does three kinds of thing:
+HA-Claw is an assistant that lives in your Home Assistant sidebar and looks after the
+installation. Chat is how you ask follow-up questions and approve work. It does three kinds
+of thing:
+
+**It looks after your installation.** In the background it checks for devices that went
+offline, sensors that stopped reporting, batteries running down, backups that have not run,
+and disk space running out. Separately, it looks for improvements — a room with motion sensors
+but no motion-light automation, a thermostat set to 24 °C in July, windows open while the
+heating runs — and proposes them for your approval. Status, Care and the weekly digest are
+the surfaces you read. Chat is the follow-up.
 
 **It answers questions about your home.** Not just "what is the temperature" but "is a window
 open upstairs", "what does the hallway motion automation actually do", "which devices are in
@@ -33,12 +41,7 @@ the living room group". It knows your floors, areas, entities and their current 
 
 **It controls devices, and checks that it worked.** After every service call it reads the
 entity state again. If the light did not turn on, it tells you instead of claiming success.
-
-**It looks after your installation.** In the background it checks for devices that went
-offline, sensors that stopped reporting, batteries running down, backups that have not run,
-and disk space running out. Separately, it looks for improvements — a room with motion sensors
-but no motion-light automation, a thermostat set to 24 °C in July, windows open while the
-heating runs — and proposes them for your approval.
+If all you want is voice control, Assist is the better tool.
 
 It can also write automations and scripts. That always requires your explicit confirmation.
 
@@ -149,11 +152,28 @@ conversation rather than a form:
 Answer in normal language; it extracts what it needs. Afterwards it introduces its
 capabilities and offers to set up a weekly automated home analysis.
 
+After that first conversation, **Status** is the daily surface — health cards, Care, and
+tasks. Chat is for follow-up questions and approvals.
+
 You can change all of it later under **Settings → Profile**.
 
 ## Talking to it
 
-Some things worth trying, so you get a feel for what it is capable of:
+Some things worth trying, so you get a feel for what it is capable of. Start with
+improvement and understanding; device control is there, but Assist covers that ground
+better.
+
+**Improvement**
+
+> Analyse my home.
+> Is there anything I should fix?
+> Set up an automation that closes the blinds at sunset.
+
+**Understanding your setup**
+
+> What does the "hallway motion light" automation actually do?
+> Which devices are in the living room group?
+> Why did the heating turn on this morning?
 
 **Questions about state**
 
@@ -167,18 +187,6 @@ Some things worth trying, so you get a feel for what it is capable of:
 > Turn off the lights in the basement.
 > Set the living room to 21 degrees.
 > Close all the blinds on the south side.
-
-**Understanding your setup**
-
-> What does the "hallway motion light" automation actually do?
-> Which devices are in the living room group?
-> Why did the heating turn on this morning?
-
-**Improvement**
-
-> Analyse my home.
-> Is there anything I should fix?
-> Set up an automation that closes the blinds at sunset.
 
 **Reminders**
 
@@ -198,12 +206,7 @@ understands your home.
 
 ## The dashboard
 
-Three sections in the top navigation.
-
-**Chat** — the conversation. Progress is shown live: which tool is running, what it found,
-when it is done. The last 30 messages load first; **Load older messages** fetches earlier
-turns. At most 100 messages are kept on disk. There is a microphone button for voice input
-(browser-based; language follows the UI).
+Three sections in the top navigation. After onboarding, start on **Status**.
 
 **Status** — four tabs:
 
@@ -211,6 +214,11 @@ turns. At most 100 messages are kept on disk. There is a microphone button for v
 - _Pflege_ (Care in the English UI) — coverage gaps, name proposals and live power, as one report.
 - _Tasks_ — improvement proposals awaiting your decision.
 - _Logs_ — the add-on log and, under Actions, every service call with a rollback button.
+
+**Chat** — follow-up questions and approvals. Progress is shown live: which tool is running,
+what it found, when it is done. The last 30 messages load first; **Load older messages**
+fetches earlier turns. At most 100 messages are kept on disk. There is a microphone button
+for voice input (browser-based; language follows the UI).
 
 **Settings** — four sections:
 

@@ -22,7 +22,7 @@ the Documentation tab: [`ha-claw/DOCS.md`](../ha-claw/DOCS.md) —
 | --- | --- |
 | [development.md](development.md) | Local setup, dashboard build pipeline, debugging, conventions |
 | [releasing.md](releasing.md) | Version bump and release checklist |
-| [roadmap.md](roadmap.md) | Product vision, what is planned, and what is deliberately deferred |
+| [roadmap.md](roadmap.md) | Product vision, the first-hour/discovery cut, and what is deliberately deferred |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to get a change merged |
 | [../AGENTS.md](../AGENTS.md) | Instructions for AI coding agents, including the documentation map |
 

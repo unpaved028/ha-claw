@@ -4,12 +4,13 @@
 
 # HA-Claw
 
-**Ein KI-Agent für Home Assistant zum Reden — als Add-on, nicht als Cloud-Dienst.**
+**Ein Home-Assistant-Add-on, das deine Installation pflegt — keine zweite Sprachassistenz.**
 
-Sprich mit deinem Zuhause in normaler Sprache, über die Home-Assistant-Seitenleiste oder
-Telegram. HA-Claw kennt deine Stockwerke, Bereiche und Entities, ruft in deinem Namen
-Home-Assistant-Dienste auf, prüft nach, ob die Aktion wirklich gewirkt hat, und fragt nach,
-bevor es etwas anfasst, das dich aussperren oder einen Alarm auslösen könnte.
+Home Assistant ist gut im Ausführen. Es ist nicht dafür gebaut, sich um sich selbst zu
+kümmern. HA-Claw achtet auf Drift: Geräte, die offline gegangen sind, Automationen, die
+nach einer Umbenennung still kaputt sind, Batterien, Backups und Räume mit Sensoren aber
+ohne Automation. Es schlägt Fixes vor, die du freigibst. Chat, in der Seitenleiste oder
+über Telegram, ist der Weg für Rückfragen.
 
 [![CI](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml/badge.svg)](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml)
 [![Lizenz: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -29,21 +30,23 @@ bevor es etwas anfasst, das dich aussperren oder einen Alarm auslösen könnte.
 
 ## Was es macht
 
-Die meisten Sprach- und Chat-Integrationen bilden einen Satz auf genau eine vordefinierte
-Absicht ab. HA-Claw fährt stattdessen eine **agentische Schleife**: Das Sprachmodell kann
-deine Entities durchsuchen, die Konfiguration einer Automation lesen, einen Dienst aufrufen,
-den daraus entstandenen Zustand prüfen und dann entscheiden, was als Nächstes zu tun ist —
-bis zu zehn Schritte pro Anfrage. Das ist der Unterschied zwischen „schalte das Küchenlicht
-an" und *„im Wohnzimmer ist es kalt, steht irgendwo ein Fenster offen?"*
+Status, Pflege und der Wochenbericht sind das Produkt. Chat ist der Weg, nachzufragen warum
+eine Karte rot ist oder einen Vorschlag freizugeben. Wenn du nur „Küchenlicht an" willst,
+nimm Assist — das ist schneller, billiger und privater.
+
+Wenn du doch fragst, fährt HA-Claw eine **agentische Schleife**: Entities suchen,
+Automation lesen, Dienst aufrufen, Zustand prüfen, nächsten Schritt entscheiden — bis zu
+zehn Mal. So beantwortet es *„im Wohnzimmer ist es kalt, steht irgendwo ein Fenster offen?"*
+statt einen Satz auf eine vordefinierte Absicht abzubilden.
 
 | | |
 | --- | --- |
+| **Behält das Langweilige im Blick** | Nicht erreichbare Geräte, Sensoren die nicht mehr melden, Batterien unter 20 %, Backup-Alter und freier Speicherplatz — Live-Prüfungen, keine Aufgabenliste die nie leer wird. |
+| **Schlägt Verbesserungen vor** | Energieverschwendung, Sicherheitslücken, fehlende Rollladen-Automationen und Namensdrift, als prüfbare Aufgaben. |
+| **Fragt, bevor es gefährlich wird** | Schlösser, Alarmanlagen, Skripte, Buttons, Garagentore und Änderungen an Automationen laufen über eine Bestätigung: Inline-Tastatur in Telegram, Dialog in der Web-UI. |
 | **Kennt die Struktur deines Zuhauses** | Stockwerk → Bereich → Entity, Auflösung von Gruppen, Sensorsuche über `device_class`. Der Agent weiß, *welches* Fenster offen ist, nicht nur dass irgendein `binary_sensor` auf `on` steht. |
 | **Handelt und prüft nach** | Jeder Dienstaufruf erfasst den Zustand vor und nach der Aktion. Hat das Gerät nicht reagiert, sagt der Agent das — statt Erfolg zu behaupten. |
-| **Fragt, bevor es gefährlich wird** | Schlösser, Alarmanlagen, Skripte, Buttons, Garagentore und Änderungen an Automationen laufen über eine Bestätigung: Inline-Tastatur in Telegram, Dialog in der Web-UI. |
 | **Zwei Oberflächen, ein Gespräch** | Dashboard in der Seitenleiste und Telegram-Bot lesen und schreiben denselben Verlauf. |
-| **Behält das Langweilige im Blick** | Nicht erreichbare Geräte, Sensoren die nicht mehr melden, Batterien unter 20 %, Backup-Alter und freier Speicherplatz — als Live-Prüfungen, nicht als Aufgabenliste, die nie leer wird. |
-| **Schlägt Verbesserungen vor** | Eine regelmäßige Analyse sucht nach Energieverschwendung, Sicherheitslücken, fehlenden Rollladen-Automationen und uneinheitlicher Benennung und legt sie als prüfbare Aufgaben an. |
 | **Lernt dazu** | Korrekturen, wiederkehrende Muster und frühere Tool-Fehler fließen in den System-Prompt zurück. |
 
 ## Vor der Installation

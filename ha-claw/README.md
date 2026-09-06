@@ -1,32 +1,31 @@
 # HA-Claw
 
-**A conversational AI agent that helps you run, maintain and improve your Home Assistant
-installation.**
+**An add-on that maintains and improves your Home Assistant installation, rather than one
+that only operates your lights.**
 
-Ask it questions in plain language, from the sidebar or from Telegram. It knows your floors,
-areas and entities, calls Home Assistant services on your behalf, verifies that the action
-actually took effect, and asks before it touches anything that could lock you out or set off
-an alarm.
+It watches the things nobody tracks: devices that went offline, sensors that stopped
+reporting, batteries running down, a backup that has not run in two weeks. It looks for
+improvements — energy waste, security gaps, missing automations — and proposes them for
+your approval instead of acting on its own.
 
-Beyond answering questions, it watches the things nobody tracks: devices that went offline,
-sensors that stopped reporting, batteries running down, a backup that has not run in two
-weeks. It looks for improvements — energy waste, security gaps, missing automations — and
-proposes them for your approval instead of acting on its own.
+Chat, in the sidebar or Telegram, is how you ask follow-up questions. It knows your floors,
+areas and entities, can call services and check that they took effect, and asks before it
+touches anything that could lock you out or set off an alarm.
 
 ## Highlights
 
-- **Multi-step reasoning.** Up to ten search-act-verify steps per request, so it can answer
-  "the living room feels cold, is a window open somewhere?" and not just "turn on the light".
-- **Acts, then checks.** Every service call compares the entity state before and after. If the
-  device did not react, it says so.
-- **Asks before it does damage.** Locks, alarms, scripts, buttons, garage doors and automation
-  edits require your confirmation every time.
-- **One conversation, two surfaces.** The sidebar dashboard and the Telegram bot share the
-  same chat history.
 - **System health at a glance.** Unreachable devices, stale sensors, low batteries, backup age
   and free disk space — with a notification only when something gets _worse_.
 - **Improvement proposals.** Seven analysis modules look for energy waste, security gaps,
   missing cover automations and naming drift.
+- **Asks before it does damage.** Locks, alarms, scripts, buttons, garage doors and automation
+  edits require your confirmation every time.
+- **Multi-step reasoning.** Up to ten search-act-verify steps per request, so it can answer
+  "the living room feels cold, is a window open somewhere?" and not just "turn on the light".
+- **Acts, then checks.** Every service call compares the entity state before and after. If the
+  device did not react, it says so.
+- **One conversation, two surfaces.** The sidebar dashboard and the Telegram bot share the
+  same chat history.
 - **Automations and scripts.** Reads them, explains them in plain language, and — with your
   approval — writes them, guided by a built-in Home Assistant best-practice knowledge base.
 - **Reminders and schedules.** "Remind me in 30 minutes to take the bins out" or a weekly

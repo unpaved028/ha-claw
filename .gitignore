@@ -28,7 +28,17 @@ desktop.ini
 
 # ── Local agent/tool state ────────────────────────────────────
 .claude/settings.local.json
+ha-claw/.claude/settings.local.json
 .cursor/rules/*.local.mdc
+
+# Cursor canvases are local analysis, not add-on source.
+**/*.canvas.tsx
+**/*.canvas.data.json
+
+# Unpublished design briefs. Runtime prompts are main.md / main.en.md
+# and the onboarding pair. A local copy of the old architect brief lives
+# under .agents/ (already ignored above).
+ha-claw/agents/KI-Systemarchitekt.md
 
 # ── Scratch & report artifacts ────────────────────────────────
 coverage/

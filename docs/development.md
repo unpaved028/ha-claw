@@ -142,8 +142,8 @@ Two placeholders are filled at runtime and must survive any edit:
 Do not hand-maintain a tool list in the prompt. That is exactly what drifted until v0.9.2,
 when 11 registered tools were missing from it and the model did not know it could use them.
 
-Other prompts: `onboarding.md` / `onboarding.en.md` (setup conversation, restricted tool set),
-`cie.md` (deep analysis), `KI-Systemarchitekt.md`.
+Other prompts: `onboarding.md` / `onboarding.en.md` (setup conversation, restricted tool set).
+`cie.md` is not loaded at runtime; the dashboard chip inserts a user message.
 
 ## Adding a tool
 

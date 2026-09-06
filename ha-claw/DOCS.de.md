@@ -24,8 +24,15 @@ _English version: [DOCS.md](DOCS.md)_
 
 ## Was HA-Claw macht
 
-HA-Claw ist ein KI-Assistent in deiner Home-Assistant-Seitenleiste. Du redest mit ihm in
-normaler Sprache, und er macht drei Arten von Dingen:
+HA-Claw ist ein Assistent in deiner Home-Assistant-Seitenleiste, der sich um die Installation
+kümmert. Chat ist der Weg für Rückfragen und Freigaben. Er macht drei Arten von Dingen:
+
+**Er kümmert sich um deine Installation.** Im Hintergrund prüft er, ob Geräte offline gegangen
+sind, Sensoren nichts mehr melden, Batterien zur Neige gehen, Backups ausbleiben oder der
+Speicherplatz knapp wird. Getrennt davon sucht er nach Verbesserungen — ein Raum mit
+Bewegungsmeldern aber ohne Bewegungslicht-Automation, ein Thermostat auf 24 °C im Juli,
+offene Fenster bei laufender Heizung — und legt sie dir zur Freigabe vor. Status, Pflege und
+der Wochenbericht sind die Flächen, die du liest. Chat ist die Rückfrage.
 
 **Er beantwortet Fragen zu deinem Zuhause.** Nicht nur „wie warm ist es", sondern „steht oben
 noch ein Fenster offen", „was macht die Bewegungslicht-Automation im Flur eigentlich", „welche
@@ -34,12 +41,7 @@ aktuellen Zustand.
 
 **Er steuert Geräte und prüft nach, ob es geklappt hat.** Nach jedem Dienstaufruf liest er den
 Zustand erneut. Ist das Licht nicht angegangen, sagt er das — statt Erfolg zu behaupten.
-
-**Er kümmert sich um deine Installation.** Im Hintergrund prüft er, ob Geräte offline gegangen
-sind, Sensoren nichts mehr melden, Batterien zur Neige gehen, Backups ausbleiben oder der
-Speicherplatz knapp wird. Getrennt davon sucht er nach Verbesserungen — ein Raum mit
-Bewegungsmeldern aber ohne Bewegungslicht-Automation, ein Thermostat auf 24 °C im Juli,
-offene Fenster bei laufender Heizung — und legt sie dir zur Freigabe vor.
+Wenn du nur Sprachsteuerung willst, ist Assist das bessere Werkzeug.
 
 Er kann auch Automationen und Skripte schreiben. Das erfordert immer deine ausdrückliche
 Bestätigung.
@@ -156,11 +158,27 @@ ein kurzes Einrichtungsgespräch:
 Antworte in normaler Sprache; er zieht sich heraus was er braucht. Danach stellt er seine
 Fähigkeiten vor und bietet an, eine wöchentliche automatische Hausanalyse einzurichten.
 
+Nach diesem ersten Gespräch ist **Status** die tägliche Fläche — Health-Karten, Pflege und
+Aufgaben. Chat ist für Rückfragen und Freigaben.
+
 Alles davon lässt sich später unter **Settings → Profile** ändern.
 
 ## Mit dem Assistenten reden
 
-Ein paar Beispiele, damit du ein Gefühl dafür bekommst, was geht:
+Ein paar Beispiele, damit du ein Gefühl dafür bekommst, was geht. Fang mit Verbessern und
+Verstehen an; Gerätesteuerung ist da, aber Assist macht das besser.
+
+**Verbessern**
+
+> Analysier mein Zuhause.
+> Gibt es etwas, das ich in Ordnung bringen sollte?
+> Richte eine Automation ein, die bei Sonnenuntergang die Rollos schliesst.
+
+**Die eigene Installation verstehen**
+
+> Was macht die Automation „Bewegungslicht Flur" eigentlich?
+> Welche Geräte sind in der Gruppe Wohnzimmer?
+> Warum ist heute Morgen die Heizung angegangen?
 
 **Fragen zum Zustand**
 
@@ -174,18 +192,6 @@ Ein paar Beispiele, damit du ein Gefühl dafür bekommst, was geht:
 > Mach das Licht im Keller aus.
 > Stell das Wohnzimmer auf 21 Grad.
 > Fahr alle Rollos auf der Südseite runter.
-
-**Die eigene Installation verstehen**
-
-> Was macht die Automation „Bewegungslicht Flur" eigentlich?
-> Welche Geräte sind in der Gruppe Wohnzimmer?
-> Warum ist heute Morgen die Heizung angegangen?
-
-**Verbessern**
-
-> Analysier mein Zuhause.
-> Gibt es etwas, das ich in Ordnung bringen sollte?
-> Richte eine Automation ein, die bei Sonnenuntergang die Rollos schliesst.
 
 **Erinnerungen**
 
@@ -205,12 +211,7 @@ gut HA-Claw dein Zuhause versteht.
 
 ## Das Dashboard
 
-Drei Bereiche in der oberen Navigation.
-
-**Chat** — das Gespräch. Der Fortschritt ist live sichtbar: welches Werkzeug gerade läuft, was
-es gefunden hat, wann es fertig ist. Zuerst laden die letzten 30 Nachrichten; **Ältere
-Nachrichten laden** holt weiter zurück. Auf der Platte bleiben höchstens 100 Nachrichten. Es
-gibt einen Mikrofon-Knopf für Spracheingabe (browserbasiert; Sprache folgt der Oberfläche).
+Drei Bereiche in der oberen Navigation. Nach dem Einrichten zuerst **Status** öffnen.
 
 **Status** — vier Reiter:
 
@@ -218,6 +219,12 @@ gibt einen Mikrofon-Knopf für Spracheingabe (browserbasiert; Sprache folgt der 
 - _Pflege_ (Care in der englischen Oberfläche) — Automationslücken, Namensvorschläge und aktuelle Leistung, als ein Bericht.
 - _Tasks_ — Verbesserungsvorschläge, die auf deine Entscheidung warten.
 - _Logs_ — das Add-on-Protokoll und unter Actions jeder Dienstaufruf mit Rückgängig-Knopf.
+
+**Chat** — Rückfragen und Freigaben. Der Fortschritt ist live sichtbar: welches Werkzeug
+gerade läuft, was es gefunden hat, wann es fertig ist. Zuerst laden die letzten 30
+Nachrichten; **Ältere Nachrichten laden** holt weiter zurück. Auf der Platte bleiben
+höchstens 100 Nachrichten. Es gibt einen Mikrofon-Knopf für Spracheingabe (browserbasiert;
+Sprache folgt der Oberfläche).
 
 **Settings** — vier Bereiche:
 

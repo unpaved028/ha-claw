@@ -4,7 +4,7 @@
 name: 'HA-Claw'
 version: '1.3.0'
 slug: 'ha-claw'
-description: 'Local AI-powered Smart Home Assistant with Telegram & Web UI'
+description: 'Maintains your Home Assistant install: health, gaps, and approved fixes'
 url: 'https://github.com/unpaved028/ha-claw'
 
 # Supported architectures (HA Green = aarch64)

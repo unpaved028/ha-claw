@@ -6,6 +6,19 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## Unreleased
+
+### Changed
+
+- **Public copy matches the caretaker job.** The add-on store blurb, GitHub landing page,
+  add-on README, user manual and dashboard welcome no longer lead with chat or "Local AI".
+  Status, Care and the weekly digest are what it is for; chat is the follow-up.
+
+### Removed
+
+- **Unpublished design brief.** `agents/KI-Systemarchitekt.md` was a private planning
+  prompt, not a runtime file. It is no longer in the tree.
+
 ## 1.3.0
 
 Language, Home Assistant notifications, data export and chat history pagination.

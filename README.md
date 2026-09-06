@@ -4,12 +4,13 @@
 
 # HA-Claw
 
-**A conversational AI agent for Home Assistant — as an add-on, not a cloud service.**
+**A Home Assistant add-on that maintains your installation — not a second voice assistant.**
 
-Talk to your home in plain language through the Home Assistant sidebar or Telegram.
-HA-Claw understands your floors, areas and entities, calls Home Assistant services on
-your behalf, verifies that the action actually took effect, and asks before it touches
-anything that could lock you out or set off an alarm.
+Home Assistant is good at executing. It is not designed to look after itself. HA-Claw
+watches for drift: devices that went offline, automations that broke when something was
+renamed, batteries, backups, and rooms that have sensors but no automation. It proposes
+fixes for your approval. Chat, in the sidebar or Telegram, is how you ask follow-up
+questions.
 
 [![CI](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml/badge.svg)](https://github.com/unpaved028/ha-claw/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -24,20 +25,23 @@ anything that could lock you out or set off an alarm.
 
 ## What it does
 
-Most voice and chat integrations map a sentence onto a single pre-defined intent. HA-Claw
-runs an **agentic loop** instead: the language model can search your entities, read an
-automation's configuration, call a service, check the resulting state and then decide what
-to do next — up to ten steps per request. That is the difference between "turn on the
-kitchen light" and *"the living room feels cold, is a window open somewhere?"*
+Status, Care and a weekly digest are the product. Chat is how you ask why a card is red
+or approve a proposed fix. If all you want is "turn on the kitchen light", use Assist —
+it is faster, cheaper and more private.
+
+When you do ask a question, HA-Claw runs an **agentic loop**: search entities, read an
+automation, call a service, check the resulting state, decide the next step — up to ten
+times. That is how it answers *"the living room feels cold, is a window open somewhere?"*
+instead of mapping one sentence onto one intent.
 
 | | |
 | --- | --- |
+| **Watches the boring things** | Unreachable devices, sensors that stopped updating, batteries below 20 %, backup age and free disk space — live checks, not a task list that never empties. |
+| **Suggests improvements** | Energy waste, security gaps, missing cover automations and naming drift, proposed as reviewable tasks. |
+| **Asks before it does damage** | Locks, alarms, scripts, buttons, garage doors and automation edits go through a confirmation gate — inline keyboard in Telegram, modal in the Web UI. |
 | **Speaks your home's language** | Floor → area → entity hierarchy, group resolution, `device_class`-aware sensor lookup. It knows which window is open, not just that a `binary_sensor` is `on`. |
 | **Acts, then verifies** | Every service call captures the entity state before and after. If the device did not react, the agent says so instead of claiming success. |
-| **Asks before it does damage** | Locks, alarms, scripts, buttons, garage doors and automation edits go through a confirmation gate — inline keyboard in Telegram, modal in the Web UI. |
 | **Two front ends, one conversation** | The sidebar dashboard and the Telegram bot read and write the same chat history. |
-| **Watches the boring things** | Unreachable devices, sensors that stopped updating, batteries below 20 %, backup age and free disk space — surfaced as live checks, not as a task list that never empties. |
-| **Suggests improvements** | A periodic analysis looks for energy waste, security gaps, missing cover automations and naming inconsistencies, and proposes them as reviewable tasks. |
 | **Learns** | Corrections, recurring patterns and past tool failures are fed back into the system prompt. |
 
 Full capability breakdown: **[docs/README.md](docs/README.md)**
