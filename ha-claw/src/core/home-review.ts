@@ -4,6 +4,7 @@
 
 import { getCachedSystemHealth, getSystemHealth } from './system-health.js';
 import { buildCoverageReport } from './coverage-report.js';
+import { buildQualityReport } from './automation-quality.js';
 import { buildNamingReport } from './naming-hygiene.js';
 import { buildEnergyReport } from './energy-attribution.js';
 import { listTasks } from '../storage/backlog.js';
@@ -35,6 +36,7 @@ export interface HomeReview {
   checkedAt: string;
   health: { severity: string; checkedAt: string; warn: number; critical: number };
   coverageGaps: number;
+  qualityIssues: number;
   namingProposals: number;
   energyWatts: number;
   openTasks: number;
@@ -42,9 +44,10 @@ export interface HomeReview {
 }
 
 export async function buildWeeklyDigest(): Promise<HomeReview> {
-  const [health, coverage, naming, energy, tasks] = await Promise.all([
+  const [health, coverage, quality, naming, energy, tasks] = await Promise.all([
     getCachedSystemHealth().then(h => h ?? getSystemHealth().catch(() => null)),
     buildCoverageReport().catch(() => null),
+    buildQualityReport().catch(() => null),
     buildNamingReport().catch(() => null),
     buildEnergyReport().catch(() => null),
     listTasks().catch(() => []),
@@ -55,6 +58,7 @@ export async function buildWeeklyDigest(): Promise<HomeReview> {
   const critical = checks.filter(c => c.severity === 'critical').length;
   const open = tasks.filter(t => t.status === 'proposed' || t.status === 'approved').length;
   const gaps = coverage?.gaps.length ?? 0;
+  const qualityN = quality?.issues.length ?? 0;
   const names = naming?.proposals.length ?? 0;
   const watts = Math.round(energy?.totalWatts ?? 0);
 
@@ -67,6 +71,7 @@ export async function buildWeeklyDigest(): Promise<HomeReview> {
       warn,
     }),
     t('digest.gaps', { n: gaps }),
+    t('digest.quality', { n: qualityN }),
     t('digest.names', { n: names }),
     t('digest.watts', { n: watts }),
     t('digest.tasks', { n: open }),
@@ -93,6 +98,7 @@ export async function buildWeeklyDigest(): Promise<HomeReview> {
       critical,
     },
     coverageGaps: gaps,
+    qualityIssues: qualityN,
     namingProposals: names,
     energyWatts: watts,
     openTasks: open,

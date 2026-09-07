@@ -8,8 +8,36 @@ Format follows https://keepachangelog.com.
 
 ## Unreleased
 
+### Added
+
+- **Three System Health cards, plus an hourly history ring.** Energy sensors that look
+  like W/kWh but have no `state_class` (the Energy dashboard ignores them silently);
+  updates that have sat on `on` for 14 days; clusters of four or more unreachable
+  devices on the same integration. The last 24 hourly readings per check live in
+  `store/system-health-history.json` so a cluster can say devices were reachable an
+  hour ago. Open Home Assistant Repairs issues are a footnote on the failed-integrations
+  card when that websocket command exists — not a duplicate card.
+
 ### Changed
 
+- **Coverage reads automation config, not names.** A motion-light / sun-cover / leak-notify
+  gap is reported only when no UI automation actually references the entities (and, for
+  sun/leak, the sun trigger or a notify service). An automation called `flur_nachtlicht`
+  that already wires the sensor to the light is no longer listed as a gap; an automation
+  merely named "cover" no longer marks every room as done. YAML-only automations are still
+  scanned for `entity_id` attributes only — same limit as the broken-references health card.
+- **Hourly analysis is a seeder, not a second finder.** It writes at most three backlog
+  tasks from those coverage gaps and stops proposing snapshot nags (lights on at 2pm,
+  thermostats above 23 °C) and hardware shopping lists (no smoke detectors, no alarm
+  panel). Leftover proposed tasks from those old findings are removed on the next analysis
+  run or via Tasks → clean up.
+- **Two more coverage kinds, with a concrete sketch.** A room with a window/door contact
+  and a climate, but no automation that pauses the climate, is a gap. So is climate
+  without an away setback when `person.*` / `device_tracker.*` / a presence sensor exists.
+  Every gap now names the entities and a short action sketch. Care offers **Als Aufgabe**.
+- **Automation-quality list on Care.** UI automations that use `device_id` without
+  `entity_id`, run a motion light in `mode: single`, or compare numbers in a template
+  instead of `numeric_state`. Same **Als Aufgabe** button. The weekly digest counts them.
 - **Public copy matches the caretaker job.** The add-on store blurb, GitHub landing page,
   add-on README, user manual and dashboard welcome no longer lead with chat or "Local AI".
   Status, Care and the weekly digest are what it is for; chat is the follow-up.

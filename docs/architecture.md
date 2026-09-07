@@ -111,15 +111,19 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── models.ts        # Canonical list of selectable models
         │   ├── onboarding.ts    # LLM-driven onboarding
         │   ├── openrouter.ts    # OpenRouter client, retry, circuit breaker
-        │   ├── proactive-analysis.ts # 7 analysis modules → backlog
+        │   ├── proactive-analysis.ts # Coverage seeder → backlog (max 3)
         │   ├── profile.ts       # Bot/user profile and personality
         │   ├── system-health.ts # Standing-condition checks (cached)
+        │   ├── health-extra.ts  # Energy meta, stuck updates, outage clusters
+        │   ├── health-history.ts # 24-hour ring per check
+        │   ├── automation-index.ts # Shared UI automation/script config walk
         │   ├── health-signals.ts # Broken refs, traces, failed entries
         │   ├── health-links.ts  # HA frontend paths for Ingress deep links
         │   ├── backup-health.ts # Backup age and offsite detection
         │   ├── yaml-text.ts     # JSON → YAML-ish text + unified diff
         │   ├── config-change.ts # Validate, blast radius, snapshot write
         │   ├── coverage-report.ts
+        │   ├── automation-quality.ts # device_id / mode / template linter
         │   ├── naming-hygiene.ts
         │   ├── energy-attribution.ts
         │   ├── orphan-cleanup.ts
@@ -291,27 +295,16 @@ Two deliberately separate paths, because the two kinds of finding have different
 
 ### Proactive analysis → tasks
 
-[`src/core/proactive-analysis.ts`](../ha-claw/src/core/proactive-analysis.ts) produces
-**improvement proposals** — things that can be built once and are then done. Seven modules:
+[`src/core/proactive-analysis.ts`](../ha-claw/src/core/proactive-analysis.ts) is a **seeder**,
+not a second finder. It runs the coverage report and the quality linter (config refs, not
+names), writes at most **three new tasks per run**, and drops leftover `proposed` analysis
+tasks from the old name-matching / snapshot / hardware-absence modules. The cap is applied
+*after* deduplication so known findings cannot starve new ones. Care → **Als Aufgabe**
+enqueues one gap or quality note through the same Finding shape (`POST /api/care/task`).
 
-| Module | Looks for |
-| --- | --- |
-| Energy | Lights on in daylight, heating in summer, climate running with a window open, thermostats above 23 °C |
-| Solar | Exporting to the grid, PV without a battery sensor, battery full while still exporting |
-| Security | No presence detection, windows or doors open while away, locks unlocked at night, no alarm panel, no smoke detectors, no leak sensors |
-| Covers | No storm protection with a wind sensor present, no dusk/dawn automation, no summer shading, everything closed in daylight |
-| Climate | Humidity above 65 % (mould risk), more than 5 °C spread between rooms |
-| Naming | Entities without a friendly name, inconsistent light naming, labels unused |
-| Automations | Disabled automations, automations that never fired, motion sensors without a light automation, lights on at 3 a.m., standby power waste, no notification automation, no vacation mode |
-
-At most **three new tasks per run**, and that cap is applied *after* deduplication so known
-findings cannot starve new ones.
-
-Deduplication keys on a stable `sourceKey`, not the title. Every finding title embeds a live
-count ("59 devices unreachable", an hour later "47 devices unreachable"), so comparing titles
-treated each fluctuation as a new finding and created a task per run. The key collapses digit
-runs. A known finding refreshes its existing task while it is still `proposed`; approved,
-rejected and deferred tasks are left alone.
+Deduplication keys on the coverage gap key (`motion_light:Flur`), not the title. A known
+finding refreshes its existing task while it is still `proposed`; approved, rejected and
+deferred tasks are left alone. Health checks still never become tasks.
 
 ### System health → live checks
 
@@ -331,7 +324,10 @@ wait on Home Assistant.
 | `broken_refs` | Automations, scripts and scenes that name an `entity_id` or `device_id` Home Assistant no longer has. YAML-only automations are scanned for `entity_id` attributes only — the config API does not serve them. The card notes how many UI configs were opened versus YAML-only. | ≥ 1 | ≥ 8 |
 | `failed_automations` | Automations **and scripts** whose latest trace recorded an error, or whose own state is `unavailable` | ≥ 1 | ≥ 5 |
 | `pending_updates` | `update.*` entities in state `on` | ≥ 1 | ≥ 8, or any Core / OS / Supervisor update |
-| `failed_integrations` | Config entries in `setup_error`, `setup_retry`, `migration_error` or `failed_unload`. Overlaps Home Assistant Repairs; this card is the count. | ≥ 1 | ≥ 3 |
+| `stuck_updates` | `update.*` entities that have been `on` for 14 days or more. Distinct from `pending_updates`. | ≥ 1 | any Core / OS / Supervisor update stuck 14 days |
+| `failed_integrations` | Config entries in `setup_error`, `setup_retry`, `migration_error` or `failed_unload`. Open Home Assistant Repairs issues are a footnote on this card when `repairs/list_issues` exists — not a second card. | ≥ 1 | ≥ 3 |
+| `outage_cluster` | Unreachable devices grouped by config entry. A cluster is ≥ 4 devices of the same integration. Count is the number of clusters. | ≥ 1 cluster | ≥ 3 clusters, or ≥ 10 devices in one cluster |
+| `energy_meta` | `sensor.*` with unit W/kWh or `device_class` power/energy and no `state_class`. The Energy dashboard ignores those silently. | ≥ 3 devices | ≥ 12 devices |
 | `radio_quiet` | `*_last_seen` older than 48 h, or `*_linkquality` / `*_lqi` ≤ 20. Skips entities already `unavailable`. | ≥ 3 devices | ≥ 10 devices |
 | `stopped_addons` | Add-ons with `boot: auto` that are not `started` / `startup`, plus any add-on in `error`. Skipped when the Supervisor list is unavailable (standalone). | ≥ 1 | ≥ 3 |
 | `recorder` | `recorder/info`: not recording, thread down, backlog, or a pending migration. Skipped when the command is missing. | backlog ≥ 1 000, or migration in progress | not recording / thread down, or backlog ≥ 10 000 |
@@ -343,13 +339,20 @@ The Status screen sorts cards critical → warn → ok. Each check carries an `a
 optional `previous` reading (last different count/severity) and `worse`, plus Home Assistant
 frontend paths (`href` on the card and on items). Ingress opens those with `target="_top"`.
 
-`broken_refs`, `failed_automations`, `failed_integrations` and the
+`broken_refs`, `failed_automations`, `failed_integrations`, `outage_cluster` and the
 script traces share one websocket session (`getRegistrySnapshot` in
 [`ha-client.ts`](../ha-claw/src/core/ha-client.ts)): entity and device registries, config
 entries, and recent automation **and script** traces. UI automation/script configs are then
-fetched with a concurrency of 6. A command that the instance does not offer comes back empty
-— the card shows ok, not an error. `stopped_addons` uses Supervisor `GET /addons`;
-`recorder` uses the `recorder/info` websocket command.
+fetched with a concurrency of 6 through
+[`automation-index.ts`](../ha-claw/src/core/automation-index.ts) (hour-long cache; a full
+health run resets it). Coverage uses the same walk. A command that the instance does not
+offer comes back empty — the card shows ok, not an error. `stopped_addons` uses Supervisor
+`GET /addons`; `recorder` uses `recorder/info`; the Repairs footnote uses
+`repairs/list_issues` and is omitted when that command is missing.
+
+[`health-extra.ts`](../ha-claw/src/core/health-extra.ts) holds the `energy_meta`,
+`stuck_updates` and `outage_cluster` finders so they can be tested on fixtures.
+`outage_cluster` reads `config_entry_id` / `config_entries` from the registry snapshot.
 
 Counts are **devices**, not entities. A Zigbee window sensor exposing battery, voltage,
 firmware and an identify button is one row, not twelve.
@@ -363,6 +366,10 @@ survive the hardware it lives in.
 
 `store/system-health.json` holds last-seen values (so the UI can show "was 1") and separate
 notify fields. `store/system-health-report.json` holds the last full report the UI serves.
+`store/system-health-history.json` is a ring of the last 24 hourly samples per check
+(count, severity, capped item ids). A second refresh in the same hour replaces the latest
+sample. `outage_cluster` uses the previous hour's `unavailable` ids for the
+"were reachable an hour ago" footnote.
 `findHealthRegressions()` is the gate: a check is offered for notify only when its severity
 escalated or its count at least doubled since the last message. `storage` and `recorder`
 skip the doubling rule — those counts shrink as the problem grows. A permanently broken
@@ -396,7 +403,8 @@ Status → **Pflege** is one report, not three backlog tasks.
 
 | Surface | Module | API |
 | --- | --- | --- |
-| Coverage gaps (motion+lights, covers+sun, leak+notify), area-aware | `coverage-report.ts` | `GET /api/coverage` |
+| Coverage gaps (motion+lights, covers+sun, leak+notify, window+climate, presence+away), area-aware, from config refs not names | `coverage-report.ts` | `GET /api/coverage`, `POST /api/care/task` |
+| Automation quality (`device_id` triggers, motion `mode: single`, numeric templates) | `automation-quality.ts` | `GET /api/automation-quality` |
 | Friendly-name proposals, bulk apply | `naming-hygiene.ts` | `GET /api/naming`, `POST /api/naming/apply` |
 | Live power / energy sensors | `energy-attribution.ts` | `GET /api/energy` |
 | Combined digest | `home-review.ts` | `GET /api/review`, tool `home_review` |
@@ -404,8 +412,22 @@ Status → **Pflege** is one report, not three backlog tasks.
 A scheduler job named **Wochenbericht** (`kind: digest`, `weekly sun 10:00`) is seeded on
 startup if missing. Digest jobs send the report; they do not run the agentic loop.
 
-When proposing a motion-light, sun-cover or leak-notify automation, `ha_best_practices`
-topic `blueprints` is the first stop. Coverage rows already carry `suggestedBlueprint`.
+A room is **covered** when a UI automation references the relevant entities — a
+motion/occupancy sensor *and* a light in that area, a cover *and* a sun trigger or
+`sun.sun`, a leak sensor *and* a `notify` / `persistent_notification` service, a
+window/door *and* a climate that is paused with `climate.turn_off` /
+`set_hvac_mode` / `set_temperature`, or house presence (`person.*` /
+`device_tracker.*` / `device_class: presence`) *and* a climate with the same set
+services. The automation's name is ignored. Each gap carries an `action` sketch
+(named entities, suggested `mode`). YAML-only automations contribute only the
+`entity_id` attributes on their state object; the report then includes `yamlOnly` /
+`uiScanned` and a `note`. Scripts called from an automation are not inlined.
+
+Quality issues are a separate Care list. They only inspect UI automations.
+
+When proposing a motion-light, sun-cover, leak-notify, window-climate or away-setback
+automation, `ha_best_practices` topic `blueprints` is the first stop. Coverage rows carry
+`suggestedBlueprint` and `action`.
 
 ## Self-improvement
 

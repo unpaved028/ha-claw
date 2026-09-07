@@ -22,8 +22,15 @@ export interface HealthCopy {
   stopped_addons: CheckCopy;
   restored: CheckCopy;
   pending_updates: CheckCopy;
+  stuck_updates: CheckCopy;
   failed_integrations: CheckCopy;
+  outage_cluster: CheckCopy;
+  energy_meta: CheckCopy;
   radio_quiet: CheckCopy;
+  stuckStackHint: string;
+  outageRecovered: (n: number) => string;
+  repairsOpen: (n: number, list: string) => string;
+  repairsSame: string;
   storage: { label: string; about: string };
   recorder: { label: string; about: string };
   backup: { label: string; about: string };
@@ -109,13 +116,47 @@ function de(): HealthCopy {
       hint: 'Core, OS und Add-ons zuerst. Firmware an Geräten, die du noch benutzt.',
       about: 'update.*-Entities mit verfügbarem Update. Core, OS und Supervisor zählen kritisch.',
     },
+    stuck_updates: {
+      label: 'Updates seit {days} Tagen offen',
+      ok: 'Kein Update hängt seit zwei Wochen auf „verfügbar“.',
+      hint: 'Wenn das Update nicht gewollt ist, ablehnen oder das Gerät prüfen. Sonst einspielen — offen gelassene Updates bleiben sonst für immer gelb.',
+      about:
+        'update.*-Entities, die seit 14 Tagen oder länger auf on stehen. Nicht dasselbe wie „Updates liegen bereit“ — hier nur die, die niemand anfasst.',
+    },
     failed_integrations: {
       label: 'Integrationen laden nicht',
       ok: 'Alle Integrationen sind geladen.',
       hint: 'Unter Einstellungen → Geräte & Dienste die Integration neu laden oder die Anmeldung prüfen. Home Assistant Repairs zeigt oft denselben Fehler einzeln.',
       about:
-        'Config Entries im Setup-Fehler oder Retry. Overlap mit Home Assistant Repairs — hier die Summe.',
+        'Config Entries im Setup-Fehler oder Retry. Offene Home Assistant Repairs stehen als Fussnote, keine zweite Karte.',
     },
+    outage_cluster: {
+      label: 'Ausfälle einer Integration',
+      ok: 'Keine Integration hat mehrere Geräte gleichzeitig verloren.',
+      hint: 'Wenn viele Geräte derselben Integration weg sind, zuerst die Integration neu laden — nicht jedes Gerät einzeln. Strom am Hub / Stick prüfen.',
+      about:
+        'Unerreichbare Geräte, gruppiert nach Config Entry. Ein Cluster sind mindestens 4 Geräte derselben Integration. Zählt Cluster, nicht einzelne Geräte.',
+    },
+    energy_meta: {
+      label: 'Energiesensoren ohne state_class',
+      ok: 'Jeder Leistungs- und Energiesensor hat eine state_class.',
+      hint: 'In den Entity-Einstellungen state_class setzen (measurement bei W, total_increasing bei kWh). Sonst ignoriert das Energy-Dashboard den Sensor still.',
+      about:
+        'Sensoren mit Einheit W/kWh oder device_class power/energy, aber ohne state_class. Das Energy-Dashboard nimmt sie dann nicht auf — ohne Fehlermeldung.',
+    },
+    stuckStackHint:
+      'Home Assistant Core, OS oder Supervisor wartet seit 14 Tagen. Das zuerst, dann Geräte.',
+    outageRecovered: n =>
+      n === 1
+        ? '1 Gerät war in der letzten stündlichen Prüfung noch erreichbar.'
+        : `${n} dieser Geräte waren in der letzten stündlichen Prüfung noch erreichbar.`,
+    repairsOpen: (n, list) => {
+      const where = list ? ` (${list})` : '';
+      return n === 1
+        ? `Home Assistant Repairs: 1 offener Hinweis${where}.`
+        : `Home Assistant Repairs: ${n} offene Hinweise${where}.`;
+    },
+    repairsSame: 'Dieselben Integrationen wie auf dieser Karte, einzeln aufgelistet.',
     radio_quiet: {
       label: 'Funk wird leise',
       ok: 'Keine Zigbee-Geräte mit altem last_seen oder sehr schwachem LQI.',
@@ -225,13 +266,47 @@ function en(): HealthCopy {
       about:
         'update.* entities with an available update. Core, OS and Supervisor count as critical.',
     },
+    stuck_updates: {
+      label: 'Updates open for {days} days',
+      ok: 'No update has sat on “available” for two weeks.',
+      hint: 'If the update is unwanted, skip it or check the device. Otherwise install it — leftover updates stay yellow forever.',
+      about:
+        'update.* entities that have been on for 14 days or more. Not the same as “Updates waiting” — only the ones nobody is touching.',
+    },
     failed_integrations: {
       label: 'Integrations not loading',
       ok: 'All integrations are loaded.',
       hint: 'Under Settings → Devices & services reload the integration or check the login. Home Assistant Repairs often shows the same error one by one.',
       about:
-        'Config entries in setup error or retry. Overlap with Home Assistant Repairs — here the sum.',
+        'Config entries in setup error or retry. Open Home Assistant Repairs issues are a footnote, not a second card.',
     },
+    outage_cluster: {
+      label: 'Integration outages',
+      ok: 'No integration has lost several devices at once.',
+      hint: 'When many devices of the same integration are gone, reload the integration first — not each device. Check power at the hub / stick.',
+      about:
+        'Unreachable devices grouped by config entry. A cluster is at least 4 devices of the same integration. Counts clusters, not individual devices.',
+    },
+    energy_meta: {
+      label: 'Energy sensors without state_class',
+      ok: 'Every power and energy sensor has a state_class.',
+      hint: 'Set state_class on the entity (measurement for W, total_increasing for kWh). Otherwise the Energy dashboard silently ignores the sensor.',
+      about:
+        'Sensors with unit W/kWh or device_class power/energy, but no state_class. The Energy dashboard then skips them — with no error.',
+    },
+    stuckStackHint:
+      'Home Assistant Core, OS or Supervisor has been waiting for 14 days. That first, then devices.',
+    outageRecovered: n =>
+      n === 1
+        ? '1 device was still reachable in the last hourly check.'
+        : `${n} of these devices were still reachable in the last hourly check.`,
+    repairsOpen: (n, list) => {
+      const where = list ? ` (${list})` : '';
+      return n === 1
+        ? `Home Assistant Repairs: 1 open issue${where}.`
+        : `Home Assistant Repairs: ${n} open issues${where}.`;
+    },
+    repairsSame: 'The same integrations as on this card, listed one by one.',
     radio_quiet: {
       label: 'Radio going quiet',
       ok: 'No Zigbee devices with old last_seen or very weak LQI.',

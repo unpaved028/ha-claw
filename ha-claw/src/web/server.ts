@@ -49,6 +49,8 @@ import { getToolDefinitions } from '../tools/registry.js';
 import * as actionLog from '../storage/action-log.js';
 import type { ConfirmPreview } from '../core/config-change.js';
 import { buildCoverageReport } from '../core/coverage-report.js';
+import { buildQualityReport } from '../core/automation-quality.js';
+import { enqueueCareTask, type CareTaskSource } from '../core/proactive-analysis.js';
 import { applyNamingProposals, buildNamingReport } from '../core/naming-hygiene.js';
 import { buildEnergyReport } from '../core/energy-attribution.js';
 import { buildWeeklyDigest } from '../core/home-review.js';
@@ -541,6 +543,35 @@ export async function startWebServer(): Promise<void> {
   app.get('/api/coverage', async (_req, reply) => {
     try {
       return await buildCoverageReport();
+    } catch (err) {
+      reply.status(503);
+      return { error: String(err) };
+    }
+  });
+
+  app.get('/api/automation-quality', async (_req, reply) => {
+    try {
+      return await buildQualityReport();
+    } catch (err) {
+      reply.status(503);
+      return { error: String(err) };
+    }
+  });
+
+  app.post<{ Body: { source?: string; key?: string } }>('/api/care/task', async (req, reply) => {
+    const source = req.body?.source;
+    const key = req.body?.key;
+    if (source !== 'coverage' && source !== 'quality') {
+      reply.status(400);
+      return { error: 'source must be coverage or quality' };
+    }
+    try {
+      const result = await enqueueCareTask(source as CareTaskSource, String(key ?? ''));
+      if (!result.ok) {
+        reply.status(result.status);
+        return { error: result.error };
+      }
+      return result;
     } catch (err) {
       reply.status(503);
       return { error: String(err) };

@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.3.0**. Last reviewed: 2026-09-06.
+Current version: **1.3.0**. Last reviewed: 2026-09-08.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -10,6 +10,7 @@ roadmap that lists every possible feature is not a roadmap.
 - [Where it fits](#where-it-fits)
 - [Where the effort goes](#where-the-effort-goes)
 - [Now — first hour and discovery](#now--first-hour-and-discovery)
+- [Caretaker depth](#caretaker-depth)
 - [v1.0.0 — Trust and hardening](#v100--trust-and-hardening)
 - [v1.1 / v1.2 — shipped](#v11--v12--shipped)
 - [v1.3 — shipped](#v13--shipped)
@@ -62,10 +63,13 @@ you about it.
 Everything on this roadmap either extends that caretaking capability or builds the trust
 required to let it run.
 
-**Actively developed** — the first hour: screenshots of Status / Care / the weekly digest,
-a Home Assistant community thread, and pre-built images so install does not compile
-TypeScript on a Raspberry Pi. New analysis modules wait for feedback from people running
-the add-on.
+**Actively developed** — two tracks. Discovery still matters: screenshots of Status / Care /
+the weekly digest, a Home Assistant community thread, and pre-built images so install does
+not compile TypeScript on a Raspberry Pi. In parallel, **caretaker depth**: coverage and
+health should read what the installation actually does, not guess from names. The first
+cut is a shared automation-config index so Care stops inventing gaps. Analysis diet, two
+new coverage kinds, an automation-quality linter and a few health-trend cards follow.
+Lifestyle recipes (buy hardware, install a print server) stay out.
 
 **Maintained rather than expanded** — the caretaking stack that shipped in 1.0–1.3
 (health, Care, safe writes, tasks, weekly digest), plus conversational device control, the
@@ -99,7 +103,34 @@ problems are not missing analysis modules.
 
 Do these before any item under [Exploratory](#exploratory). Local models are the one
 exploratory item that is also an install question; start them after that forum thread
-has replies.
+has replies. [Caretaker depth](#caretaker-depth) is a separate technical track — it
+deepens the existing Care/health surfaces, it does not add a new product.
+
+## Caretaker depth
+
+Problem: coverage and the hourly analysis guessed from automation *names* and from
+snapshots ("lights on at 14:00"). That invents gaps and hides real ones. Health already
+walked UI configs for broken references.
+
+1. **Shared automation index** — one walk of UI automation/script configs, cached for an
+   hour, reset on each full health run. Coverage of the three existing kinds
+   (`motion_light`, `cover_sun`, `leak_notify`) uses entity refs, sun triggers and notify
+   services. Shipped under [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
+2. **Analysis diet** — stop writing hardware-absence and snapshot findings to the backlog.
+   The hourly job seeds at most three tasks from Care reports. Shipped under
+   [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
+3. **Two new coverage kinds** on existing inventory only: window+climate pause, presence+
+   climate away-setback. Each gap carries named entities and an action sketch. Shipped
+   under [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
+4. **Automation-quality linter** on Care: `device_id` triggers, `mode: single` on motion
+   lights, numeric comparisons written as templates. Shipped under
+   [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
+5. **Health trends** — ring of the last 24 hourly readings; cards for energy sensors
+   missing `state_class`, updates stuck `on` for 14 days, clustered outages per
+   integration. Shipped under
+   [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
+
+Out of scope here: buy-this-hardware recipes, print servers, one-click automation writes.
 
 Shipped earlier and recorded in the changelog, not here: health cards and the Status
 screen ([v0.9.6](../ha-claw/CHANGELOG.md#096)–[v0.10.0](../ha-claw/CHANGELOG.md#0100)),

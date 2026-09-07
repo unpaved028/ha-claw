@@ -257,7 +257,10 @@ frischen Stand — nur dann wartet die Oberfläche.
 | **Kaputte Referenzen**                  | Automationen, Skripte oder Szenen, die eine Entity nennen, die es nicht mehr gibt      | ab 1                             | ab 8                                 |
 | **Automationen und Skripte mit Fehler** | Letzter Trace mit Fehler, oder die Automation/das Skript selbst ist `unavailable`      | ab 1                             | ab 5                                 |
 | **Updates liegen bereit**               | `update.*`-Entities mit verfügbarem Update                                             | ab 1                             | ab 8, oder Core / OS / Supervisor    |
-| **Integrationen laden nicht**           | Config Entries im Setup-Fehler oder Retry. Overlap mit Home Assistant Repairs          | ab 1                             | ab 3                                 |
+| **Updates seit 14 Tagen offen**         | Dieselben `update.*`-Entities, aber seit zwei Wochen unangetastet                      | ab 1                             | Core / OS / Supervisor seit 14 Tagen |
+| **Integrationen laden nicht**           | Config Entries im Setup-Fehler oder Retry. Offene Repairs stehen als Fussnote          | ab 1                             | ab 3                                 |
+| **Ausfälle einer Integration**          | Mindestens vier unerreichbare Geräte derselben Integration                             | 1 Cluster                        | 3 Cluster, oder 10 Geräte in einem   |
+| **Energiesensoren ohne state_class**    | Leistungs-/Energiesensoren, die das Energy-Dashboard still ignoriert                   | ab 3                             | ab 12                                |
 | **Funk wird leise**                     | Zigbee-`last_seen` älter als 48 h, oder Linkqualität 20 oder weniger                   | ab 3                             | ab 10                                |
 | **Add-ons laufen nicht**                | Add-ons mit Autostart, die gestoppt sind, plus jedes Add-on im Fehlerzustand           | ab 1                             | ab 3                                 |
 | **Recorder / Historie**                 | Historie wird nicht geschrieben, der Recorder-Thread steht, oder der Rückstau ist groß | Rückstau ≥ 1 000, oder Migration | Recorder aus, oder Rückstau ≥ 10 000 |
@@ -318,9 +321,14 @@ bestätigen — es gibt kein Rückgängig.
 
 **Status → Pflege** beantwortet die Fragen, die früher drei Tasks im Backlog wurden.
 
-- **Lücken** — Räume mit Bewegungsmelder ohne Licht-Automation, Cover ohne Sonnen-Automation,
-  Leck-Sensoren ohne Benachrichtigung. Jede Lücke nennt einen bekannten Blueprint statt
-  YAML zu erfinden.
+- **Lücken** — Räume mit Bewegungsmelder und Licht, aber ohne Automation, die beide wirklich
+  referenziert; Cover ohne Sonnen-/Elevations-Automation; Leck-Sensoren ohne
+  Benachrichtigungs-Aktion; Fenster/Tür plus Klima ohne Pause; Klima ohne Absenkung bei
+  Abwesenheit, wenn Presence da ist. Es zählt die Automation-Config, nicht der Name. Jede
+  Lücke nennt die Entities und einen kurzen Sketch. **Als Aufgabe** legt einen Task an, schreibt
+  aber kein YAML. YAML-only-Automationen werden nur über die `entity_id`-Liste am State gelesen.
+- **Qualität** — UI-Automationen mit `device_id` ohne `entity_id`, Bewegungslicht auf
+  `mode: single` mit Delay, oder Zahlenvergleich im Template. Derselbe Button **Als Aufgabe**.
 - **Namen** — Entities ohne brauchbaren `friendly_name`, mit Vorschlag aus Bereich + Entity-ID.
   Haken setzen und in einem Rutsch übernehmen.
 - **Leistung** — vorhandene `device_class: power` / `energy`-Sensoren, Summe in Watt.
@@ -332,9 +340,11 @@ anderen Zeitplan abschalten oder löschen.
 
 ## Aufgaben
 
-**Status → Tasks** enthält Verbesserungsvorschläge. Sie stammen aus der regelmässigen Analyse
-oder daraus, dass du den Assistenten direkt fragst („analysier mein Zuhause"). Jeder Vorschlag
-benennt den Ist-Zustand, den vorgeschlagenen Soll-Zustand und den erwarteten Nutzen.
+**Status → Tasks** enthält Verbesserungsvorschläge. Sie stammen aus Automationslücken (Raum
+hat die Sensoren, aber keine Automation, die sie wirklich nutzt) oder daraus, dass du den
+Assistenten direkt fragst („analysier mein Zuhause"). Jeder Vorschlag benennt den
+Ist-Zustand, den vorgeschlagenen Soll-Zustand und den erwarteten Nutzen. Momentaufnahmen
+(„Licht um 14 Uhr an") und „kauf diese Hardware" werden nicht als Tasks geschrieben.
 
 Der Ablauf fragt bewusst zweimal:
 

@@ -1359,7 +1359,7 @@ async function loadSystemHealth(force) {
 }
 
 function healthItemsSummary(key, n) {
-  const kind = ['backup', 'broken_refs', 'failed_automations', 'failed_integrations', 'pending_updates', 'stopped_addons', 'recorder'].includes(key)
+  const kind = ['backup', 'broken_refs', 'failed_automations', 'failed_integrations', 'pending_updates', 'stuck_updates', 'outage_cluster', 'energy_meta', 'stopped_addons', 'recorder'].includes(key)
     ? key
     : 'device';
   return uiT(n === 1 ? 'health.item.' + kind + '.one' : 'health.item.' + kind + '.many');
@@ -1595,44 +1595,118 @@ async function previewBacklogTask(id, btn) {
   }
 }
 
+function careTaskButton(source, key) {
+  return (
+    '<button type="button" class="care-task-btn" data-source="' +
+    esc(source) +
+    '" data-key="' +
+    esc(key) +
+    '" onclick="careEnqueue(this)">' +
+    esc(uiT('care.asTask')) +
+    '</button>'
+  );
+}
+
+async function careEnqueue(btn) {
+  if (!btn || btn.disabled) return;
+  const source = btn.getAttribute('data-source');
+  const key = btn.getAttribute('data-key');
+  btn.disabled = true;
+  try {
+    const r = await fetch(base + '/api/care/task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source, key }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) {
+      btn.disabled = false;
+      btn.textContent = uiT('care.taskFail');
+      return;
+    }
+    btn.textContent = data.created ? uiT('care.taskCreated') : uiT('care.taskExists');
+  } catch (e) {
+    console.error('Care enqueue failed', e);
+    btn.disabled = false;
+    btn.textContent = uiT('care.taskFail');
+  }
+}
+
 async function loadCare(force) {
   const digestEl = document.getElementById('care-review');
   const covEl = document.getElementById('care-coverage');
+  const qualEl = document.getElementById('care-quality');
   const namEl = document.getElementById('care-naming');
   const enEl = document.getElementById('care-energy');
   if (!covEl) return;
   if (force || !covEl.dataset.loaded) {
     if (digestEl) digestEl.textContent = uiT('care.loadingReview');
     covEl.innerHTML = '<div class="backlog-empty">' + uiT('care.loading') + '</div>';
+    if (qualEl) qualEl.innerHTML = '<div class="backlog-empty">' + uiT('care.loading') + '</div>';
     namEl.innerHTML = '<div class="backlog-empty">' + uiT('care.loading') + '</div>';
     enEl.innerHTML = '<div class="backlog-empty">' + uiT('care.loading') + '</div>';
   }
   try {
-    const [review, coverage, naming, energy] = await Promise.all([
+    const [review, coverage, quality, naming, energy] = await Promise.all([
       fetch(base + '/api/review').then(r => r.json()),
       fetch(base + '/api/coverage').then(r => r.json()),
+      fetch(base + '/api/automation-quality').then(r => r.json()),
       fetch(base + '/api/naming').then(r => r.json()),
       fetch(base + '/api/energy').then(r => r.json()),
     ]);
     if (digestEl) digestEl.textContent = review.text || '';
     if (coverage.gaps) {
+      const note = coverage.note
+        ? '<div class="care-meta">' + esc(coverage.note) + '</div>'
+        : '';
       covEl.innerHTML = coverage.gaps.length
-        ? coverage.gaps
-            .map(
-              g =>
-                '<div class="care-row"><div><strong>' +
+        ? note +
+          coverage.gaps
+            .map(g => {
+              const sketch = g.action && g.action.sketch ? esc(g.action.sketch) : '';
+              const entities = Array.isArray(g.entities) ? g.entities.join(', ') : '';
+              return (
+                '<div class="care-row"><div class="care-row-main"><strong>' +
                 esc(g.area) +
                 '</strong> — ' +
                 esc(g.detail) +
+                (entities ? '<div class="care-meta">' + esc(entities) + '</div>' : '') +
                 '<div class="care-meta">' +
+                (sketch ? sketch + ' · ' : '') +
                 esc(g.suggestedBlueprint) +
-                '</div></div></div>',
-            )
+                '</div></div>' +
+                careTaskButton('coverage', g.key) +
+                '</div>'
+              );
+            })
             .join('')
-        : '<div class="backlog-empty">' + uiT('care.noGaps') + '</div>';
+        : note + '<div class="backlog-empty">' + uiT('care.noGaps') + '</div>';
     } else {
       covEl.innerHTML =
         '<div class="backlog-empty">' + esc(coverage.error || uiT('care.error')) + '</div>';
+    }
+    if (qualEl) {
+      if (quality.issues) {
+        qualEl.innerHTML = quality.issues.length
+          ? quality.issues
+              .map(
+                q =>
+                  '<div class="care-row"><div class="care-row-main"><strong>' +
+                  esc(q.label) +
+                  '</strong><div class="care-meta">' +
+                  esc(q.detail) +
+                  '</div><div class="care-meta">' +
+                  esc(q.suggestedFix) +
+                  '</div></div>' +
+                  careTaskButton('quality', q.key) +
+                  '</div>',
+              )
+              .join('')
+          : '<div class="backlog-empty">' + uiT('care.noQuality') + '</div>';
+      } else {
+        qualEl.innerHTML =
+          '<div class="backlog-empty">' + esc(quality.error || uiT('care.error')) + '</div>';
+      }
     }
     if (naming.proposals) {
       namEl.innerHTML = naming.proposals.length

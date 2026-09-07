@@ -782,12 +782,14 @@ export interface EntityRegistryEntry {
   disabled_by: string | null;
   name?: string | null;
   original_name?: string | null;
+  config_entry_id?: string | null;
 }
 
 export interface DeviceRegistryEntry {
   id: string;
   name: string | null;
   name_by_user: string | null;
+  config_entries?: string[];
 }
 
 export interface ConfigEntryInfo {
@@ -887,6 +889,19 @@ export interface RecorderInfo {
   threadRunning: boolean | null;
   backlog: number | null;
   migration: boolean;
+}
+
+/**
+ * Home Assistant Repairs issue list. Missing command → null (caller skips
+ * the footnote; do not treat that as zero issues).
+ */
+export async function getRepairIssues(): Promise<unknown> {
+  try {
+    return await haWebsocketCommand<unknown>('repairs/list_issues');
+  } catch (err) {
+    log.debug('repairs/list_issues unavailable', { error: String(err) });
+    return null;
+  }
 }
 
 /** Recorder thread / backlog. Missing command → all-null, caller skips the card. */

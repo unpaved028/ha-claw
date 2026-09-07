@@ -654,7 +654,7 @@ export function registerBuiltinTools(): void {
   // ── analyze_home ─────────────────────────────────────────
   registerTool(
     'analyze_home',
-    'Run a proactive analysis of the Home Assistant environment. Checks for: lights left on, stale sensors, unavailable devices, energy waste, open windows with active heating. Results are written to the backlog as improvement proposals.',
+    'Seed backlog tasks from Care coverage gaps and automation-quality notes. Reads automation config, not names. At most three new tasks. Also drops retired snapshot/hardware-absence analysis tasks that are still proposed.',
     {},
     async () => {
       const summary = await runAnalysis();

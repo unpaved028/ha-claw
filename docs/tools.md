@@ -181,15 +181,15 @@ existing installs keep matching it.
 
 | Tool | Tier | Description |
 | --- | --- | --- |
-| `analyze_home` | **2** | Runs the seven proactive analysis modules and writes findings to the backlog. |
+| `analyze_home` | **2** | Seeds at most three backlog tasks from Care coverage gaps and automation-quality notes (config refs, not names). Drops retired snapshot/hardware-absence analysis tasks that are still proposed. |
 | `learn_correction` | 1 | Records a user correction, injected into later prompts. |
 | `learn_rule` | 1 | Adds a permanent prompt patch that changes agent behaviour. |
 | `detect_patterns` | 1 | Finds recurring actions in the usage history. |
 | `list_learned` | 1 | Everything learned so far: corrections, rules, patterns, errors. |
 | `action_log_list` | 1 | Recent agent actions from `actions.jsonl`. |
-| `home_review` | 1 | Combined digest: health, coverage gaps, naming proposals, live watts, open tasks. |
+| `home_review` | 1 | Combined digest: health, coverage gaps, automation-quality notes, naming proposals, live watts, open tasks. |
 
-What each analysis module checks is documented in
+What the seeder writes is documented in
 [architecture.md § Proactive analysis](architecture.md#proactive-analysis-vs-system-health).
 
 ### Onboarding

@@ -80,6 +80,36 @@ const DE: Record<string, string> = {
     '{motion} Bewegungsmelder und {lights} Lichter, aber keine Automation die sie verbindet.',
   'coverage.cover': '{covers} Cover ohne Sonnen-/Beschattungs-Automation.',
   'coverage.leak': '{leaks} Leck-/Feuchtesensoren ohne Benachrichtigungs-Automation.',
+  'coverage.yamlNote':
+    '{ui} UI-Automationen/Skripte vollständig, {yaml} nur YAML (kein voller Scan).',
+  'coverage.impactMotion': 'Licht nur wenn jemand da ist; weniger vergessene Lichter.',
+  'coverage.impactCover': 'Beschattung nach Sonnenstand statt nach der Uhr.',
+  'coverage.impactLeak': 'Sofortige Warnung bei einem Leck, auch wenn niemand im Raum ist.',
+  'coverage.climateWindow':
+    '{contacts} Fenster/Türen und {climates} Klima, aber keine Automation die bei Offenstand pausiert.',
+  'coverage.climateAway':
+    '{climates} Klima ohne Absenkung, wenn die letzte Person das Haus verlässt.',
+  'coverage.impactClimateWindow': 'Keine Heizung/Kühlung gegen ein offenes Fenster.',
+  'coverage.impactClimateAway': 'Absenkung sobald niemand mehr zu Hause ist.',
+  'coverage.sketchMotion':
+    'state {trigger} → on, mode restart → light.turn_on ({target}); Delay, dann aus.',
+  'coverage.sketchCover': 'sun elevation/sunset → cover.set_cover_position ({target}).',
+  'coverage.sketchLeak': '{trigger} on → notify / persistent_notification.',
+  'coverage.sketchClimateWindow':
+    'state {trigger} on, for 2 min → climate.turn_off ({target}). mode: restart.',
+  'coverage.sketchClimateAway':
+    '{trigger} not_home → climate.set_temperature / set_hvac_mode ({target}).',
+  'quality.deviceId': '{name} nutzt device_id im Trigger oder in der Condition, ohne entity_id.',
+  'quality.deviceIdFix':
+    'Trigger/Condition auf entity_id umstellen. device_id bricht beim Neu-Anlernen.',
+  'quality.motionMode':
+    '{name} schaltet bei Bewegung mit Delay, steht aber auf mode single (oder ohne mode).',
+  'quality.motionModeFix': 'mode: restart, damit jede neue Bewegung den Timer zurücksetzt.',
+  'quality.numericTemplate':
+    '{name} vergleicht eine Zahl in einem Template statt mit numeric_state.',
+  'quality.numericTemplateFix':
+    'condition: numeric_state bzw. wait_for_trigger. Templates umgehen die Validierung.',
+  'quality.impact': 'Weniger stille Brüche, Automationen die tun was der Name verspricht.',
   'digest.title': 'Wöchentlicher Hausbericht',
   'digest.health': 'Systemzustand: {severity} ({critical} rot, {warn} gelb)',
   'digest.gaps': 'Automationslücken: {n}',
@@ -87,6 +117,7 @@ const DE: Record<string, string> = {
   'digest.watts': 'Aktuelle Leistung (Summe der Power-Sensoren): {n} W',
   'digest.tasks': 'Offene Tasks: {n}',
   'digest.gapList': 'Lücken:',
+  'digest.quality': 'Automation-Qualität: {n} Hinweise',
   'digest.topLoads': 'Größte Verbraucher:',
   'naming.light': 'Licht',
   'naming.switch': 'Schalter',
@@ -171,6 +202,35 @@ const EN: Record<string, string> = {
     '{motion} motion sensors and {lights} lights, but no automation connecting them.',
   'coverage.cover': '{covers} covers without a sun/shading automation.',
   'coverage.leak': '{leaks} leak/moisture sensors without a notification automation.',
+  'coverage.yamlNote': '{ui} UI automations/scripts read fully, {yaml} YAML-only (no full scan).',
+  'coverage.impactMotion': 'Lights only when someone is there; fewer lights left on.',
+  'coverage.impactCover': 'Shading from the sun, not from the clock.',
+  'coverage.impactLeak': 'An immediate warning on a leak, even when nobody is in the room.',
+  'coverage.climateWindow':
+    '{contacts} windows/doors and {climates} climate entities, but no automation that pauses when they are open.',
+  'coverage.climateAway':
+    '{climates} climate entities with no setback when the last person leaves.',
+  'coverage.impactClimateWindow': 'No heating or cooling against an open window.',
+  'coverage.impactClimateAway': 'A setback as soon as nobody is home.',
+  'coverage.sketchMotion':
+    'state {trigger} → on, mode restart → light.turn_on ({target}); delay, then off.',
+  'coverage.sketchCover': 'sun elevation/sunset → cover.set_cover_position ({target}).',
+  'coverage.sketchLeak': '{trigger} on → notify / persistent_notification.',
+  'coverage.sketchClimateWindow':
+    'state {trigger} on, for 2 min → climate.turn_off ({target}). mode: restart.',
+  'coverage.sketchClimateAway':
+    '{trigger} not_home → climate.set_temperature / set_hvac_mode ({target}).',
+  'quality.deviceId': '{name} uses device_id in a trigger or condition, without an entity_id.',
+  'quality.deviceIdFix':
+    'Switch the trigger/condition to entity_id. device_id breaks when the device is re-added.',
+  'quality.motionMode':
+    '{name} drives a motion light with a delay, but mode is single (or missing).',
+  'quality.motionModeFix': 'Set mode: restart so each new motion resets the timer.',
+  'quality.numericTemplate':
+    '{name} compares a number in a template instead of using numeric_state.',
+  'quality.numericTemplateFix':
+    'Use condition: numeric_state or wait_for_trigger. Templates skip validation.',
+  'quality.impact': 'Fewer silent breakages; automations that do what they look like they do.',
   'digest.title': 'Weekly home report',
   'digest.health': 'System health: {severity} ({critical} red, {warn} yellow)',
   'digest.gaps': 'Automation gaps: {n}',
@@ -178,6 +238,7 @@ const EN: Record<string, string> = {
   'digest.watts': 'Current power (sum of power sensors): {n} W',
   'digest.tasks': 'Open tasks: {n}',
   'digest.gapList': 'Gaps:',
+  'digest.quality': 'Automation quality: {n} notes',
   'digest.topLoads': 'Largest loads:',
   'naming.light': 'Light',
   'naming.switch': 'Switch',

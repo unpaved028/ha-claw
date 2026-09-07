@@ -18,6 +18,8 @@ export const HA_PATH = {
   addon: (slug: string) => `/hassio/addon/${encodeURIComponent(slug)}/info`,
   addons: '/hassio/dashboard',
   recorder: '/developer-tools/statistics',
+  energy: '/config/energy',
+  repairs: '/config/repairs',
   storage: '/hassio/system',
 } as const;
 

@@ -250,7 +250,10 @@ demand — that is the only time the screen waits.
 | **Broken references**                     | Automations, scripts or scenes that still name an entity that no longer exists     | any                             | 8 or more                            |
 | **Automations and scripts with an error** | Latest trace recorded an error, or the automation/script itself is `unavailable`   | any                             | 5 or more                            |
 | **Updates waiting**                       | `update.*` entities that report an available update                                | any                             | 8 or more, or Core / OS / Supervisor |
-| **Integrations not loading**              | Config entries stuck in setup error or retry. Overlaps Home Assistant Repairs      | any                             | 3 or more                            |
+| **Updates open for 14 days**              | Same `update.*` entities, but they have been available for two weeks               | any                             | Core / OS / Supervisor stuck 14 days |
+| **Integrations not loading**              | Config entries stuck in setup error or retry. Open Repairs issues are a footnote   | any                             | 3 or more                            |
+| **Integration outages**                   | Four or more unreachable devices on the same integration                           | 1 cluster                       | 3 clusters, or 10 devices in one     |
+| **Energy sensors without state_class**    | Power/energy sensors the Energy dashboard silently ignores                         | 3 or more                       | 12 or more                           |
 | **Radio going quiet**                     | Zigbee `last_seen` older than 48 h, or link quality at 20 or below                 | 3 or more                       | 10 or more                           |
 | **Add-ons not running**                   | Add-ons with autostart that are stopped, plus any add-on in an error state         | any                             | 3 or more                            |
 | **Recorder / history**                    | History is not being written, the recorder thread is down, or the backlog is large | backlog ≥ 1 000, or a migration | not recording, or backlog ≥ 10 000   |
@@ -308,9 +311,16 @@ is no undo.
 
 **Status → Pflege** answers the questions that used to become three backlog tasks.
 
-- **Coverage** — rooms with motion sensors and no light automation, covers with no sun
-  automation, leak sensors with no notification. Each gap names a well-known blueprint
-  instead of inventing YAML.
+- **Coverage** — rooms with motion sensors and lights but no automation that actually
+  references both, covers with no sun/elevation automation, leak sensors with no
+  notification action, window/door plus climate with no pause, climate with no away
+  setback when presence exists. It looks at the automation config, not the name. Each gap
+  names the entities and a short sketch. **Als Aufgabe** creates a task; it does not write
+  YAML. YAML-only automations are only scanned for the `entity_id` list Home Assistant
+  exposes on the state.
+- **Quality** — UI automations that trigger on `device_id` without an `entity_id`, use
+  `mode: single` on a motion light with a delay, or compare numbers in a template. Same
+  **Als Aufgabe** button.
 - **Names** — entities without a usable `friendly_name`, with a suggested name from area +
   entity id. Tick the ones you want and apply them in bulk.
 - **Power** — existing `device_class: power` / `energy` sensors, summed in watts.
@@ -322,9 +332,11 @@ other schedule.
 
 ## Tasks
 
-**Status → Tasks** holds improvement proposals. They come from the periodic analysis or from
-asking the assistant directly ("analyse my home"). Each one names the current situation, the
-proposed target state, and the expected benefit.
+**Status → Tasks** holds improvement proposals. They come from coverage gaps (a room that
+has the sensors but no automation that actually uses them) or from asking the assistant
+directly ("analyse my home"). Each one names the current situation, the proposed target
+state, and the expected benefit. Snapshot nags ("lights on at 2pm") and "buy this hardware"
+suggestions are not written as tasks.
 
 The workflow deliberately asks twice:
 

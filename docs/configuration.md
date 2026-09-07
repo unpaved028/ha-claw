@@ -169,6 +169,7 @@ Everything is JSON or JSONL under `<dataPath>/store/`. In the add-on that is
 | `store/notify-matrix.json` | Which proactive events go to Telegram, Chat, HA Notify and persistent_notification | `core/notify-matrix.ts` |
 | `store/system-health.json` | Last-seen count/severity per health check (UI trend) and last-notified values (Telegram regressions) | `core/system-health.ts` |
 | `store/system-health-report.json` | Last full health report served to the Status screen | `core/system-health.ts` |
+| `store/system-health-history.json` | Last 24 hourly samples per health check (count, severity, capped item ids) | `core/health-history.ts` |
 
 Monolithic JSON files are written through [`atomic-write.ts`](../ha-claw/src/storage/atomic-write.ts)
 (per-path lock, unique temp name, rename). `HA_CLAW_DATA_PATH` overrides `dataPath` in

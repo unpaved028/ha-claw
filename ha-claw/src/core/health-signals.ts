@@ -3,19 +3,22 @@
  *
  * Broken references, failed traces and failed config entries need the
  * websocket registry snapshot plus a pass over UI automation/script configs.
+ * The config walk lives in automation-index.ts so coverage can share it.
  * Kept out of system-health.ts so that file stays about thresholds and cards.
  */
 
 import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
+import {
+  friendlyName,
+  getAutomationIndex,
+  internalId,
+  type HaLikeState,
+} from './automation-index.js';
 import type { HealthItem } from './system-health.js';
 import { HA_PATH, hrefForEntity } from './health-links.js';
 
 const log = createLogger('health-signals');
-
-const CONFIG_CONCURRENCY = 6;
-
-const ENTITY_ID_RE = /\b([a-z][a-z0-9_]+)\.([a-z0-9_]+)\b/g;
 
 const FAILED_ENTRY_STATES = new Set([
   'setup_error',
@@ -30,62 +33,7 @@ interface HAState {
   attributes: Record<string, unknown>;
 }
 
-function friendly(s: HAState): string {
-  const name = s.attributes['friendly_name'];
-  return typeof name === 'string' && name.trim() ? name.trim() : s.entity_id;
-}
-
-function internalId(s: HAState): string {
-  const id = s.attributes['id'];
-  return typeof id === 'string' && id ? id : (s.entity_id.split('.')[1] ?? s.entity_id);
-}
-
-async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = [];
-  for (let i = 0; i < items.length; i += limit) {
-    const chunk = items.slice(i, i + limit);
-    out.push(...(await Promise.all(chunk.map(fn))));
-  }
-  return out;
-}
-
-function collectRefs(
-  value: unknown,
-  entities: Set<string>,
-  devices: Set<string>,
-  key?: string,
-): void {
-  if (value == null) return;
-  if (typeof value === 'string') {
-    if ((key === 'device_id' || key === 'device_ids' || key === 'device') && value.length >= 16) {
-      devices.add(value);
-    }
-    if (key === 'entity_id' || key === 'entity_ids' || key === 'entity') {
-      if (value.includes('.')) entities.add(value);
-    }
-    if (value.includes('{{') || value.includes('states(') || key === undefined) {
-      for (const m of value.matchAll(ENTITY_ID_RE)) entities.add(m[0]);
-    }
-    return;
-  }
-  if (Array.isArray(value)) {
-    const childKey =
-      key === 'entity_id' || key === 'entity_ids'
-        ? 'entity_id'
-        : key === 'device_id' || key === 'device_ids'
-          ? 'device_id'
-          : key;
-    for (const v of value) collectRefs(v, entities, devices, childKey);
-    return;
-  }
-  if (typeof value === 'object') {
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      collectRefs(v, entities, devices, k);
-    }
-  }
-}
-
-function knownDomains(states: HAState[]): Set<string> {
+export function knownDomains(states: HaLikeState[]): Set<string> {
   const domains = new Set<string>([
     'automation',
     'binary_sensor',
@@ -152,10 +100,47 @@ export interface BrokenRefResult {
   yamlOnly: number;
 }
 
+export interface RefOwner {
+  entityId: string;
+  label: string;
+  entityRefs: Iterable<string>;
+  deviceRefs: Iterable<string>;
+  href?: string;
+}
+
+/** Missing entity/device refs on a set of owners. Pure; used by tests. */
+export function findMissingRefs(
+  owners: RefOwner[],
+  knownIds: Set<string>,
+  knownDevices: Set<string>,
+  domains: Set<string>,
+): HealthItem[] {
+  const items: HealthItem[] = [];
+  for (const owner of owners) {
+    const missingEntities = [...owner.entityRefs].filter(id => {
+      const domain = id.split('.')[0] ?? '';
+      if (!domains.has(domain)) return false;
+      if (id === owner.entityId) return false;
+      return !knownIds.has(id);
+    });
+    const missingDevices =
+      knownDevices.size > 0 ? [...owner.deviceRefs].filter(id => !knownDevices.has(id)) : [];
+    const missing = [...missingEntities, ...missingDevices.map(id => `device:${id.slice(0, 8)}`)];
+    if (missing.length === 0) continue;
+    items.push({
+      id: owner.entityId,
+      label: owner.label,
+      entities: missing.sort(),
+      href: owner.href,
+    });
+  }
+  return items.sort((a, b) => a.label.localeCompare(b.label, 'de'));
+}
+
 /**
  * Automations, scripts and scenes that still name an entity or device that
  * Home Assistant no longer has. YAML-only automations are scanned for
- * `entity_id` attributes only — the full config API does not serve them.
+ * `entity_id` attributes only — the config API does not serve them.
  */
 export async function findBrokenReferences(
   states: HAState[],
@@ -167,81 +152,45 @@ export async function findBrokenReferences(
   const knownDevices = new Set(snapshot.devices.map(d => d.id));
   const domains = knownDomains(states);
 
-  const owners: Array<{
-    entityId: string;
-    label: string;
-    config: Record<string, unknown>;
-    href: string;
-  }> = [];
+  const index = await getAutomationIndex(states);
+  const owners: RefOwner[] = [];
 
   for (const s of states.filter(row => row.entity_id.startsWith('scene.'))) {
     const members = s.attributes['entity_id'];
+    const entityRefs = new Set<string>();
+    if (Array.isArray(members)) {
+      for (const m of members) if (typeof m === 'string') entityRefs.add(m);
+    } else if (typeof members === 'string' && members.includes('.')) {
+      entityRefs.add(members);
+    }
     owners.push({
       entityId: s.entity_id,
-      label: friendly(s),
-      config: { entity_id: members },
+      label: friendlyName(s),
+      entityRefs,
+      deviceRefs: [],
       href: HA_PATH.scene,
     });
   }
 
-  const configurable = states.filter(
-    s => s.entity_id.startsWith('automation.') || s.entity_id.startsWith('script.'),
-  );
-  const fetched = await mapPool(configurable, CONFIG_CONCURRENCY, async s => {
-    const kind = s.entity_id.startsWith('script.') ? 'script' : 'automation';
-    const config = await ha.getUiConfig(kind, internalId(s));
-    return { s, config };
-  });
-
-  let yamlOnly = 0;
-  for (const { s, config } of fetched) {
-    const href = hrefForEntity(s.entity_id, null, internalId(s));
-    if (config && !config['error'] && !config['note']) {
-      owners.push({ entityId: s.entity_id, label: friendly(s), config, href });
-    } else {
-      yamlOnly += 1;
-      const members = s.attributes['entity_id'];
-      if (members) {
-        owners.push({
-          entityId: s.entity_id,
-          label: friendly(s),
-          config: { entity_id: members },
-          href,
-        });
-      }
-    }
-  }
-  if (yamlOnly > 0) {
-    log.debug('Broken-ref scan: YAML automations/scripts without UI config', { yamlOnly });
-  }
-
-  const items: HealthItem[] = [];
-  for (const owner of owners) {
-    const entityRefs = new Set<string>();
-    const deviceRefs = new Set<string>();
-    collectRefs(owner.config, entityRefs, deviceRefs);
-    const missingEntities = [...entityRefs].filter(id => {
-      const domain = id.split('.')[0] ?? '';
-      if (!domains.has(domain)) return false;
-      if (id === owner.entityId) return false;
-      return !knownIds.has(id);
+  for (const rec of index.records) {
+    owners.push({
+      entityId: rec.entityId,
+      label: rec.label,
+      entityRefs: rec.entityRefs,
+      deviceRefs: rec.deviceRefs,
+      href: hrefForEntity(rec.entityId, null, rec.internalId),
     });
-    const missingDevices =
-      knownDevices.size > 0 ? [...deviceRefs].filter(id => !knownDevices.has(id)) : [];
-    const missing = [...missingEntities, ...missingDevices.map(id => `device:${id.slice(0, 8)}`)];
-    if (missing.length === 0) continue;
-    items.push({
-      id: owner.entityId,
-      label: owner.label,
-      entities: missing.sort(),
-      href: owner.href,
+  }
+  if (index.yamlOnly > 0) {
+    log.debug('Broken-ref scan: YAML automations/scripts without UI config', {
+      yamlOnly: index.yamlOnly,
     });
   }
 
   return {
-    items: items.sort((a, b) => a.label.localeCompare(b.label, 'de')),
-    uiScanned: fetched.length - yamlOnly,
-    yamlOnly,
+    items: findMissingRefs(owners, knownIds, knownDevices, domains),
+    uiScanned: index.uiScanned,
+    yamlOnly: index.yamlOnly,
   };
 }
 
@@ -279,9 +228,9 @@ export function findFailedAutomations(
     const err = latest.get(id)?.error ?? latest.get(s.entity_id)?.error;
     const href = hrefForEntity(s.entity_id, null, id);
     if (err) {
-      items.push({ id: s.entity_id, label: friendly(s), entities: [err], href });
+      items.push({ id: s.entity_id, label: friendlyName(s), entities: [err], href });
     } else if (s.state === 'unavailable' || s.state === 'unknown') {
-      items.push({ id: s.entity_id, label: friendly(s), entities: [s.entity_id], href });
+      items.push({ id: s.entity_id, label: friendlyName(s), entities: [s.entity_id], href });
     }
   }
 

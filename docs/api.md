@@ -274,7 +274,7 @@ The backlog: improvement proposals with an approval workflow.
 | `POST` | `/api/backlog` | Create. Body: `{ title, asIs, toBe, impact, priority?, category?, tags?, proposedBy?, sourceKey? }` |
 | `PUT` | `/api/backlog/:id` | Partial update, `404` if unknown |
 | `DELETE` | `/api/backlog/:id` | `{ deleted: true }` or `404` |
-| `POST` | `/api/backlog/cleanup` | Removes duplicate analysis tasks and leftovers from checks that moved to system health |
+| `POST` | `/api/backlog/cleanup` | Removes duplicate analysis tasks, leftovers from checks that moved to system health, and leftover proposed snapshot/hardware-absence analysis tasks |
 | `POST` | `/api/backlog/:id/preview` | Dry-run of the proposed solution. Stores `previewResult`. `404` if unknown, `400` if there is no solution. |
 
 The status flow is `proposed → approved → solution_proposed → solution_approved → done`, with
@@ -353,7 +353,9 @@ Status → Pflege. These are live reports, not backlog tasks.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/coverage` | Area-aware automation gaps (`motion_light`, `cover_sun`, `leak_notify`) with `suggestedBlueprint` |
+| `GET` | `/api/coverage` | Area-aware automation gaps (`motion_light`, `cover_sun`, `leak_notify`, `climate_window`, `climate_away`) from config refs, each with `suggestedBlueprint`, `action` `{ trigger, targets, mode, sketch }`, plus `uiScanned`, `yamlOnly`, optional `note` |
+| `GET` | `/api/automation-quality` | UI-automation linter: `device_id_trigger`, `motion_mode_single`, `numeric_as_template` |
+| `POST` | `/api/care/task` | Body `{ source: "coverage" \| "quality", key }`. Creates a `proposed` backlog task from that gap or quality issue. `200` `{ ok, created, existed, taskId }`. `404` if the key is gone. |
 | `GET` | `/api/naming` | Friendly-name proposals (up to 80) |
 | `POST` | `/api/naming/apply` | Body `{ items: [{ entityId, name }] }`. Writes the entity registry. |
 | `GET` | `/api/energy` | Current power sensors (W) and energy totals (kWh) |

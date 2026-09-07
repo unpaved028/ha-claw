@@ -296,6 +296,51 @@ const RETIRED_CONDITION_KEYS = new Set(
   ].map(sourceKeyFromTitle),
 );
 
+/**
+ * Snapshot / name-matching / hardware-absence findings the analysis used to
+ * write. Representative titles (counts as 0) so sourceKeyFromTitle matches
+ * the live variants. Only unused `proposed` analysis tasks are dropped.
+ */
+const RETIRED_ANALYSIS_TITLES = [
+  '0 Lichter tagsüber an',
+  '0 Heizungen im Sommer aktiv',
+  'Fenster/Tür offen bei aktiver Heizung/Kühlung',
+  '0 Thermostate über 23°C',
+  'Solarüberschuss wird ins Netz eingespeist',
+  'Solaranlage ohne erkennbaren Batteriespeicher',
+  'Batterie voll, Überschuss wird eingespeist',
+  'Sturmschutz für Raffstores fehlt',
+  'Keine Windwächter-Automatisierung für Raffstores',
+  'Keine Dämmerungssteuerung für Raffstores',
+  'Keine Sonnenschutz-Beschattung im Sommer',
+  'Alle Raffstores tagsüber geschlossen',
+  'Schimmelrisiko: 0 Räume mit hoher Luftfeuchtigkeit',
+  'Große Temperaturdifferenz zwischen Räumen',
+  'Keine Anwesenheitserkennung konfiguriert',
+  '0 Fenster offen bei Abwesenheit',
+  '0 Türen offen bei Abwesenheit',
+  '0 Schlösser nachts nicht verriegelt',
+  'Kein Alarm-System konfiguriert',
+  'Keine Rauchmelder in Home Assistant integriert',
+  'Keine Wasserleck-Sensoren integriert',
+  '0 Entities ohne sprechenden Namen',
+  'Inkonsistente Entity-ID Namensgebung',
+  'Keine Labels für Geräte-Kategorisierung genutzt',
+  '0 Automationen deaktiviert',
+  '0 Automationen nie ausgelöst',
+  'Bewegungsmelder ohne Licht-Automatisierung',
+  '0 Lichter mitten in der Nacht an',
+  '0 Geräte im Standby verbrauchen 0W',
+  'Keine Benachrichtigungs-Automatisierungen vorhanden',
+  'Kein Urlaubsmodus konfiguriert',
+];
+
+const RETIRED_ANALYSIS_KEYS = new Set(RETIRED_ANALYSIS_TITLES.map(sourceKeyFromTitle));
+
+export function isRetiredAnalysisTitle(title: string): boolean {
+  return RETIRED_ANALYSIS_KEYS.has(sourceKeyFromTitle(title));
+}
+
 export interface CleanupResult {
   /** Duplicates of the same finding that were removed. */
   duplicatesRemoved: number;
@@ -315,11 +360,12 @@ function keepRank(task: BacklogTask): number {
 }
 
 /**
- * Collapse duplicate analysis tasks and drop the retired condition checks.
+ * Collapse duplicate analysis tasks and drop retired findings.
  *
  * Before v0.9.3 the analysis deduplicated on the exact title, but every title
  * carried a live count – so each run created a new task for the same finding.
- * This repairs the backlogs that accumulated as a result.
+ * Health leftovers and the later snapshot/hardware-absence analysis tasks are
+ * dropped the same way (the latter only while still `proposed`).
  */
 export async function cleanupAnalysisTasks(): Promise<CleanupResult> {
   const tasks = await listTasks({});
@@ -331,6 +377,15 @@ export async function cleanupAnalysisTasks(): Promise<CleanupResult> {
     const key = taskSourceKey(task);
 
     if (RETIRED_CONDITION_KEYS.has(key)) {
+      if (await deleteTask(task.id)) retiredRemoved++;
+      continue;
+    }
+
+    if (
+      RETIRED_ANALYSIS_KEYS.has(key) &&
+      task.proposedBy === 'analysis' &&
+      task.status === 'proposed'
+    ) {
       if (await deleteTask(task.id)) retiredRemoved++;
       continue;
     }

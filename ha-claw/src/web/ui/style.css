@@ -2451,6 +2451,24 @@ body {
   color: var(--text-muted);
   font-size: 0.75rem;
 }
+.care-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.care-task-btn {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.care-task-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .health-orphan-btn {
   margin-left: 0.4rem;
   font-size: 0.72rem;

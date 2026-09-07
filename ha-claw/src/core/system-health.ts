@@ -24,15 +24,37 @@ import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
 import * as ha from './ha-client.js';
 import { checkBackup, isBackupStatusEntity } from './backup-health.js';
+import { resetAutomationIndexCache } from './automation-index.js';
 import {
   findBrokenReferences,
   findFailedAutomations,
   findFailedIntegrations,
   findStoppedAddons,
 } from './health-signals.js';
+import {
+  ENERGY_META_CRITICAL,
+  ENERGY_META_WARN,
+  STUCK_UPDATE_DAYS,
+  entityDeviceStem,
+  findEnergyMetaEntityIds,
+  findOutageClusters,
+  findStuckUpdates,
+  formatRepairNote,
+  isHaStackUpdate,
+  outageClusterSeverity,
+  parseRepairIssues,
+} from './health-extra.js';
+import {
+  lastDifferentHourSample,
+  loadHealthHistory,
+  recordHealthHistory,
+} from './health-history.js';
 import { HA_PATH, haFrontendBase, hrefForEntity } from './health-links.js';
+import type { HealthCheckKey } from './notify-matrix.js';
 import { dateLocale } from './strings.js';
 import { fill, formatLocaleNumber, healthCopy } from './health-copy.js';
+
+export { entityDeviceStem };
 
 const log = createLogger('health');
 
@@ -67,7 +89,10 @@ export interface HealthCheck {
     | 'broken_refs'
     | 'failed_automations'
     | 'pending_updates'
+    | 'stuck_updates'
     | 'failed_integrations'
+    | 'outage_cluster'
+    | 'energy_meta'
     | 'radio_quiet'
     | 'stopped_addons'
     | 'recorder'
@@ -213,44 +238,6 @@ function examples(labels: string[]): string {
   const shown = labels.slice(0, MAX_EXAMPLES).join(', ');
   const rest = labels.length - MAX_EXAMPLES;
   return rest > 0 ? `${shown} (+${rest} weitere)` : shown;
-}
-
-/**
- * Diagnostic / satellite suffixes that must not split one physical device
- * into many rows when the device registry is unavailable.
- * Longest match first.
- */
-const DIAGNOSTIC_SUFFIXES = [
-  'batteriespannung',
-  'batterietyp',
-  'battery_voltage',
-  'battery_type',
-  'identifizieren',
-  'linkquality',
-  'last_seen',
-  'firmware',
-  'identify',
-  'batterie',
-  'battery',
-  'update',
-  'contact',
-  'opening',
-  'tamper',
-  'tur',
-  'lqi',
-];
-
-/** Collapse `sensor.foo_bar_batterie_12` → `foo_bar` for fallback grouping. */
-export function entityDeviceStem(entityId: string): string {
-  let name = (entityId.split('.')[1] ?? entityId).toLowerCase();
-  name = name.replace(/_\d+$/, '');
-  for (const suffix of DIAGNOSTIC_SUFFIXES) {
-    if (name.endsWith(`_${suffix}`)) {
-      name = name.slice(0, -(suffix.length + 1));
-      break;
-    }
-  }
-  return name;
 }
 
 function groupByDevice(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthItem[] {
@@ -409,6 +396,51 @@ function checkRadioQuiet(entityIds: string[], info: ha.EntityDeviceInfo[]): Heal
   return buildCheck('radio_quiet', c.label, groupByDevice(entityIds, info), c.ok, c.hint, 3, 10);
 }
 
+function checkEnergyMeta(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  const c = healthCopy().energy_meta;
+  return buildCheck(
+    'energy_meta',
+    c.label,
+    groupByDevice(entityIds, info),
+    c.ok,
+    c.hint,
+    ENERGY_META_WARN,
+    ENERGY_META_CRITICAL,
+  );
+}
+
+function checkStuckUpdates(entityIds: string[], info: ha.EntityDeviceInfo[]): HealthCheck {
+  const c = healthCopy().stuck_updates;
+  return buildCheck(
+    'stuck_updates',
+    fill(c.label, { days: STUCK_UPDATE_DAYS }),
+    groupByDevice(entityIds, info),
+    c.ok,
+    c.hint,
+    1,
+    8,
+  );
+}
+
+function checkOutageClusters(result: ReturnType<typeof findOutageClusters>): HealthCheck {
+  const c = healthCopy().outage_cluster;
+  const labels = result.items.map(item => item.label);
+  const check: HealthCheck = {
+    key: 'outage_cluster',
+    label: c.label,
+    severity: outageClusterSeverity(result.items.length, result.maxClusterSize),
+    count: result.items.length,
+    detail: result.items.length > 0 ? examples(labels) : c.ok,
+    entities: labels,
+    items: result.items,
+    hint: c.hint,
+  };
+  if (result.recoveredDeviceCount > 0) {
+    check.note = healthCopy().outageRecovered(result.recoveredDeviceCount);
+  }
+  return check;
+}
+
 function hoursSince(iso: string, now: Date): number | null {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return null;
@@ -438,20 +470,6 @@ function isLastSeenEntity(s: HAState): boolean {
 
 function isPendingUpdate(s: HAState): boolean {
   return s.entity_id.startsWith('update.') && s.state === 'on';
-}
-
-function isHaStackUpdate(s: HAState): boolean {
-  const id = s.entity_id.toLowerCase();
-  const title = String(s.attributes['title'] ?? '').toLowerCase();
-  return (
-    id.includes('core_update') ||
-    id.includes('supervisor_update') ||
-    id.includes('os_update') ||
-    id.includes('operating_system') ||
-    title.includes('operating system') ||
-    title.includes('supervisor') ||
-    title === 'home assistant core'
-  );
 }
 
 type StorageKind = 'flash' | 'ssd';
@@ -605,7 +623,7 @@ function checkRecorder(info: ha.RecorderInfo): HealthCheck {
   };
 }
 
-const CHECK_HREF: Record<HealthCheck['key'], string | undefined> = {
+const CHECK_HREF: Record<HealthCheckKey, string | undefined> = {
   unavailable: HA_PATH.entities,
   orphans: HA_PATH.entities,
   stale_sensors: HA_PATH.entities,
@@ -613,7 +631,10 @@ const CHECK_HREF: Record<HealthCheck['key'], string | undefined> = {
   broken_refs: '/config/automation/dashboard',
   failed_automations: '/config/automation/dashboard',
   pending_updates: HA_PATH.updates,
+  stuck_updates: HA_PATH.updates,
   failed_integrations: '/config/integrations',
+  outage_cluster: '/config/integrations',
+  energy_meta: HA_PATH.energy,
   radio_quiet: HA_PATH.entities,
   stopped_addons: HA_PATH.addons,
   recorder: HA_PATH.recorder,
@@ -722,6 +743,7 @@ export async function getSystemHealth(): Promise<SystemHealth> {
 }
 
 async function computeSystemHealth(): Promise<SystemHealth> {
+  resetAutomationIndexCache();
   const states = (await ha.getStates()) as HAState[];
   const now = new Date();
 
@@ -785,6 +807,8 @@ async function computeSystemHealth(): Promise<SystemHealth> {
   const pendingUpdates = states.filter(isPendingUpdate);
   const pendingUpdateIds = pendingUpdates.map(s => s.entity_id);
   const stackUpdateWaiting = pendingUpdates.some(isHaStackUpdate);
+  const energyMetaIds = findEnergyMetaEntityIds(states);
+  const stuck = findStuckUpdates(states, now);
 
   const involved = [
     ...new Set([
@@ -794,6 +818,8 @@ async function computeSystemHealth(): Promise<SystemHealth> {
       ...lowBattery,
       ...radioQuiet,
       ...pendingUpdateIds,
+      ...stuck.entityIds,
+      ...energyMetaIds,
       ...restoredIds,
     ]),
   ];
@@ -804,14 +830,17 @@ async function computeSystemHealth(): Promise<SystemHealth> {
       })
     : Promise.resolve(null);
 
-  const [deviceInfo, backup, disk, snapshot, addons, recorder] = await Promise.all([
-    involved.length > 0 ? ha.getEntityDeviceInfo(involved) : Promise.resolve([]),
-    checkBackup(now, states),
-    readDiskInfo(),
-    ha.getRegistrySnapshot(),
-    addonsPromise,
-    ha.getRecorderInfo(),
-  ]);
+  const [deviceInfo, backup, disk, snapshot, addons, recorder, repairsRaw, history] =
+    await Promise.all([
+      involved.length > 0 ? ha.getEntityDeviceInfo(involved) : Promise.resolve([]),
+      checkBackup(now, states),
+      readDiskInfo(),
+      ha.getRegistrySnapshot(),
+      addonsPromise,
+      ha.getRecorderInfo(),
+      ha.getRepairIssues(),
+      loadHealthHistory(),
+    ]);
 
   const [brokenRefs, failedAutos, failedIntegrations] = await Promise.all([
     findBrokenReferences(states, snapshot),
@@ -826,6 +855,28 @@ async function computeSystemHealth(): Promise<SystemHealth> {
       updates.hint = 'Home Assistant Core, OS oder Supervisor wartet. Das zuerst, dann Geräte.';
     }
   }
+
+  const stuckCheck = checkStuckUpdates(stuck.entityIds, deviceInfo);
+  if (stuck.stackStuck && stuckCheck.count > 0) {
+    stuckCheck.severity = 'critical';
+    stuckCheck.hint = healthCopy().stuckStackHint;
+  }
+
+  const prevUnavail = lastDifferentHourSample(
+    history.samples['unavailable'] ?? [],
+    now.toISOString(),
+  );
+  const clusters = findOutageClusters(unavailable, snapshot, prevUnavail ? prevUnavail.ids : null);
+
+  const integrations = checkFailedIntegrations(failedIntegrations);
+  const failedDomains = new Set(
+    snapshot.entries
+      .filter(e => failedIntegrations.some(item => item.id === e.entry_id))
+      .map(e => e.domain),
+  );
+  const copy = healthCopy();
+  const repairNote = formatRepairNote(parseRepairIssues(repairsRaw), failedDomains, copy);
+  if (repairNote) integrations.note = repairNote;
 
   const refs = checkBrokenRefs(brokenRefs.items);
   if (brokenRefs.yamlOnly > 0 || brokenRefs.uiScanned > 0) {
@@ -843,7 +894,10 @@ async function computeSystemHealth(): Promise<SystemHealth> {
     refs,
     checkFailedAutomations(failedAutos),
     updates,
-    checkFailedIntegrations(failedIntegrations),
+    stuckCheck,
+    integrations,
+    checkOutageClusters(clusters),
+    checkEnergyMeta(energyMetaIds, deviceInfo),
     checkRadioQuiet(radioQuiet, deviceInfo),
     ...(addons ? [checkStoppedAddons(findStoppedAddons(addons))] : []),
     checkRestored(restoredIds, deviceInfo),
@@ -866,6 +920,11 @@ async function computeSystemHealth(): Promise<SystemHealth> {
     checks: decorated,
   };
   await rememberChecks(health);
+  try {
+    await recordHealthHistory(health.checkedAt, health.checks);
+  } catch (err) {
+    log.warn('Could not record health history', { error: String(err) });
+  }
   health.checks = sortChecks(health.checks);
   cachedHealth = health;
   try {
