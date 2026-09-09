@@ -42,7 +42,7 @@ Liveness probe. The Supervisor `watchdog` and the image `HEALTHCHECK` both call 
 ```json
 {
   "status": "ok",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "uptime": 87231,
   "startedAt": "2026-08-29T21:14:02.104Z",
   "mode": "addon",

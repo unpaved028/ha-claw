@@ -6,7 +6,9 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
-## Unreleased
+## 1.4.0
+
+Coverage from automation config, a quality lint on Care, and three new System Health cards.
 
 ### Added
 

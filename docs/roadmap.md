@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.3.0**. Last reviewed: 2026-09-08.
+Current version: **1.4.0**. Last reviewed: 2026-09-10.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -14,6 +14,7 @@ roadmap that lists every possible feature is not a roadmap.
 - [v1.0.0 — Trust and hardening](#v100--trust-and-hardening)
 - [v1.1 / v1.2 — shipped](#v11--v12--shipped)
 - [v1.3 — shipped](#v13--shipped)
+- [v1.4 — shipped](#v14--shipped)
 - [Exploratory](#exploratory)
 - [Deliberately not doing](#deliberately-not-doing)
 - [Decided questions](#decided-questions)
@@ -86,7 +87,7 @@ A new visitor should understand this is a caretaker, not a second Assist.
 
 ## Now — first hour and discovery
 
-Capability through [v1.3.0](../ha-claw/CHANGELOG.md#130) is enough to be useful. The next
+Capability through [v1.4.0](../ha-claw/CHANGELOG.md#140) is enough to be useful. The next
 problems are not missing analysis modules.
 
 1. **Visitors need to see the product.** The add-on store blurb used to say "Local
@@ -108,29 +109,11 @@ deepens the existing Care/health surfaces, it does not add a new product.
 
 ## Caretaker depth
 
-Problem: coverage and the hourly analysis guessed from automation *names* and from
-snapshots ("lights on at 14:00"). That invents gaps and hides real ones. Health already
-walked UI configs for broken references.
+Shipped in [v1.4.0](../ha-claw/CHANGELOG.md#140). Coverage and the hourly analysis used to
+guess from automation *names* and snapshots ("lights on at 14:00"). That invented gaps and
+hid real ones. Do not bring name-matching or hardware-shopping Care cards back.
 
-1. **Shared automation index** — one walk of UI automation/script configs, cached for an
-   hour, reset on each full health run. Coverage of the three existing kinds
-   (`motion_light`, `cover_sun`, `leak_notify`) uses entity refs, sun triggers and notify
-   services. Shipped under [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
-2. **Analysis diet** — stop writing hardware-absence and snapshot findings to the backlog.
-   The hourly job seeds at most three tasks from Care reports. Shipped under
-   [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
-3. **Two new coverage kinds** on existing inventory only: window+climate pause, presence+
-   climate away-setback. Each gap carries named entities and an action sketch. Shipped
-   under [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
-4. **Automation-quality linter** on Care: `device_id` triggers, `mode: single` on motion
-   lights, numeric comparisons written as templates. Shipped under
-   [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
-5. **Health trends** — ring of the last 24 hourly readings; cards for energy sensors
-   missing `state_class`, updates stuck `on` for 14 days, clustered outages per
-   integration. Shipped under
-   [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
-
-Out of scope here: buy-this-hardware recipes, print servers, one-click automation writes.
+Out of scope still: buy-this-hardware recipes, print servers, one-click automation writes.
 
 Shipped earlier and recorded in the changelog, not here: health cards and the Status
 screen ([v0.9.6](../ha-claw/CHANGELOG.md#096)–[v0.10.0](../ha-claw/CHANGELOG.md#0100)),
@@ -162,6 +145,14 @@ Shipped in [v1.3.0](../ha-claw/CHANGELOG.md#130): German and English system prom
 UI keyed off the Home Assistant locale (with an `en` / `de` override), a Settings
 notification matrix (Telegram, Chat, HA notify, `persistent_notification`), JSON data
 export, and chat history pagination (last 30 on screen, 100 on disk).
+
+## v1.4 — shipped
+
+Shipped in [v1.4.0](../ha-claw/CHANGELOG.md#140): one shared walk of UI automation/script
+configs (coverage from entity refs, not names), analysis as a seeder of at most three
+tasks, two new coverage kinds on existing inventory (`climate_window`, `climate_away`),
+an automation-quality list on Care, and three System Health cards (`energy_meta`,
+`stuck_updates`, `outage_cluster`) plus a 24-hour history ring.
 
 ## Exploratory
 

@@ -2,7 +2,7 @@
 # Reference: https://developers.home-assistant.io/docs/add-ons/configuration
 
 name: 'HA-Claw'
-version: '1.3.0'
+version: '1.4.0'
 slug: 'ha-claw'
 description: 'Maintains your Home Assistant install: health, gaps, and approved fixes'
 url: 'https://github.com/unpaved028/ha-claw'

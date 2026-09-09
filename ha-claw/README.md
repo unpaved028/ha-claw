@@ -16,8 +16,9 @@ touches anything that could lock you out or set off an alarm.
 
 - **System health at a glance.** Unreachable devices, stale sensors, low batteries, backup age
   and free disk space — with a notification only when something gets _worse_.
-- **Improvement proposals.** Seven analysis modules look for energy waste, security gaps,
-  missing cover automations and naming drift.
+- **Improvement proposals.** Coverage gaps on inventory you already have (motion light, sun
+  cover, leak notify, climate pause/away) and a quality lint on UI automations — proposed as
+  tasks, not written on their own.
 - **Asks before it does damage.** Locks, alarms, scripts, buttons, garage doors and automation
   edits require your confirmation every time.
 - **Multi-step reasoning.** Up to ten search-act-verify steps per request, so it can answer
