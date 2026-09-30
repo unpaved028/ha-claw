@@ -13,6 +13,26 @@ const DE: Record<string, string> = {
   'prompt.needsConfirm': '(erfordert Bestätigung)',
   'prompt.nameIntro':
     'Dein Name ist **{bot}**. Der Nutzer heisst **{user}**. Sprich den Nutzer mit seinem Namen an wenn es passt.',
+  'prompt.nameIntroAnon': 'Dein Name ist **{bot}**.',
+  'loop.noKey':
+    'Kein OpenRouter-Key konfiguriert. Status, Pflege und der Wochenbericht laufen ohne Sprachmodell. Chat, Aufgabenlösungen und die Sonntagsvorschläge brauchen einen Key in der Add-on-Konfiguration.',
+  'cie.instruction':
+    'Wöchentliche Vorschläge. Schau das Zuhause an und leg höchstens zwei neue Aufgaben an, die noch nicht offen sind und die die Pflege nicht schon zeigt.',
+  'cie.footer':
+    'Das sind Vorschläge. Sie liegen unter Status → Aufgaben. Genehmigen heißt, dass dir der Vorschlag gefällt. Dabei wird noch nichts geschrieben.',
+  'cie.empty': 'Diese Woche keine neuen Vorschläge.',
+  'loop.empty': '(keine Antwort)',
+  'loop.maxIterations': 'Maximale Iterationen erreicht. Loop wurde aus Sicherheitsgründen beendet.',
+  'thinking.1': 'denkt nach',
+  'thinking.2': 'kombiniert Wissen',
+  'thinking.3': 'analysiert Situation',
+  'thinking.4': 'plant nächsten Schritt',
+  'thinking.5': 'prüft Zusammenhänge',
+  'thinking.6': 'formuliert Antwort',
+  'thinking.7': 'berechnet Optionen',
+  'thinking.8': 'greift auf Daten zu',
+  'thinking.9': 'ordnet Informationen',
+  'thinking.10': 'zieht Schlussfolgerungen',
   'prompt.directLow': 'Sei diplomatisch und indirekt in deinen Formulierungen.',
   'prompt.directHigh': 'Sei direkt und auf den Punkt. Keine Umschweife.',
   'prompt.formalLow': 'Sprich locker und casual, duze den Nutzer.',
@@ -32,8 +52,12 @@ const DE: Record<string, string> = {
   'telegram.start':
     '🤖 *HA-Claw online.*\n\nSchreib mir einfach, was du brauchst.\n\n`/status` – Systemstatus\n`/ping` – Lebenszeichen',
   'telegram.pong': '🏓 Pong! Uptime: {hours}h {minutes}m',
-  'telegram.statusUsage':
+  'telegram.statusUsageBilled':
+    '• Anfragen: {requests}\n• Tokens: {tokens}\n• Kosten (OpenRouter): ${cost}\n',
+  'telegram.statusUsageEstimated':
     '• Anfragen: {requests}\n• Tokens: {tokens}\n• Kosten (Schätzung): ${cost}\n',
+  'telegram.statusUsageMixed':
+    '• Anfragen: {requests}\n• Tokens: {tokens}\n• Kosten: ${billed} laut OpenRouter, ${estimated} geschätzt\n',
   'telegram.statusHealthHead': 'Systemzustand',
   'telegram.statusHealthFail': 'Nicht abrufbar.',
   'telegram.statusBody':
@@ -45,6 +69,8 @@ const DE: Record<string, string> = {
   'telegram.roomsFail': 'Fehler beim Laden der Räume.',
   'telegram.roomStatus': 'Status von {room}',
   'telegram.voiceHeard': '🎙️ _Voice erkannt:_ "{text}"',
+  'telegram.firstRun':
+    'Die erste Seite ist Status: Zustand der Installation, Pflege und der Wochenbericht. Wohin Hinweise gehen, stellst du in der Web-Oberfläche unter Einstellungen → Benachrichtigungen ein.',
   'telegram.onboardingError': '❌ Fehler: {error}',
   'telegram.retryStart': 'Starte neu...',
   'telegram.retryNone': 'Keine vorherige Nachricht für Retry gefunden.',
@@ -64,14 +90,15 @@ const DE: Record<string, string> = {
   'confirm.btnNo': '❌ Nein',
   'notify.foreignChat': 'Diese Aufgabe gehört zu einem anderen Chat.',
   'notify.fastTrackCb': 'Task wird im Hintergrund ausgeführt...',
-  'notify.fastTrackReply': '⏳ Bestätigt: {title}. Ich kümmere mich darum.',
+  'notify.fastTrackReply':
+    '⏳ Idee freigegeben: {title}. Ich schlage eine Lösung vor, bevor etwas geändert wird.',
   'notify.rejectCb': 'Task wurde ignoriert.',
   'notify.rejectReply': '❌ Aufgabe wurde ignoriert.',
   'push.newTask':
     '⚠️ *Proaktive Warnung: {title}*\n\n*Ist-Zustand:* {asIs}\n*Soll-Zustand:* {toBe}',
   'push.taskDone': '✅ *Aufgabe erledigt:* {title}\n\n*Ergebnis:*\n{result}',
   'push.taskFail': '❌ *Fehler bei Aufgabe:* {title}\n\n*Details:*\n{result}',
-  'push.taskRun': '✅ Ausführen',
+  'push.taskRun': '✅ Freigeben',
   'push.taskIgnore': '❌ Ignorieren',
   'push.noResult': 'Ohne Rückmeldung',
   'push.unknown': 'Unbekannt',
@@ -81,7 +108,7 @@ const DE: Record<string, string> = {
   'coverage.cover': '{covers} Cover ohne Sonnen-/Beschattungs-Automation.',
   'coverage.leak': '{leaks} Leck-/Feuchtesensoren ohne Benachrichtigungs-Automation.',
   'coverage.yamlNote':
-    '{ui} UI-Automationen/Skripte vollständig, {yaml} nur YAML (kein voller Scan).',
+    '{ui} UI-Automationen/Skripte vollständig gelesen, {yaml} nur YAML (Referenzen über die Home-Assistant-Suche, wenn sie antwortet).',
   'coverage.impactMotion': 'Licht nur wenn jemand da ist; weniger vergessene Lichter.',
   'coverage.impactCover': 'Beschattung nach Sonnenstand statt nach der Uhr.',
   'coverage.impactLeak': 'Sofortige Warnung bei einem Leck, auch wenn niemand im Raum ist.',
@@ -116,7 +143,10 @@ const DE: Record<string, string> = {
   'digest.names': 'Namen ohne friendly_name: {n}',
   'digest.watts': 'Aktuelle Leistung (Summe der Power-Sensoren): {n} W',
   'digest.tasks': 'Offene Tasks: {n}',
+  'digest.outcomes':
+    'Bisher: {approved} Aufgaben freigegeben, {rejected} abgelehnt, {dismissed} Lücken bewusst ausgelassen.',
   'digest.gapList': 'Lücken:',
+  'digest.dismissedList': 'Bewusst ausgelassen:',
   'digest.quality': 'Automation-Qualität: {n} Hinweise',
   'digest.topLoads': 'Größte Verbraucher:',
   'naming.light': 'Licht',
@@ -136,6 +166,26 @@ const EN: Record<string, string> = {
   'prompt.needsConfirm': '(requires confirmation)',
   'prompt.nameIntro':
     'Your name is **{bot}**. The user is **{user}**. Address the user by name when it fits.',
+  'prompt.nameIntroAnon': 'Your name is **{bot}**.',
+  'loop.noKey':
+    'No OpenRouter key is configured. Status, Care and the weekly digest run without a language model. Chat, task solutions and the Sunday suggestions need a key in the add-on configuration.',
+  'cie.instruction':
+    'Weekly suggestions. Look at the home and create at most two new tasks that are not already open and that Care does not already show.',
+  'cie.footer':
+    'These are suggestions. They sit under Status → Tasks. Approving means you want that suggestion. Nothing is written yet.',
+  'cie.empty': 'No new suggestions this week.',
+  'loop.empty': '(no answer)',
+  'loop.maxIterations': 'Maximum iterations reached. The loop was stopped as a safety limit.',
+  'thinking.1': 'thinking',
+  'thinking.2': 'combining what it knows',
+  'thinking.3': 'reading the situation',
+  'thinking.4': 'planning the next step',
+  'thinking.5': 'checking how things connect',
+  'thinking.6': 'drafting an answer',
+  'thinking.7': 'weighing options',
+  'thinking.8': 'looking up data',
+  'thinking.9': 'sorting information',
+  'thinking.10': 'drawing a conclusion',
   'prompt.directLow': 'Be diplomatic and indirect in how you phrase things.',
   'prompt.directHigh': 'Be direct and to the point. No padding.',
   'prompt.formalLow': 'Speak casually. Use first names.',
@@ -155,8 +205,12 @@ const EN: Record<string, string> = {
   'telegram.start':
     '🤖 *HA-Claw online.*\n\nJust tell me what you need.\n\n`/status` – system status\n`/ping` – liveness',
   'telegram.pong': '🏓 Pong! Uptime: {hours}h {minutes}m',
-  'telegram.statusUsage':
+  'telegram.statusUsageBilled':
+    '• Requests: {requests}\n• Tokens: {tokens}\n• Cost (OpenRouter): ${cost}\n',
+  'telegram.statusUsageEstimated':
     '• Requests: {requests}\n• Tokens: {tokens}\n• Cost (estimate): ${cost}\n',
+  'telegram.statusUsageMixed':
+    '• Requests: {requests}\n• Tokens: {tokens}\n• Cost: ${billed} from OpenRouter, ${estimated} estimated\n',
   'telegram.statusHealthHead': 'System health',
   'telegram.statusHealthFail': 'Unavailable.',
   'telegram.statusBody':
@@ -168,6 +222,8 @@ const EN: Record<string, string> = {
   'telegram.roomsFail': 'Failed to load rooms.',
   'telegram.roomStatus': 'Status of {room}',
   'telegram.voiceHeard': '🎙️ _Voice heard:_ "{text}"',
+  'telegram.firstRun':
+    'The first page is Status: the state of the installation, Care, and the weekly digest. Where notices go is Settings → Notifications in the web UI.',
   'telegram.onboardingError': '❌ Error: {error}',
   'telegram.retryStart': 'Starting again...',
   'telegram.retryNone': 'No previous message to retry.',
@@ -187,13 +243,14 @@ const EN: Record<string, string> = {
   'confirm.btnNo': '❌ No',
   'notify.foreignChat': 'This task belongs to another chat.',
   'notify.fastTrackCb': 'Task is running in the background...',
-  'notify.fastTrackReply': '⏳ Confirmed: {title}. I will take care of it.',
+  'notify.fastTrackReply':
+    '⏳ Idea approved: {title}. I will propose a solution before anything is changed.',
   'notify.rejectCb': 'Task ignored.',
   'notify.rejectReply': '❌ Task ignored.',
   'push.newTask': '⚠️ *Proactive warning: {title}*\n\n*As-is:* {asIs}\n*To-be:* {toBe}',
   'push.taskDone': '✅ *Task done:* {title}\n\n*Result:*\n{result}',
   'push.taskFail': '❌ *Task failed:* {title}\n\n*Details:*\n{result}',
-  'push.taskRun': '✅ Run',
+  'push.taskRun': '✅ Approve',
   'push.taskIgnore': '❌ Ignore',
   'push.noResult': 'No result',
   'push.unknown': 'Unknown',
@@ -202,7 +259,8 @@ const EN: Record<string, string> = {
     '{motion} motion sensors and {lights} lights, but no automation connecting them.',
   'coverage.cover': '{covers} covers without a sun/shading automation.',
   'coverage.leak': '{leaks} leak/moisture sensors without a notification automation.',
-  'coverage.yamlNote': '{ui} UI automations/scripts read fully, {yaml} YAML-only (no full scan).',
+  'coverage.yamlNote':
+    '{ui} UI automations/scripts read in full, {yaml} YAML-only (references via Home Assistant search when it answers).',
   'coverage.impactMotion': 'Lights only when someone is there; fewer lights left on.',
   'coverage.impactCover': 'Shading from the sun, not from the clock.',
   'coverage.impactLeak': 'An immediate warning on a leak, even when nobody is in the room.',
@@ -237,7 +295,10 @@ const EN: Record<string, string> = {
   'digest.names': 'Names without friendly_name: {n}',
   'digest.watts': 'Current power (sum of power sensors): {n} W',
   'digest.tasks': 'Open tasks: {n}',
+  'digest.outcomes':
+    'So far: {approved} tasks approved, {rejected} rejected, {dismissed} gaps marked intentional.',
   'digest.gapList': 'Gaps:',
+  'digest.dismissedList': 'Marked on purpose:',
   'digest.quality': 'Automation quality: {n} notes',
   'digest.topLoads': 'Largest loads:',
   'naming.light': 'Light',

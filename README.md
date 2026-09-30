@@ -54,9 +54,11 @@ HA-Claw is a bring-your-own-key project. Three things are worth knowing up front
   sent to an LLM provider through [OpenRouter](https://openrouter.ai). *Actions* run
   locally against your Home Assistant; the *reasoning* does not. If model-side data
   processing is unacceptable to you, this add-on is the wrong tool.
-- **It costs money per message.** With the default `anthropic/claude-haiku-4.5` a normal
-  request is a fraction of a cent, but proactive analysis and the task processor also spend
-  tokens. Cumulative usage and an estimated USD total are shown under Status.
+- **Chat costs money per message.** Status, Care and the weekly digest do not call a model
+  and start without a key. A chat turn sends the tool list, so it costs more than a fraction
+  of a cent. Telegram `/status` shows OpenRouter's reported charge when the response includes
+  it, and labels a price-table figure as an estimate when it does not. The web Status page
+  does not show a dollar total. That figure is not the OpenRouter invoice.
 - **It can control your home.** The safety gate covers the dangerous domains, but an LLM
   agent with service-call access is a category of risk you should accept deliberately. Read
   [SECURITY.md](SECURITY.md) and [docs/security.md](docs/security.md) first.
@@ -72,10 +74,9 @@ HA-Claw is a bring-your-own-key project. Three things are worth knowing up front
    ```
 
 2. Install **HA-Claw** from the store listing that appears.
-3. Open the **Configuration** tab and paste your OpenRouter API key into `openrouter_api_key`.
+3. Start the add-on. Status is the first screen. An OpenRouter key in `openrouter_api_key`
+   is what adds chat and task solutions.
 4. *(Optional)* Add `telegram_bot_token` and `telegram_allowed_user_ids` to enable the bot.
-5. Start the add-on. HA-Claw appears in the sidebar and greets you with a short onboarding
-   conversation.
 
 Requires Home Assistant OS or Supervised on `aarch64` or `amd64`. The image is built on your
 machine on first install, which takes a few minutes on a Raspberry Pi.
@@ -87,7 +88,7 @@ Step-by-step instructions, including how to create the Telegram bot and find you
 
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
-| `openrouter_api_key` | yes | — | API key from [openrouter.ai](https://openrouter.ai) |
+| `openrouter_api_key` | no | — | API key from [openrouter.ai](https://openrouter.ai). Chat and task solutions need it; Status, Care and the digest do not. |
 | `openrouter_default_model` | no | `anthropic/claude-haiku-4.5` | Model used when no per-tier override is set |
 | `openai_api_key` | no | — | Separate OpenAI key, only for Telegram voice transcription (Whisper) |
 | `telegram_bot_token` | no | — | Bot token from [@BotFather](https://t.me/BotFather) |
@@ -104,7 +105,7 @@ Model tiers, environment variables and data paths: **[docs/configuration.md](doc
 | --- | --- |
 | [ha-claw/DOCS.md](ha-claw/DOCS.md) · [DE](ha-claw/DOCS.de.md) | **Users** — setup, day-to-day usage, system health, troubleshooting |
 | [docs/configuration.md](docs/configuration.md) | Every option, env var, model tier and data path |
-| [docs/tools.md](docs/tools.md) | The 47 tools the agent can call |
+| [docs/tools.md](docs/tools.md) | The 48 tools the agent can call |
 | [docs/api.md](docs/api.md) | HTTP + SSE API served over Ingress |
 | [docs/architecture.md](docs/architecture.md) | How the pieces fit together |
 | [docs/security.md](docs/security.md) | Safety gate, threat model, data flow |

@@ -39,6 +39,8 @@ export interface SafeCallInput {
   coverDeviceClass?: Record<string, string>;
   /** scene entity_id → member entity_ids. */
   sceneTargets?: Record<string, string[]>;
+  /** member entity_id → device_class, consulted for cover members of a scene. */
+  sceneMemberClass?: Record<string, string>;
 }
 
 /**
@@ -76,10 +78,14 @@ export function evaluateSafeCallPolicy(input: SafeCallInput): string | null {
   if (domain === 'scene') {
     const targets = input.sceneTargets ?? {};
     const hits: string[] = [];
+    const memberClass = input.sceneMemberClass ?? {};
     for (const sceneId of entityIds) {
       for (const target of targets[sceneId] ?? []) {
         const targetDomain = String(target).split('.')[0] ?? '';
         if (GUARDED_DOMAINS.has(targetDomain)) hits.push(`${sceneId} -> ${target}`);
+        if (targetDomain === 'cover' && GUARDED_COVER_CLASSES.has(memberClass[target] ?? '')) {
+          hits.push(`${sceneId} -> ${target}`);
+        }
       }
     }
     if (hits.length > 0) {

@@ -66,6 +66,24 @@ describe('validateConfig', () => {
     assert.ok(errors.some(e => e.includes('junk')));
   });
 
+  it('accepts a blueprint automation without triggers', () => {
+    assert.deepEqual(
+      validateAutomationConfig({
+        alias: 'Flur',
+        use_blueprint: {
+          path: 'homeassistant/motion_light.yaml',
+          input: { motion_entity: 'binary_sensor.hall' },
+        },
+      }),
+      [],
+    );
+  });
+
+  it('refuses a blueprint automation without a path', () => {
+    const errors = validateAutomationConfig({ use_blueprint: { input: {} } });
+    assert.ok(errors.some(e => e.includes('path')));
+  });
+
   it('refuses an empty script sequence', () => {
     const errors = validateScriptConfig({ alias: 'noop', sequence: [] });
     assert.ok(errors.some(e => e.includes('sequence')));

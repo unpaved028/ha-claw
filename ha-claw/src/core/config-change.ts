@@ -48,6 +48,7 @@ const AUTOMATION_KEYS = new Set([
   'variables',
   'trace',
   'initial_state',
+  'use_blueprint',
 ]);
 
 const SCRIPT_KEYS = new Set([
@@ -93,6 +94,18 @@ export function extractEntityIds(config: unknown): string[] {
 
 export function validateAutomationConfig(config: Record<string, unknown>): string[] {
   const errors: string[] = [];
+  const blueprint = config['use_blueprint'];
+  if (blueprint && typeof blueprint === 'object' && !Array.isArray(blueprint)) {
+    const path = (blueprint as Record<string, unknown>)['path'];
+    if (typeof path !== 'string' || !path.trim()) {
+      errors.push('Blueprint automation needs use_blueprint.path.');
+    }
+    const unknown = Object.keys(config).filter(k => !AUTOMATION_KEYS.has(k));
+    if (unknown.length > 0) {
+      errors.push(`Unknown automation keys: ${unknown.slice(0, 8).join(', ')}.`);
+    }
+    return errors;
+  }
   const triggers = config['triggers'] ?? config['trigger'];
   const actions = config['actions'] ?? config['action'];
   if (triggers == null || (Array.isArray(triggers) && triggers.length === 0)) {

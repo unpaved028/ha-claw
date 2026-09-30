@@ -142,8 +142,10 @@ Two placeholders are filled at runtime and must survive any edit:
 Do not hand-maintain a tool list in the prompt. That is exactly what drifted until v0.9.2,
 when 11 registered tools were missing from it and the model did not know it could use them.
 
-Other prompts: `onboarding.md` / `onboarding.en.md` (setup conversation, restricted tool set).
-`cie.md` is not loaded at runtime; the dashboard chip inserts a user message.
+`onboarding.md` and `onboarding.en.md` are not loaded. First run is the Status banner and
+`telegram.firstRun`.
+`cie.md` and `cie.en.md` are the system prompt for the Sunday suggestions job (`src/core/cie.ts`).
+The dashboard chip only inserts a user message into the chat; it does not load those files.
 
 ## Adding a tool
 
@@ -193,7 +195,7 @@ redacted by pattern, which is best-effort — check before pasting a log into an
 | Action reported as done but nothing moved | Status → Actions. Verification captures state before and after |
 | Loop stalls | `GET /api/confirm/pending` — something is waiting for a confirmation |
 | LLM calls refused | `GET /api/status/circuit-breaker` |
-| Costs look wrong | `/status` in Telegram; cost is estimated from a model→price table, not billed usage |
+| Costs look wrong | `/status` in Telegram. OpenRouter is the sum of `usage.cost` on responses this add-on received. Estimate is the price table. Mixed shows both. The web Status page has no dollar figure. This is not a reconciled invoice. |
 | System Health looks stale | Last report is cached. `POST /api/system-health/refresh` or Status → Refresh |
 | Proactive message missing | Settings → Notifications matrix, plus `GET /api/notify-matrix` |
 

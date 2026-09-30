@@ -1,3 +1,5 @@
+# Check out LF even when core.autocrlf is on, so Prettier and ESLint match CI.
+* text=auto eol=lf
 # scripts/bundle-dashboard.cjs always writes LF. Without pinning this, a Windows
 # checkout gets CRLF and the next "npm run bundle" rewrites the whole file,
 # showing 4400 phantom changes.

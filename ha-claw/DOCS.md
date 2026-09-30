@@ -55,9 +55,12 @@ looked up, is sent to a language model through [OpenRouter](https://openrouter.a
 _actions_ happen locally on your Home Assistant. The _thinking_ does not. If that is not
 acceptable in your household, no setting fixes it — this add-on is the wrong tool for you.
 
-**It costs money.** You bring your own OpenRouter key and pay per request. With the default
-model, `anthropic/claude-haiku-4.5`, a normal question costs a fraction of a cent. Background
-analysis and task processing also spend tokens. Set a spending limit on your OpenRouter key.
+**Chat costs money.** Status, Care and the weekly digest do not call a model and start with
+an empty `openrouter_api_key`. The Sunday suggestions job does call a model, and only when a
+key is set. A question sends the tool list, so it costs more than a fraction of a cent. Set
+a spending limit on your OpenRouter key. Telegram `/status` shows the sum of `usage.cost`
+from responses this add-on received. When that field is missing, the same line is labeled as
+an estimate from a price table. The Status page does not show a dollar figure.
 
 **It can control your home.** The confirmation gate covers locks, alarms, scripts, buttons,
 garage doors and automation edits. Everything else — lights, switches, climate, blinds, media
@@ -81,7 +84,7 @@ Open the **Configuration** tab of the add-on.
 
 | Option                      | Required | Default                      | What it does                                                                                                                                           |
 | --------------------------- | -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `openrouter_api_key`        | **yes**  | —                            | Your key from [openrouter.ai](https://openrouter.ai). The add-on will not start without it.                                                            |
+| `openrouter_api_key`        | no       | —                            | Your key from [openrouter.ai](https://openrouter.ai). Leave it empty and Status, Care and the digest still run. Chat and task solutions need it.       |
 | `openrouter_default_model`  | no       | `anthropic/claude-haiku-4.5` | Which language model to use. Changeable later in the Web UI without a restart.                                                                         |
 | `openai_api_key`            | no       | —                            | A separate OpenAI key. **Only** needed for transcribing Telegram voice messages. Leave empty otherwise.                                                |
 | `telegram_bot_token`        | no       | —                            | Enables the Telegram bot.                                                                                                                              |
@@ -141,21 +144,15 @@ language as the UI (`de` or `en`).
 
 ## First run
 
-Start the add-on and open **HA-Claw** from the sidebar. It greets you with a short setup
-conversation rather than a form:
+Start the add-on and open **HA-Claw** from the sidebar. **Status** is the first page: health
+cards, Care, and the weekly digest. A banner points at **Settings → Notifications**, which is
+where notices go — Telegram, Chat, an HA notify service, or a persistent notification.
 
-- What should the assistant be called?
-- What should it call you?
-- How should it talk to you — direct or gentle, formal or casual, humorous or dry, brief or
-  thorough?
+There is no setup conversation. Name and tone stay at their defaults until you change them
+under **Settings → Profile**.
 
-Answer in normal language; it extracts what it needs. Afterwards it introduces its
-capabilities and offers to set up a weekly automated home analysis.
-
-After that first conversation, **Status** is the daily surface — health cards, Care, and
-tasks. Chat is for follow-up questions and approvals.
-
-You can change all of it later under **Settings → Profile**.
+The first Telegram message says the same thing and then answers as usual, including when the
+panel was already open. Chat is for follow-up questions and approvals.
 
 ## Talking to it
 
@@ -206,7 +203,7 @@ understands your home.
 
 ## The dashboard
 
-Three sections in the top navigation. After onboarding, start on **Status**.
+Three sections in the top navigation. **Status** is the first page.
 
 **Status** — four tabs:
 
@@ -239,7 +236,9 @@ Changes take effect on your next message. No restart.
 **Status → System Health** shows standing checks with their current state and what to do about
 them. Opening the screen shows the last completed check (timestamp at the bottom). HA-Claw
 refreshes the report shortly after start and every hour. **Refresh** runs a new check on
-demand — that is the only time the screen waits.
+demand — that is the only time the screen waits. The same check publishes
+`sensor.ha_claw_health` (state is the severity) and `sensor.ha_claw_care_gaps` (state is the
+gap count) so a dashboard can use the findings.
 
 | Check                                     | What it means                                                                      | Yellow                          | Red                                  |
 | ----------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------ |
@@ -330,6 +329,11 @@ on the channels ticked for the weekly digest under **Settings → Notifications*
 on by default). It does not run the assistant. You can disable or delete the job like any
 other schedule.
 
+A **Suggestions** job is created the same way (`weekly sun 11:00`). With an OpenRouter key it
+looks at the home and creates at most two tasks under **Status → Tasks**. Approving one means
+you want it. Nothing is written until you later approve the solution. Without a key that run
+is skipped. Its row in the notification matrix is **Sunday suggestions**.
+
 ## Tasks
 
 **Status → Tasks** holds improvement proposals. They come from coverage gaps (a room that
@@ -410,7 +414,7 @@ Everything it has learned is visible by asking, and it all lives in your Home As
 | Command   | Does                                                        |
 | --------- | ----------------------------------------------------------- |
 | `/help`   | What the bot can do                                         |
-| `/status` | Uptime, memory, estimated token cost, system health summary |
+| `/status` | Uptime, memory, OpenRouter cost or a labeled estimate, system health |
 | `/rooms`  | Buttons for every area — tap one for its status             |
 | `/ping`   | Quick liveness check                                        |
 | `/start`  | Welcome message                                             |
@@ -452,8 +456,8 @@ a rollback button. After anything unexpected, that is the record of what actuall
 
 ## Costs
 
-Under **Status** you can see cumulative token usage and an estimated total in US dollars, also
-available through `/status` in Telegram.
+Telegram `/status` shows cumulative token usage and a dollar total. The Status page in the
+web UI does not.
 
 What costs tokens:
 
@@ -471,8 +475,12 @@ Keeping it cheap: stay on `anthropic/claude-haiku-4.5` for everyday use, run the
 weekly rather than hourly, and assign areas to your entities so it finds things in one step
 instead of three.
 
-The figure shown is an estimate from a model price table, not billed usage. Your OpenRouter
-dashboard is authoritative.
+When OpenRouter includes `usage.cost`, that amount is stored and the line is labeled
+**OpenRouter**. It is the sum of charges reported on responses this add-on received, not a
+reconciliation of the OpenRouter invoice. Other apps on the same key are outside it. When
+`usage.cost` is missing, not a finite number, or negative, the price table is used instead
+and the line is labeled **estimate**. A mix of both is labeled as both. A total stored before
+this split stays an estimate. Your OpenRouter dashboard is the invoice.
 
 ## Data and backups
 
@@ -486,7 +494,9 @@ Everything lives in `/data/store/` and is included in Home Assistant backups aut
 | `backlog/`                  | Tasks                                                                         |
 | `learning/`                 | Corrections, rules, patterns, past errors                                     |
 | `scheduler.json`            | Reminders and recurring jobs                                                  |
-| `actions.jsonl`             | Action log with rollback data, kept for 7 days                                |
+| `actions.jsonl`             | Action log with rollback data. 7 days, config snapshots 90 days               |
+| `care-stats.json`           | Accepted tasks, rejected tasks, dismissed gaps                                |
+| `coverage-dismissed.json`   | Coverage gaps marked as intentional, with the reason given                    |
 | `profile.json`              | Names, conversational style, model choices                                    |
 | `notify-matrix.json`        | Which notices go to Telegram, Chat, HA Notify and persistent_notification     |
 | `system-health.json`        | Last-seen values (so the screen can say what changed) and last notified state |

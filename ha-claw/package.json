@@ -1,7 +1,7 @@
 {
   "name": "ha-claw",
   "version": "1.4.0",
-  "description": "HA-Claw – Local AI Smart Home Assistant (HA Add-on)",
+  "description": "Maintains a Home Assistant install: health, gaps, and approved fixes",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -21,7 +21,7 @@
     "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
-    "fastify": "^5.2.1",
+    "fastify": "^5.12.5",
     "grammy": "^1.46.0"
   },
   "devDependencies": {

@@ -8,6 +8,8 @@ import { buildQualityReport } from './automation-quality.js';
 import { buildNamingReport } from './naming-hygiene.js';
 import { buildEnergyReport } from './energy-attribution.js';
 import { listTasks } from '../storage/backlog.js';
+import { readCareStats } from '../storage/care-stats.js';
+import { listDismissedGaps } from '../storage/coverage-dismiss.js';
 import { createJob, listJobs, updateJob } from '../storage/scheduler.js';
 import { t } from './strings.js';
 
@@ -44,13 +46,15 @@ export interface HomeReview {
 }
 
 export async function buildWeeklyDigest(): Promise<HomeReview> {
-  const [health, coverage, quality, naming, energy, tasks] = await Promise.all([
+  const [health, coverage, quality, naming, energy, tasks, stats, dismissed] = await Promise.all([
     getCachedSystemHealth().then(h => h ?? getSystemHealth().catch(() => null)),
     buildCoverageReport().catch(() => null),
     buildQualityReport().catch(() => null),
     buildNamingReport().catch(() => null),
     buildEnergyReport().catch(() => null),
     listTasks().catch(() => []),
+    readCareStats().catch(() => ({ approved: 0, rejected: 0, dismissed: 0 })),
+    listDismissedGaps().catch(() => []),
   ]);
 
   const checks = health?.checks ?? [];
@@ -75,7 +79,19 @@ export async function buildWeeklyDigest(): Promise<HomeReview> {
     t('digest.names', { n: names }),
     t('digest.watts', { n: watts }),
     t('digest.tasks', { n: open }),
+    t('digest.outcomes', {
+      approved: stats.approved,
+      rejected: stats.rejected,
+      dismissed: stats.dismissed,
+    }),
   ];
+  const withReason = dismissed.filter(g => g.reason);
+  if (withReason.length > 0) {
+    lines.push('', t('digest.dismissedList'));
+    for (const g of withReason.slice(0, 8)) {
+      lines.push(`- ${g.key}: ${g.reason}`);
+    }
+  }
   if (coverage && coverage.gaps.length > 0) {
     lines.push('', t('digest.gapList'));
     for (const g of coverage.gaps.slice(0, 8)) {

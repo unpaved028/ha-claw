@@ -4,9 +4,9 @@ configuration:
   openrouter_api_key:
     name: OpenRouter API key
     description: >-
-      Required. Your API key from openrouter.ai. HA-Claw sends your messages, a compressed
-      list of your entities, and tool results to the selected model through OpenRouter. Set a
-      spending limit on the key.
+      Optional. Status, Care and the weekly digest start without it. Chat, task solutions and
+      the Sunday suggestions job send your messages through OpenRouter. Set a spending limit
+      on the key.
   openrouter_default_model:
     name: Default model
     description: >-

@@ -724,6 +724,15 @@ export async function getCachedSystemHealth(): Promise<SystemHealth | null> {
   return cachedHealth;
 }
 
+/** Compact health section for the system prompt. Ok checks are omitted. */
+export function formatHealthForPrompt(health: SystemHealth): string {
+  const bad = health.checks.filter(c => c.severity !== 'ok').slice(0, 8);
+  if (bad.length === 0) return `## System Health\n${health.severity}`;
+  return (
+    `## System Health\n` + bad.map(c => `- ${c.severity}: ${c.label} — ${c.detail}`).join('\n')
+  );
+}
+
 /** Drop the in-memory cache so the next read hydrates from disk again. */
 export function resetHealthCache(): void {
   cachedHealth = null;

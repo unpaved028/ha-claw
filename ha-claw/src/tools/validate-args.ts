@@ -3,7 +3,7 @@
  *
  * The schema on each tool is what the model sees. Until this ran, the handler
  * received whatever the model produced. We only implement the subset the
- * registry actually writes: type, required, properties, anyOf, items.
+ * registry actually writes: type, required, properties, anyOf, items, enum.
  */
 
 type Schema = Record<string, unknown>;
@@ -30,6 +30,13 @@ function checkSchema(schema: Schema, value: unknown, path: string): string | nul
   const expected = schema['type'];
   if (typeof expected === 'string' && !typeMatches(expected, value)) {
     return `${path}: expected ${expected}, got ${typeOf(value)}`;
+  }
+
+  if (Array.isArray(schema['enum'])) {
+    const allowed = schema['enum'] as unknown[];
+    if (!allowed.some(item => item === value)) {
+      return `${path}: expected one of ${allowed.map(item => JSON.stringify(item)).join(', ')}`;
+    }
   }
 
   if (expected === 'array' && Array.isArray(value)) {

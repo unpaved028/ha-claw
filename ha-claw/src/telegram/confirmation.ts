@@ -19,6 +19,37 @@ import { t } from '../core/strings.js';
 
 const log = createLogger('safety-gate');
 
+/**
+ * Service and entity_id are shown in full (up to 30 ids). Only the remaining
+ * fields are shortened, and never by slicing through an entity id.
+ */
+function formatConfirmArgs(args: Record<string, unknown>): string {
+  const lines: string[] = [];
+  const domain = args['domain'];
+  const service = args['service'];
+  if (typeof domain === 'string' || typeof service === 'string') {
+    const call = [domain, service].filter(part => typeof part === 'string').join('.');
+    lines.push(`Service: \`${call}\``);
+  }
+  if (args['entity_id'] != null) {
+    const ids = (Array.isArray(args['entity_id']) ? args['entity_id'] : [args['entity_id']]).map(
+      id => String(id),
+    );
+    const shown = ids.slice(0, 30);
+    const extra = ids.length > shown.length ? ` (+${ids.length - shown.length})` : '';
+    lines.push(`entity_id: \`${shown.join(', ')}${extra}\``);
+  }
+  const rest = { ...args };
+  delete rest['domain'];
+  delete rest['service'];
+  delete rest['entity_id'];
+  if (Object.keys(rest).length > 0) {
+    const text = JSON.stringify(rest);
+    lines.push(`Args: \`${text.length > 400 ? text.slice(0, 400) + '…' : text}\``);
+  }
+  return lines.join('\n');
+}
+
 const CONFIRMATION_TIMEOUT_MS = 60_000; // 60 seconds
 
 interface PendingConfirmation {
@@ -121,7 +152,7 @@ export function createTelegramConfirmFn(
       ? `${t('confirm.title')}\n\nTool: ${toolName}\n\n${previewBlock}\n\n${t('confirm.approveQ')}`
       : `${t('confirm.title')}\n\n` +
         `Tool: \`${toolName}\`\n` +
-        `Args: \`${JSON.stringify(args).slice(0, 200)}\`\n\n` +
+        `${formatConfirmArgs(args)}\n\n` +
         t('confirm.approveQ');
 
     const keyboard = new InlineKeyboard()

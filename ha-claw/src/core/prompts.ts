@@ -1,8 +1,8 @@
 /**
  * prompts.ts – Load the language-specific system prompts.
  *
- * English lives in agents/main.en.md and agents/onboarding.en.md.
- * German stays in agents/main.md and agents/onboarding.md (existing files).
+ * English lives in agents/main.en.md, agents/onboarding.en.md and agents/cie.en.md.
+ * German stays in agents/main.md, agents/onboarding.md and agents/cie.md.
  */
 
 import { readFileSync } from 'node:fs';
@@ -45,25 +45,22 @@ export function loadMainPrompt(lang: UiLang = getLanguage()): string {
       ].join('\n');
 }
 
+export function loadCiePrompt(lang: UiLang = getLanguage()): string {
+  const file = lang === 'en' ? 'cie.en.md' : 'cie.md';
+  const text = readAgent(file) ?? (lang === 'en' ? readAgent('cie.md') : null);
+  if (text) return text;
+  log.warn('Could not load CIE prompt', { file });
+  return lang === 'en'
+    ? 'Propose at most two improvements with backlog_propose. Do not change the home.'
+    : 'Schlage höchstens zwei Verbesserungen mit backlog_propose vor. Ändere das Zuhause nicht.';
+}
+
 export function loadOnboardingPromptFile(lang: UiLang = getLanguage()): string {
   const file = lang === 'en' ? 'onboarding.en.md' : 'onboarding.md';
   const text = readAgent(file) ?? (lang === 'en' ? readAgent('onboarding.md') : null);
   if (text) return text;
   log.warn('Could not load onboarding prompt', { file });
   return lang === 'en'
-    ? [
-        'You are a new smart-home assistant being set up.',
-        'Have a natural conversation to learn: bot name, user name, personality (1–5).',
-        'When you have everything, call save_onboarding_profile.',
-        'Always reply in English.',
-      ].join('\n')
-    : [
-        'Du bist ein neuer Smart Home Assistent, der gerade eingerichtet wird.',
-        'Fuehre ein natuerliches Gespraech um folgendes zu erfahren:',
-        '1. Wie der Nutzer dich nennen moechte (Bot-Name)',
-        '2. Wie der Nutzer heisst',
-        '3. Persoenlichkeits-Praeferenzen (Direktheit, Formalitaet, Humor, Ausfuehrlichkeit je 1-5)',
-        'Wenn du alle Infos hast, rufe save_onboarding_profile auf.',
-        'Antworte immer auf Deutsch.',
-      ].join('\n');
+    ? 'First run is Status and a choice of notification channel. Do not interview the user.'
+    : 'Der erste Start ist Status und die Wahl des Benachrichtigungskanals. Führe kein Gespräch zur Persönlichkeit.';
 }

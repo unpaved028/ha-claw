@@ -23,13 +23,15 @@ import { initBacklogProcessor } from './storage/backlog-processor.js';
 import { initActionLog } from './storage/action-log.js';
 import { initLearning } from './storage/learning.js';
 import { initScheduler, stopScheduler } from './storage/scheduler.js';
-import { buildWeeklyDigest, ensureWeeklyDigestJob } from './core/home-review.js';
+import { ensureWeeklyDigestJob } from './core/home-review.js';
+import { ensureWeeklyCieJob } from './core/cie.js';
+import { runScheduledJob } from './core/scheduled-job.js';
 import { registerBuiltinTools } from './tools/builtins.js';
 import { registerHATools } from './tools/ha-tools.js';
 import { registerHABestPracticesTools } from './tools/ha-best-practices.js';
-import { getToolNames, applyDisabledTools } from './tools/registry.js';
+import { applyDisabledTools, getToolNames } from './tools/registry.js';
+import { publishFindings } from './core/publish-findings.js';
 import { startWebServer, closeWebServer, buildAgent } from './web/server.js';
-import { runAgenticLoop } from './core/agentic-loop.js';
 import { createBot, startBot } from './telegram/bot.js';
 import { setupProactiveNotifications } from './telegram/notifications.js';
 import { isHaNotifyConfigured, parseNotifyEntity } from './core/ha-notify.js';
@@ -133,22 +135,9 @@ async function main(): Promise<void> {
   });
 
   // Step 7: Scheduler – runs jobs through the agentic loop + proactive notifications
-  await initScheduler(async job => {
-    log.info('Scheduler executing job', { id: job.id, message: job.message, kind: job.kind });
-    const response =
-      job.kind === 'digest'
-        ? (await buildWeeklyDigest()).text
-        : (await runAgenticLoop(job.message, buildAgent())).response;
-
-    if (job.kind === 'digest') {
-      await dispatchNotify('digest', response, { notificationId: 'ha_claw_digest' });
-    } else {
-      await dispatchNotify('other_jobs', response, { notificationId: `ha_claw_job_${job.id}` });
-    }
-
-    return response;
-  });
+  await initScheduler(job => runScheduledJob(job));
   await ensureWeeklyDigestJob();
+  await ensureWeeklyCieJob();
 
   // Step 8: Backlog processor – auto-processes approved tasks
   initBacklogProcessor(buildAgent);
@@ -201,14 +190,23 @@ async function main(): Promise<void> {
       } catch (err) {
         log.error('Health check failed', { error: String(err) });
       }
+
+      void publishFindings();
     },
     60 * 60 * 1000,
   );
+
+  if (!appConfig.openRouterApiKey) {
+    log.info(
+      'No OpenRouter key — chat, task solutions and weekly suggestions are off; health, Care and the digest still run',
+    );
+  }
 
   log.info('=== HA-Claw ready ===');
 
   if (isHAAvailable()) {
     void getSystemHealth()
+      .then(() => publishFindings())
       .then(() => log.info('Initial system health check complete'))
       .catch(err => log.warn('Initial system health check failed', { error: String(err) }));
   }

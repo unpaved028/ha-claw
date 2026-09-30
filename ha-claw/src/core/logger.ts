@@ -34,6 +34,7 @@ const logBuffer: LogEntry[] = [];
 // Collect all known secrets for redaction
 const SECRETS_TO_REDACT: string[] = [
   appConfig.openRouterApiKey,
+  appConfig.openaiApiKey ?? '',
   appConfig.telegramBotToken ?? '',
   appConfig.supervisorToken ?? '',
 ].filter(s => s.length > 0);

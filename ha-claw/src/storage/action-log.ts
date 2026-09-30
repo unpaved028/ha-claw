@@ -98,19 +98,27 @@ export async function logAction(
   }
 }
 
-/** Prune actions older than 7 days. */
+const ACTION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const SNAPSHOT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Config snapshots stay longer than ordinary actions so a write can still be reverted. */
+export function shouldKeepAction(entry: ActionEntry, now = Date.now()): boolean {
+  const ts = new Date(entry.timestamp).getTime();
+  if (!Number.isFinite(ts)) return false;
+  const limit = entry.rollback && isConfigRestore(entry.rollback) ? SNAPSHOT_RETENTION_MS : ACTION_RETENTION_MS;
+  return now - ts < limit;
+}
+
+/** Prune ordinary actions after 7 days. Config snapshots stay for 90 days. */
 async function pruneOldActions(): Promise<void> {
   try {
     const raw = await readFile(ACTIONS_PATH, 'utf-8');
     const lines = raw.trim().split('\n').filter(Boolean);
     const now = Date.now();
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-
     const filtered = lines.filter(l => {
       try {
         const entry = JSON.parse(l) as ActionEntry;
-        const ts = new Date(entry.timestamp).getTime();
-        return now - ts < sevenDaysMs;
+        return shouldKeepAction(entry, now);
       } catch {
         return false;
       }

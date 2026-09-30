@@ -1,12 +1,10 @@
 /**
- * onboarding.ts – LLM-based conversational onboarding.
+ * onboarding.ts – Leftover session helpers.
  *
- * Instead of a rigid state machine, onboarding now routes through
- * the agentic loop with a specialized system prompt. The LLM
- * naturally converses with the user to collect bot name, user name,
- * and personality preferences, then calls `save_onboarding_profile`.
- *
- * This module handles session tracking and prompt loading only.
+ * First run does not start a conversation. The web banner and the first
+ * Telegram message point at Status and Settings → Notifications, and
+ * `completeFirstRun()` marks setup done. Nothing in the server or the bot
+ * calls this module.
  */
 
 import { createLogger } from './logger.js';

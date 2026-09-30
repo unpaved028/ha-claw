@@ -294,6 +294,53 @@ function haWebsocketCommand<T>(
 }
 
 /**
+ * `search/related` item type. Core's searcher lists entities an automation or
+ * script references only when `item_type` is `automation` or `script`.
+ * `item_type: entity` answers the opposite question: what references this id.
+ */
+export function relatedItemType(entityId: string): 'automation' | 'script' | 'entity' {
+  if (entityId.startsWith('automation.')) return 'automation';
+  if (entityId.startsWith('script.')) return 'script';
+  return 'entity';
+}
+
+/**
+ * Core puts referenced entity ids in `entity`, and also copies automation, script,
+ * scene, group and person ids into those buckets. Area, device and the other
+ * search buckets are not entity ids.
+ */
+const RELATED_ENTITY_KEYS = ['entity', 'automation', 'script', 'scene', 'group', 'person'] as const;
+
+/** Entity ids from a `search/related` result, excluding the item that was queried. */
+export function entityIdsFromRelatedResult(result: unknown, selfId: string): string[] {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return [];
+  const record = result as Record<string, unknown>;
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const key of RELATED_ENTITY_KEYS) {
+    const raw = record[key];
+    let list: unknown[] = [];
+    if (typeof raw === 'string') list = [raw];
+    else if (Array.isArray(raw)) list = raw;
+    for (const id of list) {
+      if (typeof id !== 'string' || !id.includes('.') || id === selfId || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/** Entities referenced by an automation or script, excluding the item itself. */
+export async function relatedEntityIds(entityId: string): Promise<string[]> {
+  const result = await haWebsocketCommand<unknown>('search/related', {
+    item_type: relatedItemType(entityId),
+    item_id: entityId,
+  });
+  return entityIdsFromRelatedResult(result, entityId);
+}
+
+/**
  * Official Backup integration list (agents: local, HA Cloud, Google Drive,
  * OneDrive, Synology, WebDAV, Supervisor mounts). HAOS 2025.1+.
  */
@@ -368,6 +415,15 @@ export async function getState(entityId: string): Promise<HAState> {
   return haFetch<HAState>(`/states/${entityId}`);
 }
 
+/** Create or update an entity state. Used to publish HA-Claw findings into HA. */
+export async function setEntityState(
+  entityId: string,
+  state: string,
+  attributes: Record<string, unknown>,
+): Promise<void> {
+  await haFetch(`/states/${entityId}`, 'POST', { state, attributes });
+}
+
 /**
  * Call a Home Assistant service (e.g. turn on a light).
  */
@@ -409,28 +465,7 @@ export async function renderTemplate(template: string): Promise<string> {
   }
 }
 
-// ── Known entity-ID abbreviations for fallback parsing ───────
-const FLOOR_ABBREVS: Record<string, string> = {
-  eg: 'EG',
-  og: 'OG',
-  dg: 'DG',
-  kg: 'KG',
-  ug: 'UG',
-};
-const ROOM_ABBREVS: Record<string, string> = {
-  wz: 'Wohnzimmer',
-  sz: 'Schlafzimmer',
-  ku: 'Kueche',
-  bad: 'Bad',
-  fl: 'Flur',
-  kizi: 'Kinderzimmer',
-  az: 'Arbeitszimmer',
-  gz: 'Gaestezimmer',
-  hwr: 'HWR',
-  th: 'Treppenhaus',
-};
-
-// ── Tier 1: Jinja2 Template API ──────────────────────────────
+// ── Jinja2 Template API ──────────────────────────────────────
 // Uses the array-concat pattern (namespace + list append) which is
 // compatible with HA 2026.x Jinja2. The old REST-based registry
 // endpoints (/config/*_registry/list POST) are WebSocket-only and
@@ -472,107 +507,36 @@ async function getFloorAreaMapFromTemplate(): Promise<Record<string, string[]>> 
   return result;
 }
 
-// ── Tier 2: Entity-ID pattern parsing ────────────────────────
-
-async function inferAreasFromEntityIds(): Promise<Record<string, string[]>> {
-  const states = await getStates();
-  const result: Record<string, string[]> = {};
-
-  // Pattern: domain.prefix_floor_room or domain.prefix_floor_room_number
-  const re = /^[a-z_]+\.[a-z]{2,4}_([a-z]{2,3})_([a-z]{2,5})(?:_\d+)?$/i;
-  for (const s of states) {
-    const m = s.entity_id.match(re);
-    if (!m) continue;
-    const floorCode = m[1]!.toLowerCase();
-    const roomCode = m[2]!.toLowerCase();
-    const floor = FLOOR_ABBREVS[floorCode];
-    const room = ROOM_ABBREVS[roomCode];
-    if (!floor || !room) continue;
-    const areaName = `${floor} ${room}`;
-    if (!result[areaName]) result[areaName] = [];
-    result[areaName].push(s.entity_id);
-  }
-  return result;
-}
-
-async function inferFloorsFromEntityIds(): Promise<Record<string, string[]>> {
-  const areaMap = await inferAreasFromEntityIds();
-  const result: Record<string, string[]> = {};
-  for (const areaName of Object.keys(areaMap)) {
-    const floorCode = areaName.split(' ')[0]!;
-    if (!result[floorCode]) result[floorCode] = [];
-    if (!result[floorCode].includes(areaName)) result[floorCode].push(areaName);
-  }
-  return result;
-}
-
-// ── Public API with 2-tier fallback ──────────────────────────
-
 /**
- * Get area → entity mapping. Returns a map of area_name → entity_id[].
- * Tries: 1) Jinja2 Template API  2) Entity-ID parsing fallback
+ * Area name → entity ids, from the Home Assistant area registry via template.
+ * An empty map means areas are not assigned; entity-id abbreviations are not guessed.
  */
 export async function getAreaEntityMap(): Promise<Record<string, string[]>> {
-  // Tier 1: Jinja2 Template API (reliable in HA 2024.x+)
   try {
     const result = await getAreaEntityMapFromTemplate();
     if (Object.keys(result).length > 0) {
       log.info('Area mapping via template', { areas: Object.keys(result).length });
       return result;
     }
-    log.debug('Template returned 0 areas, trying entity-ID parsing');
+    log.debug('Template returned 0 areas');
   } catch (err) {
-    log.warn('Area mapping via template failed, trying entity-ID parsing', {
-      error: String(err),
-    });
+    log.warn('Area mapping via template failed', { error: String(err) });
   }
-
-  // Tier 2: Entity-ID pattern parsing (best-effort fallback)
-  try {
-    const result = await inferAreasFromEntityIds();
-    if (Object.keys(result).length > 0) {
-      log.info('Area mapping via entity-ID parsing', { areas: Object.keys(result).length });
-      return result;
-    }
-  } catch (err) {
-    log.warn('Area mapping via entity-ID parsing failed', { error: String(err) });
-  }
-
-  log.warn('No area mapping available from any source');
   return {};
 }
 
-/**
- * Get floor → area mapping. Returns a map of floor_name → area_name[].
- * Tries: 1) Jinja2 Template API  2) Entity-ID parsing fallback
- */
+/** Floor name → area names, from the Home Assistant floor registry via template. */
 export async function getFloorAreaMap(): Promise<Record<string, string[]>> {
-  // Tier 1: Jinja2 Template API
   try {
     const result = await getFloorAreaMapFromTemplate();
     if (Object.keys(result).length > 0) {
       log.info('Floor mapping via template', { floors: Object.keys(result).length });
       return result;
     }
-    log.debug('Template returned 0 floors, trying entity-ID parsing');
+    log.debug('Template returned 0 floors');
   } catch (err) {
-    log.warn('Floor mapping via template failed, trying entity-ID parsing', {
-      error: String(err),
-    });
+    log.warn('Floor mapping via template failed', { error: String(err) });
   }
-
-  // Tier 2: Entity-ID pattern parsing
-  try {
-    const result = await inferFloorsFromEntityIds();
-    if (Object.keys(result).length > 0) {
-      log.info('Floor mapping via entity-ID parsing', { floors: Object.keys(result).length });
-      return result;
-    }
-  } catch (err) {
-    log.warn('Floor mapping via entity-ID parsing failed', { error: String(err) });
-  }
-
-  log.warn('No floor mapping available from any source');
   return {};
 }
 

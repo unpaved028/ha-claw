@@ -55,7 +55,7 @@ export function setupProactiveNotifications(bot: Bot): void {
         const existing = await getTask(taskId);
         if (existing) {
           await ctx.reply(t('notify.fastTrackReply', { title: existing.title }));
-          await updateTask(taskId, { status: 'fast_track_approved' });
+          await updateTask(taskId, { status: 'approved' }, { actor: 'human' });
         }
       } catch (err) {
         log.error('Failed to process fast-track approval', { error: String(err) });
@@ -69,7 +69,7 @@ export function setupProactiveNotifications(bot: Bot): void {
       await ctx.answerCallbackQuery(t('notify.rejectCb'));
       try {
         await ctx.editMessageReplyMarkup({ reply_markup: undefined });
-        await updateTask(taskId, { status: 'rejected' });
+        await updateTask(taskId, { status: 'rejected' }, { actor: 'human' });
         await ctx.reply(t('notify.rejectReply'));
       } catch (err) {
         log.error('Failed to process task rejection', { error: String(err) });

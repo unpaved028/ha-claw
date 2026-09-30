@@ -2,7 +2,7 @@
 
 The agent's entire capability surface. If it is not in this list, the agent cannot do it.
 
-47 tools are registered at startup: 16 Home Assistant tools, 30 built-ins, and the
+48 tools are registered at startup: 16 Home Assistant tools, 31 built-ins, and the
 best-practices lookup. The registry lives in
 [`src/tools/registry.ts`](../ha-claw/src/tools/registry.ts).
 
@@ -101,7 +101,7 @@ See [architecture.md § Safe config writes](architecture.md#safe-config-writes).
 
 | Tool | Dangerous | Description |
 | --- | --- | --- |
-| `get_current_time` | no | ISO, local (Europe/Berlin) and Unix time. |
+| `get_current_time` | no | ISO, local time in the Home Assistant time zone (UTC until that is known) and Unix time. |
 | `get_system_info` | no | Process uptime, memory, Node version. |
 
 ### Store
@@ -135,18 +135,18 @@ token. The cutoff is 0.5 in `searchCards`; the agentic loop does not apply a sec
 | Tool | Dangerous | Description |
 | --- | --- | --- |
 | `tasks_add` | no | Add a task the user asked for. |
-| `backlog_propose` | no | Propose an improvement the agent found itself. |
+| `backlog_propose` | no | Create a task with status `proposed`. Does not approve it. The Sunday suggestions pass may do this at most twice. |
 | `backlog_list` | no | List tasks, optionally filtered by status (including `failed`). |
 | `backlog_detail` | no | Full detail for one task, including its proposed solution. |
-| `backlog_update` | no | Change status or fields. Drives the approval workflow. |
+| `backlog_update` | no | Reject or defer a task, or edit its fields. It cannot approve. Approval is the Web UI or Telegram. |
 | `backlog_delete` | **yes** | Delete a task permanently. |
 
 ### Scheduler
 
 | Tool | Dangerous | Description |
 | --- | --- | --- |
-| `schedule_create` | no | Recurring job. Formats below. |
-| `schedule_once` | no | One-shot timer or reminder. |
+| `schedule_create` | **yes** | Recurring job. Formats below. Requires confirmation, and a scheduled job cannot call it. |
+| `schedule_once` | **yes** | One-shot timer or reminder. Requires confirmation, and a scheduled job cannot call it. |
 | `schedule_list` | no | List jobs with their next run time. |
 | `schedule_toggle` | no | Enable or disable a job. |
 | `schedule_delete` | **yes** | Delete a job permanently. |
@@ -177,13 +177,18 @@ review (`home-review.ts`) through the Settings notification matrix. Startup seed
 **Wochenbericht** job (`weekly sun 10:00`) if none exists. The job name stays German so
 existing installs keep matching it.
 
+`kind: "cie"` is the Sunday suggestions pass (`weekly sun 11:00`, job name `Suggestions`).
+It loads `agents/cie.md` or `agents/cie.en.md`, may call `backlog_propose` at most twice,
+and does not run without an OpenRouter key. The tasks stay `proposed`. Approving one is
+what accepts it. The pass cannot call a confirming tool.
+
 ### Analysis and learning
 
 | Tool | Tier | Description |
 | --- | --- | --- |
 | `analyze_home` | **2** | Seeds at most three backlog tasks from Care coverage gaps and automation-quality notes (config refs, not names). Drops retired snapshot/hardware-absence analysis tasks that are still proposed. |
 | `learn_correction` | 1 | Records a user correction, injected into later prompts. |
-| `learn_rule` | 1 | Adds a permanent prompt patch that changes agent behaviour. |
+| `learn_rule` | 1 | Adds a permanent prompt patch that changes agent behaviour. Requires confirmation. Patches can be disabled or deleted under Settings → Tools. |
 | `detect_patterns` | 1 | Finds recurring actions in the usage history. |
 | `list_learned` | 1 | Everything learned so far: corrections, rules, patterns, errors. |
 | `action_log_list` | 1 | Recent agent actions from `actions.jsonl`. |
@@ -192,15 +197,11 @@ existing installs keep matching it.
 What the seeder writes is documented in
 [architecture.md § Proactive analysis](architecture.md#proactive-analysis-vs-system-health).
 
-### Onboarding
+### Profile
 
 | Tool | Description |
 | --- | --- |
-| `save_onboarding_profile` | Writes the profile at the end of the setup conversation. |
-
-During onboarding the agent is restricted to three tools — `save_onboarding_profile`,
-`get_current_time` and `schedule_create` — so it cannot start controlling devices before it
-knows who you are.
+| `save_onboarding_profile` | Writes a name and personality if setup is still open. First run does not call it. Settings → Profile is where those fields change. |
 
 ## Knowledge base
 

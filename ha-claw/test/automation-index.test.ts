@@ -44,6 +44,22 @@ describe('collectRefs / walkConfig', () => {
     assert.ok(devices.has('abcdefghijklmnopqrst'));
   });
 
+  it('collects blueprint input entity ids', () => {
+    const entities = new Set<string>();
+    collectRefs(
+      {
+        use_blueprint: {
+          path: 'homeassistant/motion_light.yaml',
+          input: { motion_entity: 'binary_sensor.hall', light_target: 'light.hall' },
+        },
+      },
+      entities,
+      new Set(),
+    );
+    assert.ok(entities.has('binary_sensor.hall'));
+    assert.ok(entities.has('light.hall'));
+  });
+
   it('walks modern trigger/action keys and records mode plus services', () => {
     const walked = walkConfig(motionLightConfig('binary_sensor.hall', 'light.hall'));
     assert.deepEqual(walked.entityRefs, ['binary_sensor.hall', 'light.hall']);
@@ -328,6 +344,18 @@ describe('coverage from config, not names', () => {
     );
   });
 
+  it('does not treat a garage cover as missing sun protection', () => {
+    const gaps = findCoverageGaps(
+      [{ entity_id: 'cover.garage', attributes: { device_class: 'garage' } }],
+      { Hof: ['cover.garage'] },
+      indexFromConfigs([]),
+    );
+    assert.equal(
+      gaps.find(g => g.kind === 'cover_sun'),
+      undefined,
+    );
+  });
+
   it('does not invent a motion-light gap when the room has no lights', () => {
     const gaps = findCoverageGaps(
       [{ entity_id: 'binary_sensor.only_motion', attributes: { device_class: 'motion' } }],
@@ -358,6 +386,17 @@ describe('automation index cache', () => {
     resetAutomationIndexCache();
     await getAutomationIndex(states, { fetchConfig });
     assert.equal(calls, 2);
+  });
+
+  it('reads related entities for a yaml-only automation', async () => {
+    const index = await loadAutomationIndex(
+      [{ entity_id: 'automation.yaml', attributes: { id: 'yaml' } }],
+      async () => null,
+      async () => ['binary_sensor.hall', 'light.hall', 'automation.yaml'],
+    );
+    assert.equal(index.yamlOnly, 1);
+    assert.ok(index.records[0]?.entityRefs.includes('binary_sensor.hall'));
+    assert.equal(index.records[0]?.entityRefs.includes('automation.yaml'), false);
   });
 
   it('counts yaml-only configs that have no entity_id attributes', async () => {

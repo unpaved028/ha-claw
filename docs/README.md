@@ -11,7 +11,7 @@ the Documentation tab: [`ha-claw/DOCS.md`](../ha-claw/DOCS.md) —
 | Document | Contents |
 | --- | --- |
 | [configuration.md](configuration.md) | Every add-on option, environment variable, model tier and data path |
-| [tools.md](tools.md) | All 47 tools the agent can call, with danger flags and complexity tiers |
+| [tools.md](tools.md) | All 48 tools the agent can call, with danger flags and complexity tiers |
 | [api.md](api.md) | HTTP and SSE API served over Ingress |
 | [architecture.md](architecture.md) | Components, data flow, and why the dashboard is generated |
 | [security.md](security.md) | Domain allowlist, confirmation gate, threat model, what leaves your network |
@@ -22,7 +22,7 @@ the Documentation tab: [`ha-claw/DOCS.md`](../ha-claw/DOCS.md) —
 | --- | --- |
 | [development.md](development.md) | Local setup, dashboard build pipeline, debugging, conventions |
 | [releasing.md](releasing.md) | Version bump and release checklist |
-| [roadmap.md](roadmap.md) | Product vision, the first-hour/discovery cut, and what is deliberately deferred |
+| [roadmap.md](roadmap.md) | Product vision, what is next (discovery), and what is deliberately not done |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to get a change merged |
 | [../AGENTS.md](../AGENTS.md) | Instructions for AI coding agents, including the documentation map |
 

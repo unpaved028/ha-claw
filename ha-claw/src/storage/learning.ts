@@ -164,6 +164,14 @@ export async function listPromptPatches(): Promise<PromptPatch[]> {
   return promptPatches;
 }
 
+export async function deletePromptPatch(id: string): Promise<boolean> {
+  const idx = promptPatches.findIndex(p => p.id === id);
+  if (idx < 0) return false;
+  promptPatches.splice(idx, 1);
+  await persistPatches();
+  return true;
+}
+
 export async function togglePromptPatch(id: string, enabled: boolean): Promise<PromptPatch | null> {
   const p = promptPatches.find(x => x.id === id);
   if (!p) return null;

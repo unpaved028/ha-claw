@@ -116,10 +116,9 @@ function loadConfig(): AppConfig {
     }
   }
 
-  // ── Validate required fields ─────────────────────────────────
-  if (!options.openrouter_api_key) {
-    throw new Error('❌ openrouter_api_key is required. Set it in the Add-on configuration.');
-  }
+  // The caretaker core (health, Care, digest) does not call a model.
+  // Chat and task solutions check the key themselves and explain what it adds.
+  const openRouterApiKey = (options.openrouter_api_key ?? '').trim();
 
   // ── Parse user IDs (supports string, array, single number) ──
   const allowedUserIds = parseUserIds(options.telegram_allowed_user_ids);
@@ -134,7 +133,7 @@ function loadConfig(): AppConfig {
   }
 
   return Object.freeze({
-    openRouterApiKey: options.openrouter_api_key,
+    openRouterApiKey: openRouterApiKey,
     openRouterDefaultModel: options.openrouter_default_model,
 
     openaiApiKey: options.openai_api_key || null,

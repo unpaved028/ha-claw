@@ -51,6 +51,24 @@ describe('pruneMessages', () => {
     }
   });
 
+  it('keeps the current question when the system prompt already exceeds the budget', () => {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: 's'.repeat(800) },
+      { role: 'user', content: 'older question' },
+      { role: 'assistant', content: 'older answer' },
+      { role: 'user', content: 'the question that must survive' },
+    ];
+    const pruned = pruneMessages(messages, 50);
+    assert.equal(pruned[0]?.role, 'system');
+    assert.ok(
+      pruned.some(m => m.role === 'user' && m.content === 'the question that must survive'),
+    );
+    assert.equal(
+      pruned.some(m => m.role === 'user' && m.content === 'older question'),
+      false,
+    );
+  });
+
   it('does not prune when already under budget', () => {
     const messages: ChatMessage[] = [
       { role: 'system', content: 'sys' },

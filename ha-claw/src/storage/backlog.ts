@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
+import { recordCareOutcome } from './care-stats.js';
 
 const log = createLogger('backlog');
 
@@ -97,6 +98,56 @@ export function onProcessableStatusChange(listener: BacklogListener): void {
 
 /** Statuses that trigger automatic processing. */
 const PROCESSABLE_STATUSES = new Set(['approved', 'solution_approved', 'fast_track_approved']);
+
+/**
+ * Who is asking for a status change.
+ * The model (`tool`) cannot approve its own work. A human approval and the
+ * processor are the only writers of the two-approval states.
+ */
+export type TaskActor = 'human' | 'processor' | 'tool';
+
+const STATUS_TRANSITIONS: Record<TaskActor, Partial<Record<TaskStatus, TaskStatus[]>>> = {
+  human: {
+    proposed: ['approved', 'deferred', 'rejected'],
+    approved: ['deferred', 'rejected'],
+    fast_track_approved: ['approved', 'deferred', 'rejected'],
+    solution_proposed: ['solution_approved', 'approved', 'rejected', 'deferred'],
+    solution_approved: ['rejected', 'deferred'],
+    in_progress: ['done', 'rejected', 'deferred'],
+    deferred: ['proposed', 'rejected'],
+    rejected: ['proposed'],
+    failed: ['approved', 'solution_approved'],
+  },
+  processor: {
+    approved: ['solution_proposed', 'failed'],
+    fast_track_approved: ['solution_proposed', 'failed'],
+    solution_approved: ['executing', 'failed'],
+    executing: ['done', 'failed', 'solution_approved'],
+  },
+  tool: {
+    proposed: ['rejected', 'deferred'],
+    approved: ['rejected', 'deferred'],
+    fast_track_approved: ['rejected', 'deferred'],
+    solution_proposed: ['rejected', 'deferred'],
+    solution_approved: ['rejected', 'deferred'],
+    in_progress: ['rejected', 'deferred'],
+    deferred: ['rejected'],
+  },
+};
+
+/** Null when the change is allowed. Same-status writes are always allowed. */
+export function statusTransitionError(
+  from: TaskStatus,
+  to: TaskStatus,
+  actor: TaskActor,
+): string | null {
+  if (from === to) return null;
+  const allowed = STATUS_TRANSITIONS[actor][from] ?? [];
+  if (!allowed.includes(to)) {
+    return `Illegal status change ${from} -> ${to} for ${actor}`;
+  }
+  return null;
+}
 
 // ── New Task Hooks ────────────────────────────────────────
 
@@ -210,10 +261,16 @@ export async function updateTask(
       | 'attemptCount'
     >
   >,
-  options?: { notify?: boolean },
+  options?: { notify?: boolean; actor?: TaskActor },
 ): Promise<BacklogTask | null> {
   const existing = await getTask(id);
   if (!existing) return null;
+
+  const actor = options?.actor ?? 'human';
+  if (updates.status) {
+    const transition = statusTransitionError(existing.status, updates.status, actor);
+    if (transition) throw new Error(transition);
+  }
 
   const updated: BacklogTask = {
     ...existing,
@@ -229,7 +286,12 @@ export async function updateTask(
   }
 
   await atomicWrite(taskPath(id), updated);
-  log.info('Backlog task updated', { id, status: updated.status });
+  log.info('Backlog task updated', { id, status: updated.status, actor });
+
+  if (actor === 'human' && updates.status && updates.status !== existing.status) {
+    if (updates.status === 'approved') void recordCareOutcome('approved');
+    if (updates.status === 'rejected') void recordCareOutcome('rejected');
+  }
 
   const shouldNotify = options?.notify !== false;
   if (

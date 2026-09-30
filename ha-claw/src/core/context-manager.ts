@@ -12,8 +12,9 @@ const log = createLogger('context-manager');
 
 /**
  * Approximate token count for a message list.
- * This is a heuristic (~4 characters per token), not tiktoken. Displayed
- * costs elsewhere are also estimates — billed usage lives on OpenRouter.
+ * This is a heuristic (~4 characters per token), not tiktoken. Request
+ * costs in `/status` use OpenRouter's `usage.cost` when that field is
+ * present, and a labeled price-table estimate when it is not.
  */
 export function countTokens(messages: ChatMessage[]): number {
   let totalChars = 0;
@@ -66,12 +67,32 @@ export function toolCallsArePaired(messages: ChatMessage[]): boolean {
   return true;
 }
 
+/** Heuristic tokens for a JSON payload (tool schemas, for example). */
+export function estimateTokens(value: unknown): number {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Index of the latest user message. Everything from there to the end is the
+ * current turn and must survive pruning, including when it alone exceeds the
+ * budget. Dropping it makes the model answer a question it never received.
+ */
+function lastUserIndex(messages: ChatMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return i;
+  }
+  return -1;
+}
+
 /**
  * Prune message history to stay within a target token limit.
  *
- * Always keep the first system message. Remove oldest history in paired
- * groups until the budget is met. Prefer keeping four recent messages, but
- * the budget wins — an orphaned tool result must never leave this function.
+ * Always keep the first system message and the current turn (the latest user
+ * message and everything after it). Remove older history in paired groups
+ * until the budget is met. An orphaned tool result must never leave this
+ * function. If the system prompt plus the current turn already exceed the
+ * budget, both are kept and a warning is logged.
  */
 export function pruneMessages(messages: ChatMessage[], targetLimit: number): ChatMessage[] {
   const currentCount = countTokens(messages);
@@ -83,26 +104,30 @@ export function pruneMessages(messages: ChatMessage[], targetLimit: number): Cha
   });
 
   const systemMessage = messages[0]?.role === 'system' ? messages[0] : null;
-  let pruned = systemMessage ? messages.slice(1) : [...messages];
+  const bodyStart = systemMessage ? 1 : 0;
+  const userAt = lastUserIndex(messages);
+  const protectFrom = userAt >= bodyStart ? userAt : messages.length;
+  const tail = messages.slice(protectFrom);
+  let pruned = messages.slice(bodyStart, protectFrom);
 
-  const MIN_KEEP_RECENT = 4;
+  const fits = () =>
+    countTokens(systemMessage ? [systemMessage, ...pruned, ...tail] : [...pruned, ...tail]);
 
-  while (
-    countTokens(systemMessage ? [systemMessage, ...pruned] : pruned) > targetLimit &&
-    pruned.length > 0
-  ) {
-    if (pruned.length <= MIN_KEEP_RECENT) {
-      const next = dropOldestPaired(pruned);
-      if (next.length === pruned.length) break;
-      pruned = next;
-      continue;
-    }
-    pruned = dropOldestPaired(pruned);
+  while (fits() > targetLimit && pruned.length > 0) {
+    const next = dropOldestPaired(pruned);
+    if (next.length === pruned.length) break;
+    pruned = next;
   }
 
   while (pruned[0]?.role === 'tool') pruned = pruned.slice(1);
 
-  const final = systemMessage ? [systemMessage, ...pruned] : pruned;
+  const final = systemMessage ? [systemMessage, ...pruned, ...tail] : [...pruned, ...tail];
+  if (countTokens(final) > targetLimit) {
+    log.warn('Current turn exceeds the context budget; the question was kept', {
+      tokens: countTokens(final),
+      target: targetLimit,
+    });
+  }
   if (!toolCallsArePaired(final)) {
     log.warn('Prune left unpaired tool messages – dropping leading tool results');
     const cleaned = final.filter((m, i, arr) => {

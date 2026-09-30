@@ -29,6 +29,21 @@ describe('validateToolArgs', () => {
   it('rejects the wrong type', () => {
     assert.ok(validateToolArgs(entitySchema, { entity_id: 12 }));
   });
+
+  it('rejects a status outside the enum', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['rejected', 'deferred'] },
+      },
+      required: ['status'],
+    };
+    assert.equal(validateToolArgs(schema, { status: 'rejected' }), null);
+    assert.match(
+      validateToolArgs(schema, { status: 'solution_approved' }) ?? '',
+      /expected one of/,
+    );
+  });
 });
 
 describe('executeTool schema gate', () => {

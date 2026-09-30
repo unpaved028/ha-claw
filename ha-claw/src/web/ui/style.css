@@ -2482,3 +2482,30 @@ body {
 .health-orphan-bar {
   margin: 0.4rem 0 0.2rem;
 }
+.first-run {
+  margin: 0.75rem 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text);
+}
+.first-run p {
+  margin: 0 0 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.first-run .care-task-btn {
+  margin-top: 0.25rem;
+}
+.care-dismiss-reason {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  margin-right: 0.35rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 0.75rem;
+}

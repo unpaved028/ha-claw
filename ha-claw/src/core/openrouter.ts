@@ -42,12 +42,38 @@ export function getCircuitBreakerState(): CircuitBreakerState {
   };
 }
 
+/**
+ * Anthropic, Google and DeepSeek cache a stable prefix on OpenRouter.
+ * Other models keep the plain string content they already accept.
+ */
+function withPromptCache(messages: ChatMessage[], model: string): unknown[] {
+  if (!/anthropic|google|gemini|deepseek/i.test(model)) return messages;
+  return messages.map((message, index) => {
+    if (index !== 0 || message.role !== 'system' || typeof message.content !== 'string') {
+      return message;
+    }
+    return {
+      role: message.role,
+      content: [{ type: 'text', text: message.content, cache_control: { type: 'ephemeral' } }],
+    };
+  });
+}
+
 interface CallOptions {
   model?: string;
   tools?: ToolDefinition[];
   temperature?: number;
   maxTokens?: number;
   onStreamChunk?: (chunk: string) => void;
+}
+
+type ChatComplete = (messages: ChatMessage[], options?: CallOptions) => Promise<OpenRouterResponse>;
+
+/** Test seam. Production leaves this unset, so calls go to OpenRouter. */
+let chatCompleteForTests: ChatComplete | null = null;
+
+export function setChatCompleteForTests(fn: ChatComplete | null): void {
+  chatCompleteForTests = fn;
 }
 
 /**
@@ -57,7 +83,12 @@ export async function callLLM(
   messages: ChatMessage[],
   options: CallOptions = {},
 ): Promise<OpenRouterResponse> {
+  if (chatCompleteForTests) return chatCompleteForTests(messages, options);
+
   const model = options.model ?? appConfig.openRouterDefaultModel;
+  if (!appConfig.openRouterApiKey) {
+    throw new Error('No OpenRouter API key configured.');
+  }
 
   // ── Circuit Breaker Check ──────────────────────────────────
   const now = Date.now();
@@ -70,7 +101,7 @@ export async function callLLM(
 
   const body = JSON.stringify({
     model,
-    messages,
+    messages: withPromptCache(messages, model),
     ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
     ...(options.temperature != null ? { temperature: options.temperature } : {}),
     ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
@@ -92,7 +123,7 @@ export async function callLLM(
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${appConfig.openRouterApiKey}`,
-          'HTTP-Referer': 'https://github.com/ha-claw',
+          'HTTP-Referer': 'https://github.com/unpaved028/ha-claw',
           'X-Title': 'HA-Claw',
         },
         body,
@@ -130,11 +161,14 @@ export async function callLLM(
           model,
           promptTokens: data.usage.prompt_tokens,
           completionTokens: data.usage.completion_tokens,
+          reportedCost: data.usage.cost,
           attempt,
         });
 
-        // Fire & Forget: Update global usage stats
-        trackUsage(data.usage.prompt_tokens, data.usage.completion_tokens, model);
+        // Fire & Forget: Update global usage stats. usage.cost is the charge
+        // OpenRouter reported; a missing or unusable value falls back to the
+        // price table and is stored as an estimate.
+        trackUsage(data.usage.prompt_tokens, data.usage.completion_tokens, model, data.usage.cost);
       } else {
         log.debug('LLM response without usage data', { model, attempt });
       }

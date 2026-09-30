@@ -57,10 +57,13 @@ Sprachmodell. Die _Aktionen_ laufen lokal auf deinem Home Assistant. Das _Nachde
 Wenn das in deinem Haushalt nicht in Frage kommt, hilft keine Einstellung — dann ist dieses
 Add-on das falsche Werkzeug.
 
-**Es kostet Geld.** Du bringst deinen eigenen OpenRouter-Key mit und zahlst pro Anfrage. Mit
-dem Standardmodell `anthropic/claude-haiku-4.5` kostet eine normale Frage einen Bruchteil
-eines Cents. Auch die Hintergrundanalyse und die Aufgabenverarbeitung verbrauchen Tokens. Setz
-ein Ausgabenlimit auf deinen OpenRouter-Key.
+**Chat kostet Geld.** Status, Care und der Wochenbericht rufen kein Modell auf und starten
+auch mit leerem `openrouter_api_key`. Die Sonntagsvorschläge rufen ein Modell auf, und nur
+wenn ein Key gesetzt ist. Eine Frage schickt die Tool-Liste mit und kostet mehr als einen
+Bruchteil eines Cents. Setz ein Ausgabenlimit auf deinen OpenRouter-Key. Telegram `/status`
+zeigt die Summe von `usage.cost` aus den Antworten, die dieses Add-on bekommen hat. Fehlt
+das Feld, ist dieselbe Zeile als Schätzung aus einer Preistabelle gekennzeichnet. Die
+Status-Seite zeigt keinen Dollarbetrag.
 
 **Er kann dein Zuhause steuern.** Die Bestätigungsschranke deckt Schlösser, Alarmanlagen,
 Skripte, Buttons, Garagentore und Änderungen an Automationen ab. Alles andere — Licht,
@@ -84,7 +87,7 @@ Im Reiter **Konfiguration** des Add-ons.
 
 | Option                      | Pflicht       | Standard                     | Wozu                                                                                                                                                                     |
 | --------------------------- | ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `openrouter_api_key`        | **ja**        | —                            | Dein Key von [openrouter.ai](https://openrouter.ai). Ohne startet das Add-on nicht.                                                                                      |
+| `openrouter_api_key`        | nein          | —                            | Dein Key von [openrouter.ai](https://openrouter.ai). Leer lassen: Status, Care und der Bericht laufen trotzdem. Chat und Aufgabenlösungen brauchen ihn.                  |
 | `openrouter_default_model`  | nein          | `anthropic/claude-haiku-4.5` | Welches Sprachmodell benutzt wird. Später auch in der Web-UI änderbar, ohne Neustart.                                                                                    |
 | `openai_api_key`            | nein          | —                            | Eigener OpenAI-Key. **Nur** für die Transkription von Telegram-Sprachnachrichten nötig. Sonst leer lassen.                                                               |
 | `telegram_bot_token`        | nein          | —                            | Aktiviert den Telegram-Bot.                                                                                                                                              |
@@ -147,21 +150,16 @@ Whisper verwendet dieselbe Sprache wie die Oberfläche (`de` oder `en`).
 
 ## Erster Start
 
-Add-on starten und **HA-Claw** in der Seitenleiste öffnen. Statt eines Formulars begrüsst dich
-ein kurzes Einrichtungsgespräch:
+Add-on starten und **HA-Claw** in der Seitenleiste öffnen. **Status** ist die erste Seite:
+Health-Karten, Pflege und der Wochenbericht. Ein Hinweis führt zu **Einstellungen →
+Benachrichtigungen**. Dort legst du fest, wohin Hinweise gehen — Telegram, Chat, ein HA-Notify
+oder eine dauerhafte Benachrichtigung.
 
-- Wie soll der Assistent heissen?
-- Wie soll er dich nennen?
-- Wie soll er mit dir reden — direkt oder behutsam, förmlich oder locker, humorvoll oder
-  trocken, knapp oder ausführlich?
+Ein Einrichtungsgespräch gibt es nicht. Name und Ton bleiben auf den Vorgaben, bis du sie
+unter **Einstellungen → Profil** änderst.
 
-Antworte in normaler Sprache; er zieht sich heraus was er braucht. Danach stellt er seine
-Fähigkeiten vor und bietet an, eine wöchentliche automatische Hausanalyse einzurichten.
-
-Nach diesem ersten Gespräch ist **Status** die tägliche Fläche — Health-Karten, Pflege und
-Aufgaben. Chat ist für Rückfragen und Freigaben.
-
-Alles davon lässt sich später unter **Settings → Profile** ändern.
+Die erste Telegram-Nachricht sagt dasselbe und antwortet danach normal, auch wenn die
+Oberfläche schon offen war. Chat ist für Rückfragen und Freigaben.
 
 ## Mit dem Assistenten reden
 
@@ -211,7 +209,7 @@ gut HA-Claw dein Zuhause versteht.
 
 ## Das Dashboard
 
-Drei Bereiche in der oberen Navigation. Nach dem Einrichten zuerst **Status** öffnen.
+Drei Bereiche in der oberen Navigation. **Status** ist die erste Seite.
 
 **Status** — vier Reiter:
 
@@ -246,7 +244,9 @@ Sprache folgt der Oberfläche).
 **Status → System Health** zeigt Dauerprüfungen mit ihrem aktuellen Stand und einem Hinweis,
 was zu tun ist. Beim Öffnen steht die letzte Prüfung sofort da (Uhrzeit unten). HA-Claw
 aktualisiert den Bericht nach dem Start und stündlich. **Neu prüfen** holt auf Wunsch einen
-frischen Stand — nur dann wartet die Oberfläche.
+frischen Stand — nur dann wartet die Oberfläche. Dieselbe Prüfung schreibt
+`sensor.ha_claw_health` (Zustand ist der Schweregrad) und `sensor.ha_claw_care_gaps`
+(Zustand ist die Anzahl der Lücken), damit ein Dashboard die Befunde nutzen kann.
 
 | Prüfung                                 | Was sie bedeutet                                                                       | Gelb                             | Rot                                  |
 | --------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------ |
@@ -338,6 +338,11 @@ Bericht an die Kanäle, die unter **Settings → Benachrichtigungen** für den W
 angehakt sind (Telegram ist an). Der Assistent läuft dafür nicht. Du kannst den Job wie jeden
 anderen Zeitplan abschalten oder löschen.
 
+Ein Job **Suggestions** wird genauso angelegt (`weekly sun 11:00`). Mit OpenRouter-Key schaut
+er sich das Zuhause an und legt höchstens zwei Aufgaben unter **Status → Aufgaben** an.
+Genehmigen heißt, dass dir der Vorschlag gefällt. Geschrieben wird dabei noch nichts. Ohne
+Key fällt der Lauf aus. Die Zeile in der Benachrichtigungsmatrix heißt **Sonntagsvorschläge**.
+
 ## Aufgaben
 
 **Status → Tasks** enthält Verbesserungsvorschläge. Sie stammen aus Automationslücken (Raum
@@ -421,7 +426,7 @@ Alles Gelernte kannst du dir zeigen lassen, und alles liegt in deinem Home-Assis
 | Befehl    | Macht                                                                          |
 | --------- | ------------------------------------------------------------------------------ |
 | `/help`   | Was der Bot kann                                                               |
-| `/status` | Laufzeit, Speicher, geschätzte Tokenkosten, Zusammenfassung des Systemzustands |
+| `/status` | Laufzeit, Speicher, OpenRouter-Kosten oder eine gekennzeichnete Schätzung, Systemzustand |
 | `/rooms`  | Knöpfe für jeden Bereich — antippen für dessen Status                          |
 | `/ping`   | Kurzer Lebenszeichen-Test                                                      |
 | `/start`  | Begrüssung                                                                     |
@@ -464,8 +469,8 @@ tatsächlich passiert ist.
 
 ## Kosten
 
-Unter **Status** siehst du den kumulierten Tokenverbrauch und eine Kostenschätzung in
-US-Dollar, ebenso über `/status` in Telegram.
+Telegram `/status` zeigt den kumulierten Tokenverbrauch und einen Betrag in US-Dollar. Die
+Status-Seite in der Web-Oberfläche zeigt keinen.
 
 Was Tokens kostet:
 
@@ -483,7 +488,12 @@ Günstig bleiben: für den Alltag bei `anthropic/claude-haiku-4.5` bleiben, die 
 wöchentlich statt stündlich laufen lassen, und deinen Entities Bereiche zuweisen — dann findet
 er Dinge in einem Schritt statt in dreien.
 
-Der angezeigte Betrag ist eine Schätzung aus einer Preistabelle, keine abgerechnete Nutzung.
+Liefert OpenRouter `usage.cost`, wird der Betrag gespeichert und die Zeile mit
+**OpenRouter** gekennzeichnet. Das ist die Summe der gemeldeten Kosten aus Antworten, die
+dieses Add-on bekommen hat, kein Abgleich mit der OpenRouter-Rechnung. Andere Anwendungen
+auf demselben Key fehlen darin. Fehlt `usage.cost`, ist es keine endliche Zahl oder negativ,
+gilt stattdessen die Preistabelle und die Zeile heißt **Schätzung**. Eine Mischung aus beidem
+wird als beides beschriftet. Ein Betrag von vor dieser Trennung bleibt eine Schätzung.
 Massgeblich ist dein OpenRouter-Dashboard.
 
 ## Daten und Backup
@@ -498,7 +508,9 @@ Alles liegt in `/data/store/` und wird von Home-Assistant-Backups automatisch mi
 | `backlog/`                  | Aufgaben                                                                                          |
 | `learning/`                 | Korrekturen, Regeln, Muster, frühere Fehler                                                       |
 | `scheduler.json`            | Erinnerungen und wiederkehrende Jobs                                                              |
-| `actions.jsonl`             | Aktionsprotokoll mit Rückgängig-Daten, 7 Tage aufbewahrt                                          |
+| `actions.jsonl`             | Aktionsprotokoll mit Rückgängig-Daten. 7 Tage, Konfigurations-Snapshots 90 Tage                   |
+| `care-stats.json`           | Angenommene Aufgaben, abgelehnte Aufgaben, ausgelassene Lücken                                    |
+| `coverage-dismissed.json`   | Absichtlich ausgelassene Coverage-Lücken, mit Begründung                                          |
 | `profile.json`              | Namen, Gesprächsstil, Modellwahl                                                                  |
 | `notify-matrix.json`        | Welche Hinweise an Telegram, Chat, HA Notify und persistent_notification gehen                    |
 | `system-health.json`        | Zuletzt gesehene Werte (die Oberfläche zeigt, was sich bewegt hat) und zuletzt gemeldeter Zustand |

@@ -87,9 +87,10 @@ conversation record, so a question asked in the sidebar can be followed up from 
     ├── agents/
     │   ├── main.md              # German system prompt
     │   ├── main.en.md           # English system prompt
-    │   ├── onboarding.md        # German setup conversation prompt
-    │   ├── onboarding.en.md     # English setup conversation prompt
-    │   ├── cie.md               # Continuous Improvement Engine prompt
+    │   ├── onboarding.md        # Not loaded. First run is the Status banner.
+    │   ├── onboarding.en.md     # Not loaded. Same note in English.
+    │   ├── cie.md               # German weekly suggestions prompt
+    │   ├── cie.en.md            # English weekly suggestions prompt
     │   └── skills/ha-best-practices/   # 7 reference files (incl. blueprints.md)
     └── src/
         ├── index.ts             # Boot sequence
@@ -107,13 +108,15 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── context-manager.ts # Token estimation and history pruning
         │   ├── entity-cache.ts  # Entity discovery, grouped by floor and area
         │   ├── ha-client.ts     # Home Assistant REST client
-        │   ├── logger.ts        # Pino logger with secret redaction
+        │   ├── logger.ts        # JSON logger; redacts configured secrets by exact value
         │   ├── models.ts        # Canonical list of selectable models
-        │   ├── onboarding.ts    # LLM-driven onboarding
+        │   ├── onboarding.ts    # Unused. First run is completeFirstRun() in profile.ts
         │   ├── openrouter.ts    # OpenRouter client, retry, circuit breaker
         │   ├── proactive-analysis.ts # Coverage seeder → backlog (max 3)
         │   ├── profile.ts       # Bot/user profile and personality
         │   ├── system-health.ts # Standing-condition checks (cached)
+        │   ├── ha-time.ts       # Home Assistant time zone, UTC until known
+        │   ├── publish-findings.ts # sensor.ha_claw_health and sensor.ha_claw_care_gaps
         │   ├── health-extra.ts  # Energy meta, stuck updates, outage clusters
         │   ├── health-history.ts # 24-hour ring per check
         │   ├── automation-index.ts # Shared UI automation/script config walk
@@ -128,6 +131,8 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── energy-attribution.ts
         │   ├── orphan-cleanup.ts
         │   ├── home-review.ts   # Weekly digest + seed job
+        │   ├── cie.ts           # Sunday suggestions, at most two proposed tasks
+        │   ├── scheduled-job.ts # Due job: digest, suggestions, or the agent with confirm denied
         │   └── types.ts
         ├── storage/
         │   ├── atomic-write.ts  # Per-path lock + unique temp-and-rename
@@ -138,7 +143,7 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   ├── backlog-processor.ts # Event-driven task pipeline
         │   ├── action-log.ts    # JSONL action log with rollback payloads
         │   ├── learning.ts      # Corrections, patches, patterns, errors
-        │   ├── usage-tracker.ts # Token counts and cost estimate
+        │   ├── usage-tracker.ts # Token counts, usage.cost, price-table estimate
         │   └── scheduler.ts     # Recurring jobs and one-shot timers
         ├── tools/
         │   ├── registry.ts      # Registration, complexity, enable/disable
@@ -150,6 +155,7 @@ conversation record, so a question asked in the sidebar can be followed up from 
         │   └── tool-cache.ts    # Short-lived result cache
         ├── web/
         │   ├── server.ts        # Fastify routes, SSE, web safety gate
+        │   ├── session.ts       # HttpOnly cookie for web confirmations
         │   ├── ingress-allow.ts # Add-on source-IP allowlist
         │   ├── dashboard.ts     # GENERATED — do not edit
         │   └── ui/              # dashboard.html · style.css · i18n.js · client.js
@@ -209,9 +215,10 @@ Appended after the prompt body, per request: personality profile, active schedul
 relevant memory cards, matching corrections, active prompt patches, usage patterns and recent
 error context.
 
-A `toolFilter` parameter restricts which tools an agent may use — onboarding runs with three.
-A `ConfirmationFn` handles the safety gate, with implementations for Telegram, the Web UI, and
-auto-approve for scheduled jobs. Config writes attach a YAML diff and blast-radius list to
+A `toolFilter` parameter restricts which tools a loop may use. Scheduled jobs and the Sunday
+suggestions pass each use one. Chat does not.
+A `ConfirmationFn` handles the safety gate, with implementations for Telegram and the Web UI.
+Scheduled jobs deny every confirmation. Config writes attach a YAML diff and blast-radius list to
 that callback. `AgentConfig.dryRun` makes write tools return `{ preview, wouldCall, args }`
 instead of running — that is how task preview works. Each tool execution is capped at
 **15 seconds**; a hang returns an error to the model instead of stalling the loop.
@@ -321,7 +328,7 @@ wait on Home Assistant.
 | `orphans` | Devices whose entities have been `unavailable` for 30 days or more | ≥ 1 device | ≥ 8 devices |
 | `stale_sensors` | Periodic sensors (`temperature`, `humidity`, `atmospheric_pressure`, air-quality classes) with no `last_updated` in 48 h. Binary sensors and event-driven classes are ignored — a closed window is not a fault. Allowlist: `PERIODIC_SENSOR_CLASSES` in [`system-health.ts`](../ha-claw/src/core/system-health.ts). | ≥ 5 devices | ≥ 25 devices |
 | `low_battery` | Battery level below 20 % | ≥ 1 device | ≥ 8 devices |
-| `broken_refs` | Automations, scripts and scenes that name an `entity_id` or `device_id` Home Assistant no longer has. YAML-only automations are scanned for `entity_id` attributes only — the config API does not serve them. The card notes how many UI configs were opened versus YAML-only. | ≥ 1 | ≥ 8 |
+| `broken_refs` | Automations, scripts and scenes that name an `entity_id` or `device_id` Home Assistant no longer has. YAML-only automations ask Core `search/related` (`item_type` `automation` or `script`) and use the `entity` list. If that returns nothing, the scan falls back to `entity_id` attributes on the state. The config API does not serve them. The card notes how many UI configs were opened versus YAML-only. | ≥ 1 | ≥ 8 |
 | `failed_automations` | Automations **and scripts** whose latest trace recorded an error, or whose own state is `unavailable` | ≥ 1 | ≥ 5 |
 | `pending_updates` | `update.*` entities in state `on` | ≥ 1 | ≥ 8, or any Core / OS / Supervisor update |
 | `stuck_updates` | `update.*` entities that have been `on` for 14 days or more. Distinct from `pending_updates`. | ≥ 1 | any Core / OS / Supervisor update stuck 14 days |
@@ -412,6 +419,12 @@ Status → **Pflege** is one report, not three backlog tasks.
 A scheduler job named **Wochenbericht** (`kind: digest`, `weekly sun 10:00`) is seeded on
 startup if missing. Digest jobs send the report; they do not run the agentic loop.
 
+A second seeded job, **Suggestions** (`kind: cie`, `weekly sun 11:00`), loads
+[`cie.md`](../ha-claw/agents/cie.md) or [`cie.en.md`](../ha-claw/agents/cie.en.md). With an
+OpenRouter key it may create at most two backlog tasks in status `proposed`. Without a key
+the job stays on the schedule and that run is skipped. Approving a task is what accepts the
+suggestion. The pass has no confirming tools.
+
 A room is **covered** when a UI automation references the relevant entities — a
 motion/occupancy sensor *and* a light in that area, a cover *and* a sun trigger or
 `sun.sun`, a leak sensor *and* a `notify` / `persistent_notification` service, a
@@ -419,9 +432,12 @@ window/door *and* a climate that is paused with `climate.turn_off` /
 `set_hvac_mode` / `set_temperature`, or house presence (`person.*` /
 `device_tracker.*` / `device_class: presence`) *and* a climate with the same set
 services. The automation's name is ignored. Each gap carries an `action` sketch
-(named entities, suggested `mode`). YAML-only automations contribute only the
-`entity_id` attributes on their state object; the report then includes `yamlOnly` /
-`uiScanned` and a `note`. Scripts called from an automation are not inlined.
+(named entities, suggested `mode`). YAML-only automations contribute the entity ids returned
+by `search/related` (`ha-client.ts` `relatedEntityIds`, `item_type` `automation` or `script`).
+Entity ids are read from `entity`, `automation`, `script`, `scene`, `group` and `person`.
+Areas, devices and the other buckets are ignored. An empty parse falls back to `entity_id`
+attributes on the state. The report includes `yamlOnly` / `uiScanned` and a `note`.
+Scripts called from an automation are not inlined.
 
 Quality issues are a separate Care list. They only inspect UI automations.
 

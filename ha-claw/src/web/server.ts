@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { isAllowedAddonPeer } from './ingress-allow.js';
 import { appConfig } from '../core/config.js';
 import { AVAILABLE_MODELS } from '../core/models.js';
@@ -13,17 +13,14 @@ import { createLogger, getLogBuffer, clearLogBuffer } from '../core/logger.js';
 import {
   getProfile,
   saveProfile,
+  completeFirstRun,
   needsOnboarding,
   personalityPrompt,
   type Profile,
 } from '../core/profile.js';
-import {
-  isOnboarding,
-  startOnboarding,
-  endOnboarding,
-  loadOnboardingPrompt,
-} from '../core/onboarding.js';
-import { getToolInfos, setToolEnabled } from '../tools/registry.js';
+import { mintSessionId, readSessionId, sameSession, sessionSetCookie } from './session.js';
+import { getToolInfos, getToolNames, setToolEnabled } from '../tools/registry.js';
+import { selectToolNames } from '../tools/tool-selection.js';
 import { listJobs, toggleJob, deleteJob } from '../storage/scheduler.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
 import { buildEntityCache } from '../core/entity-cache.js';
@@ -34,7 +31,6 @@ import { dashboardHtml } from './dashboard.js';
 import * as store from '../storage/json-store.js';
 import type { CollectionName } from '../storage/json-store.js';
 import {
-  SHARED_CONVERSATION_ID,
   loadConversation,
   appendUserMessage,
   appendAssistantMessage,
@@ -49,6 +45,14 @@ import { getToolDefinitions } from '../tools/registry.js';
 import * as actionLog from '../storage/action-log.js';
 import type { ConfirmPreview } from '../core/config-change.js';
 import { buildCoverageReport } from '../core/coverage-report.js';
+import { dismissCoverageGap } from '../storage/coverage-dismiss.js';
+import {
+  deleteCorrection,
+  deletePromptPatch,
+  listCorrections,
+  listPromptPatches,
+  togglePromptPatch,
+} from '../storage/learning.js';
 import { buildQualityReport } from '../core/automation-quality.js';
 import { enqueueCareTask, type CareTaskSource } from '../core/proactive-analysis.js';
 import { applyNamingProposals, buildNamingReport } from '../core/naming-hygiene.js';
@@ -78,6 +82,7 @@ const STARTUP_TIME = new Date().toISOString();
 // timeout guard no longer recognised itself as the active request.
 interface PendingConfirmation {
   id: string;
+  sessionId: string;
   toolName: string;
   args: Record<string, unknown>;
   preview?: ConfirmPreview;
@@ -89,7 +94,21 @@ const CONFIRM_TIMEOUT_MS = 60_000;
 const pendingConfirmations = new Map<string, PendingConfirmation>();
 let confirmCounter = 0;
 
-function createWebConfirmFn(): ConfirmationFn {
+function cookieHeader(req: FastifyRequest): string | undefined {
+  const raw = req.headers.cookie;
+  return Array.isArray(raw) ? raw.join('; ') : raw;
+}
+
+/** Reuse the browser cookie, or mint one and attach it to this response. */
+function sessionFor(req: FastifyRequest, reply: FastifyReply): string {
+  const existing = readSessionId(cookieHeader(req));
+  if (existing) return existing;
+  const id = mintSessionId();
+  reply.header('Set-Cookie', sessionSetCookie(id));
+  return id;
+}
+
+function createWebConfirmFn(sessionId: string): ConfirmationFn {
   return async (
     toolName: string,
     args: Record<string, unknown>,
@@ -105,15 +124,15 @@ function createWebConfirmFn(): ConfirmationFn {
           resolve(false);
         }
       }, CONFIRM_TIMEOUT_MS);
-      pendingConfirmations.set(id, { id, toolName, args, preview, resolve, timer });
+      pendingConfirmations.set(id, { id, sessionId, toolName, args, preview, resolve, timer });
     });
   };
 }
 
-/** Settle one pending confirmation. Returns false if the id is unknown. */
-function settleConfirmation(id: string, approved: boolean): boolean {
+/** Settle one pending confirmation. A different browser session cannot answer it. */
+function settleConfirmation(id: string, approved: boolean, sessionId: string): boolean {
   const entry = pendingConfirmations.get(id);
-  if (!entry) return false;
+  if (!entry || !sameSession(entry.sessionId, sessionId)) return false;
   clearTimeout(entry.timer);
   pendingConfirmations.delete(id);
   entry.resolve(approved);
@@ -142,18 +161,6 @@ export function buildAgent() {
   };
 }
 
-function buildOnboardingAgent() {
-  const profile = getProfile();
-  const prompt = loadOnboardingPrompt();
-  return {
-    name: 'onboarding',
-    systemPrompt: prompt,
-    model: profile.modelOverride || undefined,
-  };
-}
-
-const ONBOARDING_TOOLS = ['save_onboarding_profile', 'get_current_time', 'schedule_create'];
-
 let server: FastifyInstance | null = null;
 
 export async function startWebServer(): Promise<void> {
@@ -180,6 +187,7 @@ export async function startWebServer(): Promise<void> {
 
   // Dashboard
   app.get('/', async (req, reply) => {
+    sessionFor(req, reply);
     reply.type('text/html');
     return dashboardHtml((req.headers['x-ingress-path'] as string) || '');
   });
@@ -192,27 +200,19 @@ export async function startWebServer(): Promise<void> {
       return { error: 'Missing "message" field' };
     }
     log.info('Web chat request', { length: message.length });
+    await completeFirstRun();
 
-    // Onboarding: route through agentic loop with onboarding agent
-    if (needsOnboarding()) {
-      if (!isOnboarding(SHARED_CONVERSATION_ID)) startOnboarding(SHARED_CONVERSATION_ID);
-      const agent = buildOnboardingAgent();
-      const history = await appendUserMessage(message);
-
-      const result = await runAgenticLoop(message, agent, undefined, history, ONBOARDING_TOOLS);
-
-      await appendAssistantMessage(result.response);
-
-      if (!needsOnboarding()) endOnboarding(SHARED_CONVERSATION_ID);
-      return result;
-    }
-
-    // Normal: agentic loop with dynamic personality
     const agent = buildAgent();
     const history = await appendUserMessage(message);
 
-    const webConfirmFn = createWebConfirmFn();
-    const result = await runAgenticLoop(message, agent, webConfirmFn, history);
+    const webConfirmFn = createWebConfirmFn(sessionFor(req, reply));
+    const result = await runAgenticLoop(
+      message,
+      agent,
+      webConfirmFn,
+      history,
+      selectToolNames('chat', message, getToolNames()),
+    );
 
     await appendAssistantMessage(result.response);
 
@@ -238,12 +238,15 @@ export async function startWebServer(): Promise<void> {
       };
     }
 
-    // Set SSE headers
-    reply.raw.writeHead(200, {
+    const existingSession = readSessionId(cookieHeader(req));
+    const streamSession = existingSession ?? mintSessionId();
+    const sseHeaders: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-    });
+    };
+    if (!existingSession) sseHeaders['Set-Cookie'] = sessionSetCookie(streamSession);
+    reply.raw.writeHead(200, sseHeaders);
 
     const send = (payload: Record<string, unknown>) => {
       reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -256,8 +259,9 @@ export async function startWebServer(): Promise<void> {
     try {
       log.info('SSE stream started', { length: message.length });
 
+      await completeFirstRun();
       const agent = buildAgent();
-      const webConfirmFn = createWebConfirmFn();
+      const webConfirmFn = createWebConfirmFn(streamSession);
       const history = await appendUserMessage(message);
 
       const result = await runAgenticLoop(
@@ -265,7 +269,7 @@ export async function startWebServer(): Promise<void> {
         agent,
         webConfirmFn,
         history,
-        undefined,
+        selectToolNames('chat', message, getToolNames()),
         onProgress,
       );
 
@@ -298,12 +302,16 @@ export async function startWebServer(): Promise<void> {
   // ── Web Safety Gate Endpoints ────────────────────────
   // Returns the oldest outstanding confirmation (Map preserves insertion order),
   // so the UI walks a queue instead of only ever seeing the newest request.
-  app.get('/api/confirm/pending', async () => {
-    const [next] = pendingConfirmations.values();
+  app.get('/api/confirm/pending', async (req, reply) => {
+    const sessionId = sessionFor(req, reply);
+    const mine = [...pendingConfirmations.values()].filter(entry =>
+      sameSession(entry.sessionId, sessionId),
+    );
+    const next = mine[0];
     if (!next) return { pending: false, count: 0 };
     return {
       pending: true,
-      count: pendingConfirmations.size,
+      count: mine.length,
       id: next.id,
       toolName: next.toolName,
       args: next.args,
@@ -313,10 +321,11 @@ export async function startWebServer(): Promise<void> {
 
   app.post<{ Params: { id: string }; Body: { approved: boolean } }>(
     '/api/confirm/:id',
-    async req => {
+    async (req, reply) => {
       const { id } = req.params;
       const { approved } = req.body;
-      if (!settleConfirmation(id, approved)) {
+      const sessionId = sessionFor(req, reply);
+      if (!settleConfirmation(id, approved === true, sessionId)) {
         return { error: 'No matching pending confirmation' };
       }
       log.info('Web confirmation received', { id, approved });
@@ -338,6 +347,7 @@ export async function startWebServer(): Promise<void> {
 
   // ── Settings API ───────────────────────────────────────
   app.get('/api/settings', async () => {
+    await completeFirstRun();
     const profile = getProfile();
     return {
       agent: { name: profile.botName, status: 'active' },
@@ -349,6 +359,7 @@ export async function startWebServer(): Promise<void> {
       memory: { heapMB: +(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) },
       version: PKG_VERSION,
       haAvailable: !!(appConfig.supervisorToken && appConfig.haApiUrl),
+      llmConfigured: !!appConfig.openRouterApiKey,
       telegramConfigured: !!appConfig.telegramBotToken,
       availableModels: Array.from(new Set([appConfig.openRouterDefaultModel, ...AVAILABLE_MODELS])),
       language: getLanguage(),
@@ -459,12 +470,17 @@ export async function startWebServer(): Promise<void> {
   app.put<{ Params: { id: string }; Body: Parameters<typeof backlog.updateTask>[1] }>(
     '/api/backlog/:id',
     async (req, reply) => {
-      const task = await backlog.updateTask(req.params.id, req.body ?? {});
-      if (!task) {
-        reply.status(404);
-        return { error: 'not found' };
+      try {
+        const task = await backlog.updateTask(req.params.id, req.body ?? {}, { actor: 'human' });
+        if (!task) {
+          reply.status(404);
+          return { error: 'not found' };
+        }
+        return task;
+      } catch (err) {
+        reply.status(400);
+        return { error: err instanceof Error ? err.message : String(err) };
       }
-      return task;
     },
   );
 
@@ -547,6 +563,59 @@ export async function startWebServer(): Promise<void> {
       reply.status(503);
       return { error: String(err) };
     }
+  });
+
+  app.post<{ Body: { key?: string; reason?: string } }>(
+    '/api/coverage/dismiss',
+    async (req, reply) => {
+      const key = req.body?.key?.trim();
+      const reason = req.body?.reason?.trim() ?? '';
+      if (!key) {
+        reply.status(400);
+        return { error: 'missing key' };
+      }
+      if (!reason) {
+        reply.status(400);
+        return { error: 'missing reason' };
+      }
+      await dismissCoverageGap(key, reason);
+      return { dismissed: true, key };
+    },
+  );
+
+  app.get('/api/learning', async () => {
+    const [patches, corrections] = await Promise.all([listPromptPatches(), listCorrections()]);
+    return { patches, corrections };
+  });
+
+  app.post<{ Params: { id: string }; Body: { enabled?: boolean } }>(
+    '/api/learning/patches/:id',
+    async (req, reply) => {
+      const patch = await togglePromptPatch(req.params.id, req.body?.enabled !== false);
+      if (!patch) {
+        reply.status(404);
+        return { error: 'not found' };
+      }
+      return patch;
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>('/api/learning/patches/:id', async (req, reply) => {
+    const ok = await deletePromptPatch(req.params.id);
+    if (!ok) {
+      reply.status(404);
+      return { error: 'not found' };
+    }
+    return { deleted: true };
+  });
+
+  app.delete<{ Params: { id: string } }>('/api/learning/corrections/:id', async (req, reply) => {
+    const ok = await deleteCorrection(req.params.id);
+    if (!ok) {
+      reply.status(404);
+      return { error: 'not found' };
+    }
+    return { deleted: true };
   });
 
   app.get('/api/automation-quality', async (_req, reply) => {

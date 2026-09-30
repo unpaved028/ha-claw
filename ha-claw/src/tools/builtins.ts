@@ -16,12 +16,15 @@ import { runAnalysis } from '../core/proactive-analysis.js';
 import { logAction, listActions } from '../storage/action-log.js';
 import { saveProfile, needsOnboarding } from '../core/profile.js';
 import { buildWeeklyDigest } from '../core/home-review.js';
+import { formatInHomeZone, homeTimeZone } from '../core/ha-time.js';
+import { dateLocale } from '../core/strings.js';
+import { cieBudgetActive, takeCieProposalSlot } from '../core/cie.js';
 
 export function registerBuiltinTools(): void {
   // ── save_onboarding_profile ───────────────────────────────
   registerTool(
     'save_onboarding_profile',
-    'Save the user profile after onboarding. Call this once you have collected bot name, user name, and personality preferences through natural conversation.',
+    'Save a name and personality collected in chat. First run does not call this. Name and tone are changed under Settings → Profile. Refuses once setup is already marked done.',
     {
       bot_name: {
         type: 'string',
@@ -68,11 +71,15 @@ export function registerBuiltinTools(): void {
     'get_current_time',
     'Returns the current date and time in ISO format with timezone.',
     {},
-    async () => ({
-      iso: new Date().toISOString(),
-      local: new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }),
-      unix: Date.now(),
-    }),
+    async () => {
+      const zone = await homeTimeZone();
+      return {
+        iso: new Date().toISOString(),
+        timeZone: zone,
+        local: formatInHomeZone(new Date(), zone, dateLocale()),
+        unix: Date.now(),
+      };
+    },
   );
 
   // ── store_list ───────────────────────────────────────────
@@ -362,7 +369,7 @@ export function registerBuiltinTools(): void {
   // ── backlog_propose ─────────────────────────────────────
   registerTool(
     'backlog_propose',
-    'Propose a new optimization task for the Smart Home backlog. Use when you identify improvement potential during conversations (energy, comfort, automation, security, maintenance).',
+    'Propose an improvement. Creates a task with status proposed. Does not approve it and does not change the home. The weekly suggestions pass may create at most two.',
     {
       title: { type: 'string', description: 'Short task title (max 80 chars)' },
       as_is: { type: 'string', description: 'Current state (what exists now)' },
@@ -385,8 +392,24 @@ export function registerBuiltinTools(): void {
       },
     },
     async args => {
+      const title = String(args['title'] ?? '');
+      if (cieBudgetActive()) {
+        const norm = title.trim().toLowerCase();
+        const existing = (await backlog.listTasks()).find(
+          task =>
+            task.title.trim().toLowerCase() === norm &&
+            task.status !== 'done' &&
+            task.status !== 'rejected',
+        );
+        if (existing) {
+          return { proposed: false, duplicate: true, id: existing.id, title: existing.title };
+        }
+        if (!takeCieProposalSlot()) {
+          return { proposed: false, reason: 'At most 2 proposals in this weekly run.' };
+        }
+      }
       const task = await backlog.createTask({
-        title: args['title'] as string,
+        title,
         asIs: args['as_is'] as string,
         toBe: args['to_be'] as string,
         impact: args['impact'] as string,
@@ -445,14 +468,13 @@ export function registerBuiltinTools(): void {
   // ── backlog_update ──────────────────────────────────────
   registerTool(
     'backlog_update',
-    'Update status or details of a backlog task (e.g., approve, start, complete, reject).',
+    'Reject or defer a backlog task, or update its title or priority. Approving a task is only possible in the Web UI or from the Telegram button.',
     {
       id: { type: 'string', description: 'Task ID (e.g., T-A1B2C3)' },
       status: {
         type: 'string',
-        description:
-          'New status: proposed, approved, in_progress, done, rejected, deferred, failed',
-        enum: ['proposed', 'approved', 'in_progress', 'done', 'rejected', 'deferred', 'failed'],
+        description: 'New status: rejected or deferred',
+        enum: ['rejected', 'deferred'],
       },
       priority: {
         type: 'string',
@@ -469,6 +491,7 @@ export function registerBuiltinTools(): void {
       const task = await backlog.updateTask(
         args['id'] as string,
         updates as Parameters<typeof backlog.updateTask>[1],
+        { actor: 'tool' },
       );
       if (task && args['status']) {
         await logAction(
@@ -550,7 +573,7 @@ export function registerBuiltinTools(): void {
         nextRun: job.nextRunAt,
       };
     },
-    { required: ['name', 'schedule', 'message'] },
+    { dangerous: true, required: ['name', 'schedule', 'message'] },
   );
 
   // ── schedule_list ────────────────────────────────────────
@@ -648,7 +671,7 @@ export function registerBuiltinTools(): void {
       );
       return { created: true, id: job.id, name: job.name, firesAt: job.nextRunAt };
     },
-    { required: ['name', 'delay', 'message'] },
+    { dangerous: true, required: ['name', 'delay', 'message'] },
   );
 
   // ── analyze_home ─────────────────────────────────────────
@@ -705,7 +728,7 @@ export function registerBuiltinTools(): void {
       });
       return { saved: true, id: p.id, rule: p.rule };
     },
-    { required: ['rule', 'reason'] },
+    { dangerous: true, required: ['rule', 'reason'] },
   );
 
   // ── detect_patterns ──────────────────────────────────────

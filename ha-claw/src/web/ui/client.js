@@ -21,6 +21,7 @@ const micBtn = document.getElementById('mic');
       const vEl = document.getElementById('app-version');
       if (vEl) vEl.textContent = 'v' + d.version;
     }
+    showFirstRun(d);
     // After names are loaded, fetch history
     loadChatHistory();
   } catch (e) {}
@@ -28,6 +29,48 @@ const micBtn = document.getElementById('mic');
 
 let historyOffset = 0;
 let historyHasMore = false;
+
+function showFirstRun(d) {
+  const el = document.getElementById('first-run');
+  if (!el) return;
+  let notifyAck = false;
+  try {
+    notifyAck = localStorage.getItem('ha-claw-notify-ack') === '1';
+  } catch (e) {}
+  const parts = [];
+  if (!d.llmConfigured) parts.push(uiT('firstRun.noKey'));
+  if (!notifyAck) parts.push(uiT('firstRun.notify'));
+  el.replaceChildren();
+  if (!parts.length) {
+    el.hidden = true;
+    return;
+  }
+  parts.forEach(text => {
+    const p = document.createElement('p');
+    p.textContent = text;
+    el.appendChild(p);
+  });
+  if (!notifyAck) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'care-task-btn';
+    btn.textContent = uiT('firstRun.notifyBtn');
+    btn.addEventListener('click', () => {
+      try {
+        localStorage.setItem('ha-claw-notify-ack', '1');
+      } catch (e) {}
+      const settings = document.querySelector('.nav-item[data-page="settings"]');
+      if (settings) settings.click();
+      const notify = document.querySelector(
+        '#page-settings .settings-nav-item[data-settings="notify"]',
+      );
+      if (notify) notify.click();
+      showFirstRun(d);
+    });
+    el.appendChild(btn);
+  }
+  el.hidden = false;
+}
 
 function setHistoryMoreVisible(show) {
   const el = document.getElementById('history-more');
@@ -172,6 +215,10 @@ document.querySelectorAll('#page-status .settings-nav-item').forEach(btn => {
   });
 });
 
+if (document.getElementById('page-status')?.classList.contains('active')) {
+  activateStatusSection('health');
+}
+
 // ── Logs Sub-navigation ────────────────────────────────────
 document.querySelectorAll('.logs-subnav-item').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -294,6 +341,64 @@ function renderRichContent(text) {
   return html;
 }
 
+const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+const LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+const LEAFLET_JS_SRI = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+let leafletPromise = null;
+
+/** Leaflet stays off Status, Care and Settings. A chat map loads it once. */
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletPromise) return leafletPromise;
+  leafletPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-leaflet]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = LEAFLET_CSS;
+      link.integrity = LEAFLET_CSS_SRI;
+      link.crossOrigin = 'anonymous';
+      link.setAttribute('data-leaflet', '1');
+      document.head.appendChild(link);
+    }
+    const script = document.createElement('script');
+    script.src = LEAFLET_JS;
+    script.integrity = LEAFLET_JS_SRI;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      leafletPromise = null;
+      reject(new Error('leaflet'));
+    };
+    document.head.appendChild(script);
+  });
+  return leafletPromise;
+}
+
+function mountMessageMaps(root) {
+  const maps = root.querySelectorAll('.msg-map');
+  if (!maps.length) return;
+  loadLeaflet()
+    .then(() => {
+      const L = window.L;
+      if (!L) return;
+      maps.forEach(el => {
+        if (el.dataset.mounted === '1') return;
+        el.dataset.mounted = '1';
+        const lat = parseFloat(el.dataset.lat);
+        const lng = parseFloat(el.dataset.lng);
+        const zoom = parseInt(el.dataset.zoom, 10);
+        const map = L.map(el.id).setView([lat, lng], zoom);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap',
+        }).addTo(map);
+        L.marker([lat, lng]).addTo(map);
+        setTimeout(() => map.invalidateSize(), 200);
+      });
+    })
+    .catch(() => {});
+}
+
 function escHtml(s) {
   if (!s) return '';
   return s
@@ -332,24 +437,7 @@ function addMsg(text, cls, suppressScroll) {
     html = renderRichContent(html);
     bubble.innerHTML = html;
 
-    // Initialize any maps found in the message
-    setTimeout(() => {
-      bubble.querySelectorAll('.msg-map').forEach(el => {
-        const id = el.id;
-        const lat = parseFloat(el.dataset.lat);
-        const lng = parseFloat(el.dataset.lng);
-        const zoom = parseInt(el.dataset.zoom);
-        if (window.L) {
-          const map = L.map(id).setView([lat, lng], zoom);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap',
-          }).addTo(map);
-          L.marker([lat, lng]).addTo(map);
-          // Fix rendering issue in hidden containers
-          setTimeout(() => map.invalidateSize(), 200);
-        }
-      });
-    }, 100);
+    mountMessageMaps(bubble);
   } else {
     bubble.textContent = text;
   }
@@ -652,23 +740,7 @@ function sendMsg(isRetry) {
       es.close();
       cleanup();
 
-      // Init maps
-      setTimeout(() => {
-        bubble.querySelectorAll('.msg-map').forEach(el => {
-          const id = el.id;
-          const lat = parseFloat(el.dataset.lat);
-          const lng = parseFloat(el.dataset.lng);
-          const zoom = parseInt(el.dataset.zoom);
-          if (window.L) {
-            const map = L.map(id).setView([lat, lng], zoom);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: '&copy; OpenStreetMap',
-            }).addTo(map);
-            L.marker([lat, lng]).addTo(map);
-            setTimeout(() => map.invalidateSize(), 200);
-          }
-        });
-      }, 100);
+      mountMessageMaps(bubble);
     } else if (data.type === 'error') {
       bubble.innerHTML =
         '❌ ' +
@@ -836,6 +908,9 @@ const DANGEROUS_TOOLS = new Set([
   'memory_forget',
   'backlog_delete',
   'schedule_delete',
+  'schedule_create',
+  'schedule_once',
+  'learn_rule',
 ]);
 
 async function loadSettings() {
@@ -991,6 +1066,7 @@ async function loadSettings() {
         '</div>' +
         '</div>';
     }
+    loadLearned();
     // Profile
     if (d.profile) {
       document.getElementById('profile-bot-name').value = d.profile.botName || '';
@@ -1468,7 +1544,9 @@ function renderHealth(health, checking) {
       const aboutBits = [c.about, c.hint, c.note].filter(Boolean);
       const about =
         aboutBits.length > 0
-          ? '<details class="health-about"><summary>Was bedeutet das?</summary><div class="health-about-body">' +
+          ? '<details class="health-about"><summary>' +
+            uiT('health.about') +
+            '</summary><div class="health-about-body">' +
             aboutBits.map(bit => '<p>' + esc(bit) + '</p>').join('') +
             (openHa ? '<p>' + openHa + '</p>' : '') +
             '</div></details>'
@@ -1492,7 +1570,17 @@ function renderHealth(health, checking) {
         esc(c.detail) +
         '</div>' +
         renderHealthTrend(c) +
-        (c.severity === 'ok' ? '' : '<div class="health-hint">' + esc(c.hint) + '</div>') +
+        (c.severity === 'ok'
+          ? ''
+          : '<div class="health-hint">' +
+            esc(c.hint) +
+            '</div><button type="button" class="care-task-btn" data-label="' +
+            esc(c.label) +
+            '" data-detail="' +
+            esc(c.detail) +
+            '" onclick="askAboutHealth(this)">' +
+            esc(uiT('health.ask')) +
+            '</button>') +
         (c.key === 'orphans' && items.length
           ? '<div class="health-orphan-bar"><button type="button" class="health-orphan-btn" onclick="removeOrphans(JSON.parse(decodeURIComponent(\'' +
             encodeURIComponent(JSON.stringify(items.map(i => i.id).filter(Boolean))) +
@@ -1607,6 +1695,125 @@ function careTaskButton(source, key) {
   );
 }
 
+function askAboutHealth(btn) {
+  const label = btn.getAttribute('data-label') || '';
+  const detail = btn.getAttribute('data-detail') || '';
+  const chatNav = document.querySelector('.nav-item[data-page="chat"]');
+  if (chatNav) chatNav.click();
+  const prompt = uiT('health.askPrompt').replace('{label}', label).replace('{detail}', detail);
+  inp.value = prompt;
+  inp.focus();
+}
+
+async function dismissGap(btn) {
+  if (!btn || btn.disabled) return;
+  const row = btn.closest('.care-row');
+  let input = row ? row.querySelector('.care-dismiss-reason') : null;
+  if (!input) {
+    input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 200;
+    input.className = 'care-dismiss-reason';
+    input.placeholder = uiT('care.dismissReason');
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') dismissGap(btn);
+    });
+    btn.before(input);
+    input.focus();
+    return;
+  }
+  const reason = input.value.trim();
+  if (!reason) {
+    input.focus();
+    return;
+  }
+  const key = btn.getAttribute('data-key');
+  btn.disabled = true;
+  input.disabled = true;
+  try {
+    const r = await fetch(base + '/api/coverage/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, reason }),
+    });
+    if (!r.ok) {
+      btn.disabled = false;
+      input.disabled = false;
+      return;
+    }
+    btn.textContent = uiT('care.dismissed');
+    loadCare(true);
+  } catch (e) {
+    console.error('Dismiss failed', e);
+    btn.disabled = false;
+    input.disabled = false;
+  }
+}
+
+async function loadLearned() {
+  const el = document.getElementById('learned-list');
+  if (!el) return;
+  try {
+    const r = await fetch(base + '/api/learning');
+    const data = await r.json();
+    const patches = Array.isArray(data.patches) ? data.patches : [];
+    const corrections = Array.isArray(data.corrections) ? data.corrections : [];
+    if (patches.length === 0 && corrections.length === 0) {
+      el.innerHTML = '<div class="backlog-empty">' + uiT('learn.empty') + '</div>';
+      return;
+    }
+    const patchRows = patches
+      .map(
+        p =>
+          '<div class="care-row"><div class="care-row-main"><strong>' +
+          esc(p.rule) +
+          '</strong><div class="care-meta">' +
+          esc(p.reason || '') +
+          '</div></div><button type="button" class="care-task-btn" onclick="toggleLearned(\'' +
+          esc(p.id) +
+          '\',' +
+          (p.enabled ? 'false' : 'true') +
+          ')">' +
+          (p.enabled ? uiT('learn.disable') : uiT('learn.enable')) +
+          '</button><button type="button" class="care-task-btn" onclick="deleteLearned(\'patches\',\'' +
+          esc(p.id) +
+          '\')">' +
+          uiT('learn.remove') +
+          '</button></div>',
+      )
+      .join('');
+    const corrRows = corrections
+      .map(
+        c =>
+          '<div class="care-row"><div class="care-row-main">' +
+          esc(c.userIntent || c.correctAction || c.id) +
+          '</div><button type="button" class="care-task-btn" onclick="deleteLearned(\'corrections\',\'' +
+          esc(c.id) +
+          '\')">' +
+          uiT('learn.remove') +
+          '</button></div>',
+      )
+      .join('');
+    el.innerHTML = patchRows + corrRows;
+  } catch (e) {
+    console.error('Learned rules failed', e);
+  }
+}
+
+async function toggleLearned(id, enabled) {
+  await fetch(base + '/api/learning/patches/' + encodeURIComponent(id), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  loadLearned();
+}
+
+async function deleteLearned(kind, id) {
+  await fetch(base + '/api/learning/' + kind + '/' + encodeURIComponent(id), { method: 'DELETE' });
+  loadLearned();
+}
+
 async function careEnqueue(btn) {
   if (!btn || btn.disabled) return;
   const source = btn.getAttribute('data-source');
@@ -1676,7 +1883,11 @@ async function loadCare(force) {
                 esc(g.suggestedBlueprint) +
                 '</div></div>' +
                 careTaskButton('coverage', g.key) +
-                '</div>'
+                '<button type="button" class="care-task-btn" data-key="' +
+                esc(g.key) +
+                '" onclick="dismissGap(this)">' +
+                esc(uiT('care.dismiss')) +
+                '</button></div>'
               );
             })
             .join('')

@@ -78,8 +78,8 @@ Runs the agentic loop synchronously and returns the finished answer.
 }
 ```
 
-`400` when `message` is missing. If onboarding has not been completed, the request is routed
-to the onboarding agent with its restricted tool set instead of the normal agent.
+`400` when `message` is missing. The request always uses the normal agent. Opening the panel
+or sending the first Telegram message marks setup done; there is no setup conversation.
 
 Dangerous tool calls block on the [confirmation gate](#confirmation-gate), which can hold the
 request open for up to 60 seconds.
@@ -128,14 +128,11 @@ Each event is `data: <json>\n\n`:
 circuit breaker is open — the client should show the message rather than retrying
 immediately.
 
-Two behaviours differ from `POST /api/chat` and are worth knowing:
-
-- The streaming endpoint does **not** check whether onboarding is complete. It always uses
-  the normal agent. The dashboard calls `GET /api/onboarding` first and falls back to the
-  synchronous endpoint when setup is still pending.
-- Token usage is reported through `stream_options.include_usage`, so streamed responses do
-  count towards the cost estimate. Before v0.9.2 they did not, which made the totals in
-  `/status` systematically too low.
+Token usage is reported on the completion, including streamed responses
+(`stream_options.include_usage`). When OpenRouter includes `usage.cost`, that amount is
+stored as billed. Otherwise `/status` adds a labeled estimate from the price table. Before
+v0.9.2 streamed responses reported no tokens, which made the totals in `/status`
+systematically too low.
 
 ### `GET /api/status/circuit-breaker`
 
@@ -160,7 +157,9 @@ overwriting the other. Anything unanswered after **60 seconds** is auto-denied.
 { "pending": true, "count": 2, "id": "c1a3...", "toolName": "ha_call_service_dangerous", "args": { }, "preview": null }
 ```
 
-Returns the oldest entry plus the queue length. The dashboard polls this. For
+Returns the oldest entry for this browser plus that session's queue length. The session is
+the `ha_claw_sid` cookie set on the first response. A request without that cookie does not
+see another browser's dialog. The dashboard polls this. For
 `ha_save_automation_config` / `ha_save_script_config`, `preview` is a
 `{ kind: "config_write", title, yamlDiff, blastRadius, currentMissing }` object so the
 dialog can show a YAML diff instead of the raw config JSON.
@@ -172,7 +171,7 @@ dialog can show a YAML diff instead of the raw config JSON.
 ```
 
 `{ "ok": true }`, or `{ "error": "No matching pending confirmation" }` if the ID already
-timed out or was answered.
+timed out, was answered, or belongs to another browser session.
 
 ### `POST /api/cache/refresh`
 
@@ -183,14 +182,16 @@ Rebuilds the entity cache immediately instead of waiting for the 30-minute cycle
 
 ### `GET /api/onboarding`
 
-`{ "needed": true }` while setup is pending.
+`{ "needed": true }` until the panel loads settings or the first Telegram message marks setup
+done. The flag does not start a conversation.
 
 ### `GET /api/settings`
 
 One snapshot for the whole Settings page: `agent`, `profile`, `model`, `mode`, `tools`,
 `uptime`, `memory`, `version`, `haAvailable`, `telegramConfigured`, `availableModels`,
 `language` (resolved `en` or `de`), `languageOption` (`auto`, `en` or `de`),
-`notifyEntity` (the configured `notify.*` id, or `null`).
+`notifyEntity` (the configured `notify.*` id, or `null`), `llmConfigured` (`true` when an
+OpenRouter key is set).
 
 ### `PUT /api/profile`
 
@@ -230,8 +231,8 @@ The Settings notification matrix. Registered **before** `/api/:c`.
 ```
 
 `events` is the full list of row ids (including `health.<check>`). Missing cells on disk
-are filled from defaults: Telegram on for digest, tasks, other scheduler jobs and the
-bundled health regression; everything else off.
+are filled from defaults: Telegram on for digest, Sunday suggestions (`cie`), tasks, other
+scheduler jobs and the bundled health regression; everything else off.
 
 ### `PUT /api/notify-matrix`
 
@@ -261,8 +262,9 @@ Accepted schedule strings are listed in [tools.md § Scheduler](tools.md#schedul
 | `DELETE` | `/api/actions` | `{ cleared: true }` |
 | `POST` | `/api/actions/rollback` | Body `{ id }`. Replays the recorded inverse service call, or restores a config snapshot when `rollback.domain` is `config` and `rollback.service` is `restore`. Lookup scans the whole `actions.jsonl` file, not only the last page of `GET /api/actions`. `400` for a malformed body, `404` when the action is missing or has no rollback payload. |
 
-The log buffer is in memory and resets on restart. `store/actions.jsonl` is persistent and
-pruned to a rolling 7-day window.
+The log buffer is in memory and resets on restart. `store/actions.jsonl` is persistent.
+Ordinary entries are pruned after 7 days. Config snapshots (`config` / `restore`) are kept
+for 90 days.
 
 ## Tasks
 
@@ -272,7 +274,7 @@ The backlog: improvement proposals with an approval workflow.
 | --- | --- | --- |
 | `GET` | `/api/backlog` | `{ count, tasks }` |
 | `POST` | `/api/backlog` | Create. Body: `{ title, asIs, toBe, impact, priority?, category?, tags?, proposedBy?, sourceKey? }` |
-| `PUT` | `/api/backlog/:id` | Partial update, `404` if unknown |
+| `PUT` | `/api/backlog/:id` | Partial update. `404` if unknown, `400` if the status transition is not allowed for a person |
 | `DELETE` | `/api/backlog/:id` | `{ deleted: true }` or `404` |
 | `POST` | `/api/backlog/cleanup` | Removes duplicate analysis tasks, leftovers from checks that moved to system health, and leftover proposed snapshot/hardware-absence analysis tasks |
 | `POST` | `/api/backlog/:id/preview` | Dry-run of the proposed solution. Stores `previewResult`. `404` if unknown, `400` if there is no solution. |
@@ -281,7 +283,18 @@ The status flow is `proposed → approved → solution_proposed → solution_app
 `rejected` and `deferred` as terminal user decisions. Generation or execution that fails three
 times marks the task `failed`; a human retry back to `approved` or `solution_approved` resets
 `attemptCount`. Status changes trigger the event-driven backlog processor; an idle system
-spends no tokens.
+spends no tokens. `backlog_update` can only reject or defer. A legacy `fast_track_approved`
+task is proposed again; it is not executed.
+
+## Care and learning
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/api/coverage/dismiss` | Body `{ key, reason }`. Marks a coverage gap as intentional and stores the reason. `400` if `key` or `reason` is missing. |
+| `GET` | `/api/learning` | `{ patches, corrections }` |
+| `POST` | `/api/learning/patches/:id` | Body `{ enabled }`. A missing `enabled` enables the patch. `404` if unknown. |
+| `DELETE` | `/api/learning/patches/:id` | `{ deleted: true }` or `404` |
+| `DELETE` | `/api/learning/corrections/:id` | `{ deleted: true }` or `404` |
 
 ## System health
 

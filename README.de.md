@@ -57,10 +57,12 @@ HA-Claw arbeitet mit deinem eigenen API-Key. Drei Dinge solltest du vorher wisse
   gehen über [OpenRouter](https://openrouter.ai) an einen LLM-Anbieter. *Aktionen* laufen
   lokal gegen dein Home Assistant, das *Nachdenken* nicht. Wenn eine Verarbeitung beim
   Modellanbieter für dich nicht in Frage kommt, ist dieses Add-on das falsche Werkzeug.
-- **Es kostet pro Nachricht Geld.** Mit dem Standardmodell `anthropic/claude-haiku-4.5`
-  liegt eine normale Anfrage im Bruchteil eines Cents, aber auch die proaktive Analyse und
-  die Aufgabenverarbeitung verbrauchen Tokens. Verbrauch und geschätzte Kosten in USD
-  stehen unter Status.
+- **Chat kostet pro Nachricht Geld.** Status, Care und der Wochenbericht rufen kein Modell
+  auf und starten ohne Key. Ein Chat-Turn schickt die Tool-Liste mit und kostet mehr als
+  einen Bruchteil eines Cents. Telegram `/status` zeigt die von OpenRouter gemeldete
+  Belastung, wenn die Antwort sie enthält, und kennzeichnet die Preistabelle als Schätzung,
+  wenn sie fehlt. Die Status-Seite zeigt keinen Dollarbetrag. Das ist nicht die
+  OpenRouter-Rechnung.
 - **Es kann dein Zuhause steuern.** Die Bestätigungsschranke deckt die gefährlichen Domains
   ab, aber ein KI-Agent mit Zugriff auf Dienstaufrufe ist ein Risiko, das du bewusst
   eingehen solltest. Lies vorher [SECURITY.md](SECURITY.md) und
@@ -78,11 +80,10 @@ HA-Claw arbeitet mit deinem eigenen API-Key. Drei Dinge solltest du vorher wisse
    ```
 
 2. **HA-Claw** aus dem daraufhin erscheinenden Store-Eintrag installieren.
-3. Im Reiter **Konfiguration** deinen OpenRouter-API-Key in `openrouter_api_key` eintragen.
+3. Add-on starten. Die erste Seite ist Status. Ein OpenRouter-Key in `openrouter_api_key`
+   ergänzt Chat und Aufgabenlösungen.
 4. *(Optional)* `telegram_bot_token` und `telegram_allowed_user_ids` setzen, um den Bot zu
    aktivieren.
-5. Add-on starten. HA-Claw erscheint in der Seitenleiste und begrüßt dich mit einem kurzen
-   Einrichtungsgespräch.
 
 Voraussetzung ist Home Assistant OS oder Supervised auf `aarch64` oder `amd64`. Das Image
 wird bei der ersten Installation auf deinem Gerät gebaut; auf einem Raspberry Pi dauert das
@@ -95,7 +96,7 @@ steht im **[Handbuch](ha-claw/DOCS.de.md)**.
 
 | Option | Pflicht | Standard | Beschreibung |
 | --- | --- | --- | --- |
-| `openrouter_api_key` | ja | — | API-Key von [openrouter.ai](https://openrouter.ai) |
+| `openrouter_api_key` | nein | — | API-Key von [openrouter.ai](https://openrouter.ai). Chat und Aufgabenlösungen brauchen ihn; Status, Care und der Bericht nicht. |
 | `openrouter_default_model` | nein | `anthropic/claude-haiku-4.5` | Modell, solange keine Stufe überschrieben ist |
 | `openai_api_key` | nein | — | Eigener OpenAI-Key, nur für Telegram-Sprachnachrichten (Whisper) |
 | `telegram_bot_token` | nein | — | Bot-Token von [@BotFather](https://t.me/BotFather) |

@@ -42,6 +42,7 @@ export type HealthCheckKey = (typeof HEALTH_CHECK_KEYS)[number];
 
 export const TOP_LEVEL_EVENTS = [
   'digest',
+  'cie',
   'new_task',
   'task_done',
   'task_fail',

@@ -4,17 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>HA-Claw</title>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
-    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-      crossorigin=""
-    ></script>
     <style>
       /* __INLINE_CSS__ */
     </style>
@@ -26,8 +15,8 @@
         <span class="brand">HA-CLAW</span>
       </div>
       <div class="nav-center">
-        <button class="nav-item active" data-page="chat" data-i18n="nav.chat">Chat</button>
-        <button class="nav-item" data-page="status" data-i18n="nav.status">Status</button>
+        <button class="nav-item" data-page="chat" data-i18n="nav.chat">Chat</button>
+        <button class="nav-item active" data-page="status" data-i18n="nav.status">Status</button>
         <button class="nav-item" data-page="settings" data-i18n="nav.settings">Settings</button>
       </div>
       <div class="nav-right">
@@ -41,7 +30,7 @@
 
     <!-- ── Chat Page ─────────────────────────────────────────── -->
     <div class="main">
-      <div class="page active" id="page-chat">
+      <div class="page" id="page-chat">
         <div class="welcome" id="welcome-block">
           <h1><span data-i18n="welcome.hello">Willkommen,</span> <strong id="welcome-name">...</strong></h1>
           <p class="welcome-sub" data-i18n="welcome.sub">Ich halte deine Installation im Blick. Frag nach einem Befund, oder öffne Status → Pflege.</p>
@@ -86,7 +75,8 @@
       </div>
 
       <!-- ── Status Page ───────────────────────────────────────── -->
-      <div class="page" id="page-status">
+      <div class="page active" id="page-status">
+        <div id="first-run" class="first-run" hidden></div>
         <div class="settings-layout">
           <div class="settings-sidebar">
             <div class="settings-agent">
@@ -749,13 +739,17 @@
               <div class="tools-grid" id="tools-grid">
                 <!-- Filled by JS -->
               </div>
+              <div class="settings-section-title" data-i18n="learn.title" style="margin-top: 24px">
+                Gelernte Regeln
+              </div>
+              <div id="learned-list" class="care-list"></div>
             </div>
 
             <!-- Notifications -->
             <div class="settings-section" id="settings-notify">
               <div class="settings-section-title" data-i18n="settings.notify">Benachrichtigungen</div>
               <p class="notify-help" data-i18n="notify.help">
-                Welche Hinweise über welchen Weg. Telegram-Knöpfe (Ausführen/Ignorieren) bleiben
+                Welche Hinweise über welchen Weg. Telegram-Knöpfe (Freigeben/Ignorieren) bleiben
                 Telegram. Health nur, wenn es schlechter wurde.
               </p>
               <p class="notify-hint" id="notify-ha-hint" hidden></p>

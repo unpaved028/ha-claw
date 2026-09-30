@@ -62,8 +62,11 @@ export interface AutomationIndex {
   byEntity: Map<string, IndexedConfig[]>;
 }
 
+export type RelatedFetcher = (entityId: string) => Promise<string[]>;
+
 export interface IndexOptions {
   fetchConfig?: ConfigFetcher;
+  fetchRelated?: RelatedFetcher;
   force?: boolean;
 }
 
@@ -130,6 +133,16 @@ export function collectRefs(
   }
   if (typeof value === 'object') {
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === 'input' && v && typeof v === 'object' && !Array.isArray(v)) {
+        for (const inputVal of Object.values(v as Record<string, unknown>)) {
+          if (typeof inputVal === 'string' && /^[a-z][a-z0-9_]*\.[a-z0-9_]+$/.test(inputVal)) {
+            entities.add(inputVal);
+          } else {
+            collectRefs(inputVal, entities, devices);
+          }
+        }
+        continue;
+      }
       collectRefs(v, entities, devices, k);
     }
   }
@@ -275,6 +288,7 @@ export function indexFromConfigs(
 export async function loadAutomationIndex(
   states: HaLikeState[],
   fetchConfig: ConfigFetcher = (kind, id) => ha.getUiConfig(kind, id),
+  fetchRelated?: RelatedFetcher,
 ): Promise<AutomationIndex> {
   const configurable = states.filter(
     s => s.entity_id.startsWith('automation.') || s.entity_id.startsWith('script.'),
@@ -291,7 +305,15 @@ export async function loadAutomationIndex(
     const ui = Boolean(config && !config['error'] && !config['note']);
     if (!ui) {
       yamlOnly += 1;
-      const members = s.attributes?.['entity_id'];
+      let related: string[] = [];
+      if (fetchRelated) {
+        try {
+          related = (await fetchRelated(s.entity_id)).filter(id => id !== s.entity_id);
+        } catch (err) {
+          log.debug('Related-entity lookup failed', { entity: s.entity_id, error: String(err) });
+        }
+      }
+      const members = related.length > 0 ? related : s.attributes?.['entity_id'];
       if (members) {
         records.push(recordFrom(s, kind, { entity_id: members }, true));
       }
@@ -316,7 +338,8 @@ export async function getAutomationIndex(
   if (!opts.force && cached && Date.now() - cachedAt < CACHE_TTL_MS) return cached;
   if (inFlight && !opts.force) return inFlight;
   const fetchConfig = opts.fetchConfig ?? ((kind, id) => ha.getUiConfig(kind, id));
-  const pending = loadAutomationIndex(states, fetchConfig).then(index => {
+  const fetchRelated = opts.fetchRelated ?? (id => ha.relatedEntityIds(id));
+  const pending = loadAutomationIndex(states, fetchConfig, fetchRelated).then(index => {
     cached = index;
     cachedAt = Date.now();
     return index;

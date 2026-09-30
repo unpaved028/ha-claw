@@ -20,12 +20,12 @@ against the `schema` block, and read by
 
 | Option | Schema | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `openrouter_api_key` | `str` | **yes** | `''` | API key from [openrouter.ai](https://openrouter.ai). Startup fails with a clear error if empty. |
+| `openrouter_api_key` | `str` | no | `''` | API key from [openrouter.ai](https://openrouter.ai). Empty is valid: Status, Care, the digest and notifications start without it. Chat, task solutions and the Sunday suggestions job need it. |
 | `openrouter_default_model` | `list(...)` | no | `anthropic/claude-haiku-4.5` | Model used when no tier override applies. |
 | `openai_api_key` | `str?` | no | `''` | Separate OpenAI key. **Only** used for Whisper transcription of Telegram voice messages — it does not route through OpenRouter. |
 | `telegram_bot_token` | `str?` | no | `''` | Token from [@BotFather](https://t.me/BotFather). The bot only starts when this is non-empty. |
 | `telegram_allowed_user_ids` | `str?` | conditional | `''` | Comma-separated numeric user IDs. **Required** once a bot token is set; startup fails otherwise. |
-| `log_level` | `list(debug\|info\|warn\|error)` | no | `info` | Pino log level. `debug` includes full tool arguments and results. |
+| `log_level` | `list(debug\|info\|warn\|error)` | no | `info` | Log level. `debug` includes full tool arguments and results. |
 | `language` | `list(auto\|en\|de)` | no | `auto` | Language of the system prompt, Web UI and Telegram. `auto` follows the Home Assistant locale: `de` / `de-*` stay German; any other locale is English. A missing HA language is treated as German. `en` and `de` force that language. |
 | `notify_entity` | `str?` | no | `''` | Full `notify.*` entity id (e.g. `notify.mobile_app_pixel`). Used by the HA Notify column in Settings → Notifications. |
 
@@ -121,9 +121,9 @@ only known after the model has picked them:
 3. A model set explicitly as `modelOverride` on the agent always wins.
 4. An unconfigured tier falls back to `openrouter_default_model`.
 
-Only three tools are tier 3 (`ha_save_automation_config`, `ha_save_script_config`) or
-tier 2 (`ha_call_service_dangerous`, `analyze_home`); everything else is tier 1. In practice
-most conversations never leave the cheap model.
+Two tools are tier 3 (`ha_save_automation_config`, `ha_save_script_config`). Two are tier 2
+(`ha_call_service_dangerous`, `analyze_home`). Everything else is tier 1. In practice most
+conversations never leave the cheap model.
 
 ## Available models
 
@@ -162,9 +162,11 @@ Everything is JSON or JSONL under `<dataPath>/store/`. In the add-on that is
 | `store/memory/`, `store/memory-cards/` | Long-term memory cards with version history | `storage/memory-cards.ts` |
 | `store/backlog/` | Improvement tasks, one file per task | `storage/backlog.ts` |
 | `store/learning/` | Corrections, prompt patches, usage patterns, error history | `storage/learning.ts` |
-| `store/scheduler.json` | Recurring jobs and one-shot timers, including the seeded weekly digest | `storage/scheduler.ts` |
-| `store/usage/` | Cumulative token counts and cost estimate | `storage/usage-tracker.ts` |
-| `store/actions.jsonl` | Append-only action log with service-call and config-snapshot rollback payloads, pruned after 7 days | `storage/action-log.ts` |
+| `store/scheduler.json` | Recurring jobs and one-shot timers, including the seeded weekly digest and the Sunday suggestions job | `storage/scheduler.ts` |
+| `store/usage/` | Cumulative token counts, OpenRouter `usage.cost` when present, and a price-table estimate when it is not | `storage/usage-tracker.ts` |
+| `store/actions.jsonl` | Append-only action log with service-call and config-snapshot rollback payloads. Ordinary entries are pruned after 7 days; config snapshots after 90 days | `storage/action-log.ts` |
+| `store/care-stats.json` | Counts of approved tasks, rejected tasks and dismissed coverage gaps, shown in the weekly digest | `storage/care-stats.ts` |
+| `store/coverage-dismissed.json` | Coverage gaps the user marked as intentional, each with a reason. Older files that only stored keys are still read | `storage/coverage-dismiss.ts` |
 | `store/disabled-tools.json` | Tools switched off in the Tool Vault | `tools/registry.ts` |
 | `store/notify-matrix.json` | Which proactive events go to Telegram, Chat, HA Notify and persistent_notification | `core/notify-matrix.ts` |
 | `store/system-health.json` | Last-seen count/severity per health check (UI trend) and last-notified values (Telegram regressions) | `core/system-health.ts` |

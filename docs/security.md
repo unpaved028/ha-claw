@@ -68,8 +68,10 @@ the same act as opening a garage.
 ### Scene exception
 
 Before any `scene` service call, the scene's `attributes.entity_id` list is inspected. If any
-member belongs to a guarded domain, the call is rejected. A scene named "Good night" that
-also unlocks the front door goes through the gate.
+member belongs to a guarded domain, or is a cover whose `device_class` is `garage`, `gate`
+or `door`, the call is rejected. A scene named "Good night" that also unlocks the front door
+or opens the garage goes through the gate. A cover that is only a `switch` is not recognised
+this way.
 
 ## Entity and domain validation
 
@@ -86,12 +88,12 @@ and the prefix check applies to every entity in the batch. The same validation r
 ## The confirmation gate
 
 Any tool registered with `dangerous: true` suspends the agentic loop until the user answers.
-The eight dangerous tools are listed in [tools.md](tools.md#danger-flag-and-complexity).
+Those tools are listed in [tools.md](tools.md#danger-flag-and-complexity).
 
 | | Telegram | Web UI |
 | --- | --- | --- |
 | Prompt | Inline keyboard, yes/no | Modal with the tool name and arguments |
-| Bound to | The user ID that triggered it | The browser session |
+| Bound to | The user ID that triggered it | The browser cookie `ha_claw_sid` (HttpOnly, scoped to the Ingress path). Another browser that can open the panel does not see or answer that dialog. |
 | Timeout | 60 s → denied | 60 s → denied |
 | Concurrency | Per callback ID | Queue; two dialogs for two actions |
 
@@ -140,6 +142,11 @@ This is the honest version. HA-Claw is not local inference.
 **Sent to OpenAI, only if you configured `openai_api_key`:** the audio of Telegram voice
 messages, for Whisper transcription. This does not route through OpenRouter.
 
+**Loaded by the browser only when a chat message contains a map:** Leaflet 1.9.4 is injected
+then from `unpkg.com` (`leaflet.css` and `leaflet.js`). Opening Status, Care or Settings does
+not contact unpkg. Tiles from `{s}.tile.openstreetmap.org` are requested for that map. The
+tile request carries the coordinates of the visible map, not entity names or the conversation.
+
 **Sent to Telegram, only if you configured a bot:** the conversation, as Telegram messages.
 Proactive texts (and, for new high-priority tasks, inline Run/Ignore buttons) only when the
 matching Settings → Notifications cell is on.
@@ -162,8 +169,8 @@ fixes that — the architecture is wrong for you.
 
 ## Secret handling
 
-- The Pino logger redacts recognised secret patterns (API keys, bearer tokens) before
-  writing.
+- The JSON logger redacts the configured OpenRouter key, OpenAI key, Telegram token and
+  Supervisor token by exact value before writing. It does not scan for secret-shaped strings.
 - `openrouter_api_key` and `openai_api_key` are never returned by `GET /api/settings`.
 - `dev-options.json` holds real keys in development and is gitignored. `.env` files are too.
 - The Supervisor token is read from the environment and never persisted.
@@ -199,9 +206,13 @@ What that buys them, and what it does not:
   wording of a reply.
 - **They can make the agent attempt an action.** The model can be talked into calling any
   tool.
-- **They cannot execute a guarded action.** The allowlist is code, not prompt. An injected
-  instruction to unlock the front door still lands in the confirmation gate, which shows you
-  the real tool name and the real entity ID.
+- **A guarded action in chat still needs you.** The allowlist is code, not prompt. An injected
+  instruction to unlock the front door lands in the confirmation gate, which shows the real
+  tool name and the entity IDs. Scheduled jobs cannot confirm anything: those tools are
+  denied. The Sunday suggestions job may still create tasks in status `proposed`; it cannot
+  approve them. Drafting a task solution is a dry run. Executing a solution is allowed only after
+  you approved the idea and then the solution; `schedule_create`, `schedule_once` and
+  `learn_rule` stay denied even then.
 
 So the mitigation is the human in the loop, which is exactly why the gate displays raw
 arguments rather than a model-written summary. Read the entity ID before you tap yes.
@@ -212,7 +223,8 @@ Config writes show a YAML diff and a blast-radius list instead of the raw config
 Every Home Assistant service call is appended to `store/actions.jsonl` with its arguments,
 result and — where one can be computed — the inverse call needed to undo it. Automation and
 script writes store the previous config on the same record. Visible under
-**Status → Actions**, with a rollback / **Zurücksetzen** button per entry. Retained for 7 days.
+**Status → Actions**, with a rollback / **Zurücksetzen** button per entry. Ordinary entries
+are kept for 7 days. Config snapshots (`config` / `restore`) are kept for 90 days.
 
 After anything unexpected, that log is the record of what actually happened, independent of
 what the agent said it did.
@@ -225,13 +237,14 @@ Stated plainly, because a security document that only lists strengths is marketi
    members are injected as fixtures. A live entity whose class is missing still falls
    through to the everyday path, same as before.
 2. **Tool-argument validation is the subset the registry actually writes** (`type`,
-   `required`, `properties`, `anyOf`, `items`). It is not a full JSON Schema implementation.
+   `required`, `properties`, `enum`, `anyOf`, `items`). It is not a full JSON Schema
+   implementation. A sibling `enum` on the same object as `anyOf` is not checked.
 3. **The AppArmor profile is broad** (`file,` and `network,`) so Node can start. It still
    earns the add-on the custom-profile security point; it is not a tight jail.
-4. **Approved backlog tasks execute with the full tool set.** Approving a task is a broader
-   grant than approving a single action. Read the proposed solution before approving it.
-   Preview (`dryRun`) reports what write tools *would* call; it is not a guarantee the later
-   execution will do only that.
+4. **An approved solution can still do more than its text.** Generation is a dry run and
+   cannot approve itself. Execution, after you approve the solution, may call write tools
+   the text did not mention. Read the proposal. `schedule_create`, `schedule_once` and
+   `learn_rule` are denied during that execution.
 5. **Config validation is structural, not Home Assistant `check_config`.** `check_config`
    inspects YAML files on disk, not a pending UI automation. A config can pass HA-Claw's
    key/mode check and still fail HA's own parser — that failure aborts the write.

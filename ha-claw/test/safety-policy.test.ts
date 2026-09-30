@@ -8,6 +8,7 @@ interface Case {
   entityIds: string[];
   coverDeviceClass?: Record<string, string>;
   sceneTargets?: Record<string, string[]>;
+  sceneMemberClass?: Record<string, string>;
   confirm: boolean;
 }
 
@@ -139,6 +140,22 @@ const cases: Case[] = [
     sceneTargets: { 'scene.leave': ['alarm_control_panel.house'] },
     confirm: true,
   },
+  {
+    name: 'scene targeting a garage cover must confirm',
+    domain: 'scene',
+    entityIds: ['scene.arrive'],
+    sceneTargets: { 'scene.arrive': ['light.hall', 'cover.garage'] },
+    sceneMemberClass: { 'cover.garage': 'garage' },
+    confirm: true,
+  },
+  {
+    name: 'scene targeting a window cover is allowed',
+    domain: 'scene',
+    entityIds: ['scene.evening'],
+    sceneTargets: { 'scene.evening': ['cover.blind'] },
+    sceneMemberClass: { 'cover.blind': 'shutter' },
+    confirm: false,
+  },
 ];
 
 describe('evaluateSafeCallPolicy', () => {
@@ -149,6 +166,7 @@ describe('evaluateSafeCallPolicy', () => {
         entityIds: c.entityIds,
         coverDeviceClass: c.coverDeviceClass,
         sceneTargets: c.sceneTargets,
+        sceneMemberClass: c.sceneMemberClass,
       });
       if (c.confirm) {
         assert.ok(err, `expected confirmation (error), got allow`);

@@ -15,6 +15,7 @@ describe('notify matrix defaults', () => {
   it('turns Telegram on for the pre-matrix events and off for per-check health', () => {
     const m = defaultNotifyMatrix();
     assert.equal(m.digest.telegram, true);
+    assert.equal(m.cie.telegram, true);
     assert.equal(m.new_task.telegram, true);
     assert.equal(m.task_done.telegram, true);
     assert.equal(m.task_fail.telegram, true);

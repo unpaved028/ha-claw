@@ -8,6 +8,8 @@
 
 import * as ha from './ha-client.js';
 import { t } from './strings.js';
+import { GUARDED_COVER_CLASSES } from '../tools/safety-policy.js';
+import { dismissedGapKeys } from '../storage/coverage-dismiss.js';
 import {
   callsClimateSet,
   callsNotifyService,
@@ -162,7 +164,9 @@ export function findCoverageGaps(
       }
     }
 
-    const covers = inArea.filter(s => s.entity_id.startsWith('cover.'));
+    const covers = inArea.filter(
+      s => s.entity_id.startsWith('cover.') && !GUARDED_COVER_CLASSES.has(deviceClass(s)),
+    );
     if (covers.length > 0) {
       const coverIds = covers.map(s => s.entity_id);
       const covered = automations.some(rec => refsAny(rec, coverIds) && hasSunSignal(rec));
@@ -247,7 +251,8 @@ export async function buildCoverageReport(): Promise<CoverageReport> {
     ha.getAreaEntityMap(),
   ]);
   const index = await getAutomationIndex(states);
-  const gaps = findCoverageGaps(states, areaMap, index);
+  const dismissed = await dismissedGapKeys();
+  const gaps = findCoverageGaps(states, areaMap, index).filter(g => !dismissed.has(g.key));
   return {
     checkedAt: new Date().toISOString(),
     areasScanned: Object.keys(areaMap).length,

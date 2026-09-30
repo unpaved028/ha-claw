@@ -17,7 +17,7 @@ import {
   onProcessableStatusChange,
   MAX_TASK_ATTEMPTS,
 } from './backlog.js';
-import { runAgenticLoop } from '../core/agentic-loop.js';
+import { runAgenticLoop, type ConfirmationFn } from '../core/agentic-loop.js';
 import { getCircuitBreakerState } from '../core/openrouter.js';
 import type { AgentConfig } from '../core/types.js';
 
@@ -50,8 +50,13 @@ let executionFinishedListener: ExecutionListener | null = null;
 export function onExecutionFinished(listener: ExecutionListener): void {
   executionFinishedListener = listener;
 }
+/** The agent used when a solution is drafted or executed. */
+export function useSolutionAgent(build: () => AgentConfig): void {
+  agentBuilder = build;
+}
+
 export function initBacklogProcessor(buildAgent: () => AgentConfig): void {
-  agentBuilder = buildAgent;
+  useSolutionAgent(buildAgent);
 
   // Register event listener: trigger processing when tasks reach processable status
   onProcessableStatusChange(notifyTaskChanged);
@@ -137,9 +142,7 @@ async function generateSolution(taskId: string): Promise<void> {
   const task = await getTask(taskId);
   if (!task || (task.status !== 'approved' && task.status !== 'fast_track_approved')) return;
 
-  const isFastTrack = task.status === 'fast_track_approved';
-
-  log.info('Generating solution for task', { id: taskId, title: task.title, isFastTrack });
+  log.info('Generating solution for task', { id: taskId, title: task.title });
 
   const prompt = `Analysiere folgende Verbesserungsaufgabe und schlage eine konkrete Loesung vor.
 
@@ -154,31 +157,40 @@ Nutze ha_best_practices um die Loesung an Best Practices auszurichten.
 Antworte NUR mit der Loesung, keine Einleitung oder Erklaerung drumherum.`;
 
   try {
-    const agent = agentBuilder!();
-    const result = await runAgenticLoop(prompt, agent);
-    await updateTask(taskId, {
-      status: isFastTrack ? 'solution_approved' : 'solution_proposed',
-      solution: result.response,
-    });
-    log.info('Solution proposed for task', { id: taskId, autoApproved: isFastTrack });
+    const { getToolNames } = await import('../tools/registry.js');
+    const { selectToolNames } = await import('../tools/tool-selection.js');
+    const base = agentBuilder!();
+    const agent = { ...base, dryRun: true };
+    const result = await runAgenticLoop(
+      prompt,
+      agent,
+      async () => false,
+      [],
+      selectToolNames('draft', prompt, getToolNames()),
+    );
+    await updateTask(
+      taskId,
+      {
+        status: 'solution_proposed',
+        solution: result.response,
+      },
+      { actor: 'processor' },
+    );
+    log.info('Solution proposed for task', { id: taskId });
   } catch (err) {
     const reason = String(err);
     log.error('Solution generation failed', { id: taskId, error: reason });
-    await recordAttempt(
-      taskId,
-      task.attemptCount,
-      reason,
-      isFastTrack ? 'fast_track_approved' : 'approved',
-    );
+    const retry = task.status === 'fast_track_approved' ? 'fast_track_approved' : 'approved';
+    await recordAttempt(taskId, task.attemptCount, reason, retry);
   }
 }
 
-async function executeSolution(taskId: string): Promise<void> {
+export async function executeSolution(taskId: string): Promise<void> {
   const task = await getTask(taskId);
   if (!task || task.status !== 'solution_approved' || !task.solution) return;
 
   log.info('Executing solution for task', { id: taskId });
-  await updateTask(taskId, { status: 'executing' });
+  await updateTask(taskId, { status: 'executing' }, { actor: 'processor' });
 
   const prompt = `Fuehre folgende Loesung aus:
 
@@ -188,11 +200,23 @@ Nutze die verfuegbaren Tools um die Loesung umzusetzen. Bestaetige was du getan 
 
   try {
     const agent = agentBuilder!();
-    const result = await runAgenticLoop(prompt, agent);
-    const updated = await updateTask(taskId, {
-      status: 'done',
-      executionResult: result.response,
-    });
+    // The two human approvals already happened. Confirming tools that would
+    // schedule more work or rewrite the prompt are still refused.
+    const grantedByApproval: ConfirmationFn = async name => {
+      if (name === 'schedule_create' || name === 'schedule_once' || name === 'learn_rule') {
+        return false;
+      }
+      return true;
+    };
+    const result = await runAgenticLoop(prompt, agent, grantedByApproval);
+    const updated = await updateTask(
+      taskId,
+      {
+        status: 'done',
+        executionResult: result.response,
+      },
+      { actor: 'processor' },
+    );
     log.info('Task completed', { id: taskId });
     if (updated && executionFinishedListener) executionFinishedListener(updated);
   } catch (err) {
@@ -220,7 +244,7 @@ async function recordAttempt(
         ? `Aufgegeben nach ${attempts} Versuchen: ${reason.slice(0, 500)}`
         : `FEHLER (Versuch ${attempts}/${MAX_TASK_ATTEMPTS}): ${reason.slice(0, 500)}`,
     },
-    { notify: false },
+    { notify: false, actor: 'processor' },
   );
   if (!exhausted) scheduleRetryScan();
   return updated;
@@ -248,7 +272,11 @@ ${task.solution}`;
 
   try {
     const result = await runAgenticLoop(prompt, agent);
-    await updateTask(taskId, { previewResult: result.response }, { notify: false });
+    await updateTask(
+      taskId,
+      { previewResult: result.response },
+      { notify: false, actor: 'processor' },
+    );
     return { preview: result.response };
   } catch (err) {
     return { error: String(err) };

@@ -49,6 +49,8 @@ export interface Profile {
   modelOverride: string;
   complexityModels: ComplexityModels;
   onboardingComplete: boolean;
+  /** First Telegram message explained Status and notifications. The web UI does not set this. */
+  telegramIntroSeen: boolean;
   telegramChatId: number | null;
   lastInteractionDate: string | null;
   maxContextTokens: number;
@@ -73,11 +75,12 @@ const DEFAULT_COMPLEXITY_MODELS: ComplexityModels = {
 
 const DEFAULT_PROFILE: Profile = {
   botName: 'HA-Claw',
-  userName: 'Architekt',
+  userName: '',
   personality: DEFAULT_PERSONALITY,
   modelOverride: '',
   complexityModels: DEFAULT_COMPLEXITY_MODELS,
   onboardingComplete: false,
+  telegramIntroSeen: false,
   telegramChatId: null,
   lastInteractionDate: null,
   maxContextTokens: 4000,
@@ -91,11 +94,29 @@ let currentProfile: Profile = { ...DEFAULT_PROFILE };
 
 // ── Public API ────────────────────────────────────────────
 
+/**
+ * Merge a stored profile. Installations that already finished setup before
+ * `telegramIntroSeen` existed do not get the first-run sentence again.
+ * A profile saved after the panel load keeps the flag explicit and false.
+ */
+export function profileFromStored(raw: unknown): Profile {
+  const parsed = raw && typeof raw === 'object' ? (raw as Partial<Profile>) : {};
+  const hadIntro = Object.prototype.hasOwnProperty.call(parsed, 'telegramIntroSeen');
+  const profile: Profile = {
+    ...DEFAULT_PROFILE,
+    ...parsed,
+    personality: { ...DEFAULT_PERSONALITY, ...(parsed.personality ?? {}) },
+    complexityModels: { ...DEFAULT_COMPLEXITY_MODELS, ...(parsed.complexityModels ?? {}) },
+  };
+  if (!hadIntro && parsed.onboardingComplete === true) profile.telegramIntroSeen = true;
+  return profile;
+}
+
 /** Load profile from disk. Returns default if not found. */
 export async function loadProfile(): Promise<Profile> {
   try {
     const raw = await readFile(PROFILE_PATH, 'utf-8');
-    currentProfile = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    currentProfile = profileFromStored(JSON.parse(raw));
     log.info('Profile loaded', { botName: currentProfile.botName, user: currentProfile.userName });
   } catch {
     log.info('No profile found – using defaults (onboarding pending)');
@@ -129,6 +150,27 @@ export function needsOnboarding(): boolean {
 }
 
 /**
+ * Mark first run done without collecting a name or a personality.
+ * The web banner and the first Telegram message are the setup.
+ */
+export async function completeFirstRun(): Promise<boolean> {
+  if (currentProfile.onboardingComplete) return false;
+  await saveProfile({ onboardingComplete: true });
+  return true;
+}
+
+/** The web panel does not set this. The first Telegram message does. */
+export function needsTelegramIntro(): boolean {
+  return !currentProfile.telegramIntroSeen;
+}
+
+export async function completeTelegramIntro(): Promise<boolean> {
+  if (currentProfile.telegramIntroSeen) return false;
+  await saveProfile({ telegramIntroSeen: true, onboardingComplete: true });
+  return true;
+}
+
+/**
  * Build a personality description string for the system prompt.
  */
 export function personalityPrompt(): string {
@@ -147,10 +189,12 @@ export function personalityPrompt(): string {
   if (p.verbosity <= 2) traits.push(t('prompt.verboseLow'));
   else if (p.verbosity >= 4) traits.push(t('prompt.verboseHigh'));
 
-  const intro = t('prompt.nameIntro', {
-    bot: currentProfile.botName,
-    user: currentProfile.userName,
-  });
+  const intro = currentProfile.userName
+    ? t('prompt.nameIntro', {
+        bot: currentProfile.botName,
+        user: currentProfile.userName,
+      })
+    : t('prompt.nameIntroAnon', { bot: currentProfile.botName });
 
   return intro + (traits.length > 0 ? '\n\n' + traits.join('\n') : '');
 }

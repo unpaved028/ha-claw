@@ -41,6 +41,7 @@ const log = createLogger('ha-tools');
 async function checkSafeCallPolicy(domain: string, entityIds: string[]): Promise<string | null> {
   let coverDeviceClass: Record<string, string> | undefined;
   let sceneTargets: Record<string, string[]> | undefined;
+  let sceneMemberClass: Record<string, string> | undefined;
 
   if (domain === 'cover') {
     coverDeviceClass = {};
@@ -56,6 +57,7 @@ async function checkSafeCallPolicy(domain: string, entityIds: string[]): Promise
 
   if (domain === 'scene') {
     sceneTargets = {};
+    sceneMemberClass = {};
     for (const sceneId of entityIds) {
       try {
         const state = await ha.getState(sceneId);
@@ -65,9 +67,26 @@ async function checkSafeCallPolicy(domain: string, entityIds: string[]): Promise
         // Unknown scene – let the service call itself report the problem.
       }
     }
+    const coverMembers = [...new Set(Object.values(sceneTargets).flat())].filter(id =>
+      id.startsWith('cover.'),
+    );
+    for (const eid of coverMembers) {
+      try {
+        const state = await ha.getState(eid);
+        sceneMemberClass[eid] = String(state.attributes['device_class'] ?? '');
+      } catch {
+        // Missing member – the scene call itself will fail if HA rejects it.
+      }
+    }
   }
 
-  return evaluateSafeCallPolicy({ domain, entityIds, coverDeviceClass, sceneTargets });
+  return evaluateSafeCallPolicy({
+    domain,
+    entityIds,
+    coverDeviceClass,
+    sceneTargets,
+    sceneMemberClass,
+  });
 }
 
 /** Expected state after common service calls (for verification). */
@@ -509,6 +528,12 @@ export function registerHATools(): void {
       const service = args['service'] as string;
       const entityId = args['entity_id'] as string | string[] | undefined;
       const extraData = (args['data'] as Record<string, unknown>) ?? {};
+
+      if (entityId) {
+        const ids = Array.isArray(entityId) ? entityId : [entityId];
+        const mismatch = assertDomainMatches(domain, ids);
+        if (mismatch) return { error: mismatch };
+      }
 
       // entity_id is set after the spread so LLM-supplied data cannot redirect
       // the call, mirroring the guard in ha_call_service.

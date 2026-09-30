@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.4.0**. Last reviewed: 2026-09-10.
+Current version: **1.4.0**. Last reviewed: 2026-09-29.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -9,12 +9,7 @@ roadmap that lists every possible feature is not a roadmap.
 - [What HA-Claw is for](#what-ha-claw-is-for)
 - [Where it fits](#where-it-fits)
 - [Where the effort goes](#where-the-effort-goes)
-- [Now — first hour and discovery](#now--first-hour-and-discovery)
-- [Caretaker depth](#caretaker-depth)
-- [v1.0.0 — Trust and hardening](#v100--trust-and-hardening)
-- [v1.1 / v1.2 — shipped](#v11--v12--shipped)
-- [v1.3 — shipped](#v13--shipped)
-- [v1.4 — shipped](#v14--shipped)
+- [Next — discovery](#next--discovery)
 - [Exploratory](#exploratory)
 - [Deliberately not doing](#deliberately-not-doing)
 - [Decided questions](#decided-questions)
@@ -38,8 +33,8 @@ and offers to fix it.
 **That is what HA-Claw is for: an assistant that maintains and improves your Home Assistant
 installation, rather than one that only operates your lights.**
 
-Chat is how you reach it. What it does between your questions is what makes it worth
-installing.
+What it does between your questions is what makes it worth installing. Chat is one way to
+reach it, and it should be an optional one.
 
 ## Where it fits
 
@@ -48,10 +43,16 @@ runs on dedicated hardware, and for "turn on the kitchen light" it is faster, ch
 private than anything an add-on can offer. HA-Claw is not an attempt to replace it. If direct
 device control is all you are after, Assist is the better answer and you should use it.
 
-The gap is the slow drift. Repairs reports what an integration explicitly raised; nothing
-looks at the installation as a whole and says *"these four automations reference an entity you
-renamed in March"* or *"you have motion sensors in every room and no motion-light automation"*.
-That gap is real, and it widens as an installation ages.
+The gap is the slow drift. Repairs reports what an integration explicitly raised. Community
+integrations cover single slices: Spook and Watchman report references to entities that no
+longer exist, Battery Notes tracks batteries. Nothing looks at the installation as a whole
+and says *"these four automations reference an entity you renamed in March"* next to *"you
+have motion sensors in every room and no motion-light automation"* — and then offers a fix
+you can read before it is applied. That gap is real, and it widens as an installation ages.
+
+A visitor who already runs Spook will ask what this adds. The answer has to fit in one
+paragraph: one Status view across health, coverage and naming; a weekly digest that reports
+only what got worse; fixes that go through a diff and an approval.
 
 The add-on shape happens to suit that work. A conversation agent lives inside Home Assistant
 and is invoked per utterance, so it cannot easily hold state or act on its own. HA-Claw is a
@@ -61,98 +62,33 @@ you about it.
 
 ## Where the effort goes
 
-Everything on this roadmap either extends that caretaking capability or builds the trust
-required to let it run.
+Trust, a model-optional core, and the caretaker-depth items that were wrong in code are in
+[Unreleased](../ha-claw/CHANGELOG.md#unreleased). What is left is discovery, and it leaves
+this repository: screenshots of a running install, pre-built images, a forum thread.
 
-**Actively developed** — two tracks. Discovery still matters: screenshots of Status / Care /
-the weekly digest, a Home Assistant community thread, and pre-built images so install does
-not compile TypeScript on a Raspberry Pi. In parallel, **caretaker depth**: coverage and
-health should read what the installation actually does, not guess from names. The first
-cut is a shared automation-config index so Care stops inventing gaps. Analysis diet, two
-new coverage kinds, an automation-quality linter and a few health-trend cards follow.
-Lifestyle recipes (buy hardware, install a print server) stay out.
+**Why discovery is next.** Nobody outside the maintainer's own installation has reported
+using HA-Claw yet. A reader can now be told that Status, Care and the digest start without
+a key, that chat is what costs money, and that a guarded action in chat waits for a person.
+A first impression spent before those answers were true would not have come back.
 
-**Maintained rather than expanded** — the caretaking stack that shipped in 1.0–1.3
-(health, Care, safe writes, tasks, weekly digest), plus conversational device control, the
-chat dashboard and the Telegram bot. They work, bugs get fixed, and pull requests improving
-them are welcome. Assist already covers "turn on the light"; a second implementation of it
-would help nobody.
-
-**The bottleneck is discovery, not capability.** Trust work through [v1.0.0](#v100--trust-and-hardening)
-and [v1.2.0](../ha-claw/CHANGELOG.md#120) was the previous bottleneck; that cut shipped.
-A new visitor should understand this is a caretaker, not a second Assist.
-[Now](#now--first-hour-and-discovery) is that gap. [Exploratory](#exploratory) stays parked.
+**Maintained rather than expanded** — health, Care, safe writes, tasks, the weekly digest,
+conversational device control, the chat dashboard and the Telegram bot. Bugs get fixed and
+pull requests improving them are welcome. Assist already covers "turn on the light"; a second
+implementation of it would help nobody.
 
 ---
 
-## Now — first hour and discovery
+## Next — discovery
 
-Capability through [v1.4.0](../ha-claw/CHANGELOG.md#140) is enough to be useful. The next
-problems are not missing analysis modules.
-
-1. **Visitors need to see the product.** The add-on store blurb used to say "Local
-   AI-powered Smart Home Assistant". That was wrong on local and wrong on the product.
-   Copy on the GitHub landing page, the add-on description, GitHub About and the
-   dashboard welcome now state the caretaker job. Screenshots of Status, Care and the
-   weekly digest are still missing.
-
-2. **Install still compiles on the user's machine.** There is no `image:` key, so a
-   Raspberry Pi builds TypeScript on first install.
-
-3. **There is not yet a community.home-assistant.io thread.** Directory listings are not
-   that channel. One Share-your-Projects post is the next distribution step.
-
-Do these before any item under [Exploratory](#exploratory). Local models are the one
-exploratory item that is also an install question; start them after that forum thread
-has replies. [Caretaker depth](#caretaker-depth) is a separate technical track — it
-deepens the existing Care/health surfaces, it does not add a new product.
-
-## Caretaker depth
-
-Shipped in [v1.4.0](../ha-claw/CHANGELOG.md#140). Coverage and the hourly analysis used to
-guess from automation *names* and snapshots ("lights on at 14:00"). That invented gaps and
-hid real ones. Do not bring name-matching or hardware-shopping Care cards back.
-
-Out of scope still: buy-this-hardware recipes, print servers, one-click automation writes.
-
-Shipped earlier and recorded in the changelog, not here: health cards and the Status
-screen ([v0.9.6](../ha-claw/CHANGELOG.md#096)–[v0.10.0](../ha-claw/CHANGELOG.md#0100)),
-the trust cut ([v1.0.0](../ha-claw/CHANGELOG.md#100)), safe writes and Care
-([v1.2.0](../ha-claw/CHANGELOG.md#120)), language, notifications, export and pagination
-([v1.3.0](../ha-claw/CHANGELOG.md#130)).
-
-## v1.0.0 — Trust and hardening
-
-Shipped in [v1.0.0](../ha-claw/CHANGELOG.md#100): a test suite where a bug is expensive, a
-pinned non-root image with HEALTHCHECK / watchdog / AppArmor, serialised writes, scheduler
-overlap protection, graceful shutdown, tool-argument validation and the Ingress source-IP
-allowlist.
-
-## v1.1 / v1.2 — shipped
-
-Shipped together in [v1.2.0](../ha-claw/CHANGELOG.md#120): YAML diff and blast radius before
-a config write, snapshot revert, task dry-run, orphan one-click remove, Status → Pflege
-(coverage, naming, energy), weekly digest, blueprint guidance.
-
-Config validation is structural (required keys, known fields, valid `mode`). Home Assistant
-`check_config` is not used — that call inspects YAML files on disk, not a pending UI
-automation. Do not reopen "run check_config before save" without a new HA API that can
-validate a UI config that has not been written yet.
-
-## v1.3 — shipped
-
-Shipped in [v1.3.0](../ha-claw/CHANGELOG.md#130): German and English system prompts and Web
-UI keyed off the Home Assistant locale (with an `en` / `de` override), a Settings
-notification matrix (Telegram, Chat, HA notify, `persistent_notification`), JSON data
-export, and chat history pagination (last 30 on screen, 100 on disk).
-
-## v1.4 — shipped
-
-Shipped in [v1.4.0](../ha-claw/CHANGELOG.md#140): one shared walk of UI automation/script
-configs (coverage from entity refs, not names), analysis as a seeder of at most three
-tasks, two new coverage kinds on existing inventory (`climate_window`, `climate_away`),
-an automation-quality list on Care, and three System Health cards (`energy_meta`,
-`stuck_updates`, `outage_cluster`) plus a 24-hour history ring.
+1. **Visitors cannot see the product.** Screenshots of Status, Care and the weekly digest are
+   missing. The copy already states the caretaker job. They have to come from a running
+   installation.
+2. **Install still compiles on the user's machine.** There is no `image:` key, so a Raspberry
+   Pi builds TypeScript on first install. Pre-built multi-arch images fix that. Publishing
+   them needs registry credentials that are not in this repository.
+3. **There is no community.home-assistant.io thread.** One Share-your-Projects post, in
+   English, is the next distribution step. German-language communities are a second channel,
+   not a replacement.
 
 ## Exploratory
 
@@ -162,11 +98,16 @@ Not scheduled. Listed so they are not rediscovered as new ideas.
   is actually shut, verify the garage is empty. Genuinely useful and genuinely expensive per
   call. Needs `ha_get_camera_image` and a per-call cost guard.
 - **MCP.** Home Assistant ships an MCP server, and MCP is becoming the interop standard.
-  Consuming it would reduce bespoke tool code; exposing HA-Claw's own tools over MCP would let
-  other agents use them. Neither is urgent, both are directionally right.
-- **Local models for tier 1.** Routing cheap state queries to Ollama would cut cost and keep
-  routine traffic in the house. Tool-calling quality on small local models is the open
-  question. Start this after the community forum thread has replies.
+  Exposing HA-Claw's findings over MCP is the more valuable half: any assistant a user already
+  runs could ask what is wrong with the house. Consuming Home Assistant's server would reduce
+  bespoke tool code. Neither is urgent.
+- **Local models for tier 1.** With the core running without a model, this is about the cost
+  of chat, not about install. Tool-calling quality on small local models is the open question.
+  Start after the community forum thread has replies.
+- **Add-on or integration.** Add-ons need the Supervisor, so Home Assistant Container
+  installations cannot run HA-Claw at all. A custom integration could raise native Repairs
+  issues. A second codebase is not justified before there are users; revisit when Container
+  users ask.
 - **Multi-user.** Whitelisted Telegram users are all-or-nothing today. Per-user permissions
   only matter once households actually share an installation.
 - **Memory vector search.** Worth doing at roughly 1,000 cards. Realistic counts are dozens.
@@ -187,23 +128,34 @@ Saying no is the useful half of a roadmap.
 | **Supporting every LLM provider directly** | OpenRouter is the abstraction. One integration, every model. |
 | **Cloud sync, accounts, hosted anything** | The whole point is that it runs on your hardware. |
 | **A plugin or skill marketplace** | Interesting at ten times the current user base. Maintenance burden today. |
+| **Coverage from automation names; buy-this-hardware Care cards** | Name matching invented gaps and hid real ones until v1.4.0 replaced it with config references. Shopping and install recipes are not maintenance. |
+| **Running `check_config` before a UI config save** | It inspects YAML files on disk, not a pending UI automation. Validation stays structural until Home Assistant offers an API that validates an unwritten UI config. |
 
 ## Decided questions
 
-Decided 2026-09-06. Left here so they are not reopened as new ideas. Further input:
-[Discussions](https://github.com/unpaved028/ha-claw/discussions) or
+Decided 2026-09-06 unless dated otherwise. Left here so they are not reopened as new ideas.
+Further input: [Discussions](https://github.com/unpaved028/ha-claw/discussions) or
 [Issues](https://github.com/unpaved028/ha-claw/issues).
 
 1. **The conversation is not the primary interface.** Status, Care and the weekly digest
-   are. Chat is how you ask why a card is red and how you approve work. The default tab
-   stays Chat only because onboarding is a conversation; after that, the docs send people
-   to Status.
+   are. Chat is how you ask why a card is red and how you approve work. Revised 2026-09-27:
+   Status is the default tab. The earlier reason for keeping Chat — onboarding is a
+   conversation — did not hold. The Web UI and Telegram both open on Status and the choice
+   of notification channel. Neither starts a personality interview.
 2. **Two approvals stay for config writes.** Naming apply and orphan remove stay one-click.
    Zero-approval automations are out: trust is still the reason someone would let this
-   rewrite YAML, and undo is not a substitute for reading the diff.
+   rewrite YAML, and undo is not a substitute for reading the diff. The three paths that
+   bypassed this in 1.4.0 are closed; see [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
 3. **Telegram is optional outbound, not the long-term channel.** [v1.3.0](../ha-claw/CHANGELOG.md#130)
    shipped HA `notify` and `persistent_notification`. No further Telegram features. Bugs
    in the existing bot still get fixed.
+4. **The caretaker core runs without a model** (2026-09-27). Status, Care, the weekly digest
+   and notifications need no API key; a key adds chat and task solutions. The core is already
+   deterministic, and requiring a cloud account for it is the largest barrier for a community
+   that prefers local.
+5. **International audience, two languages** (2026-09-27). English leads for documentation and
+   discovery. German stays a complete second language across the UI, the prompts and the
+   manual. Nothing shipped may assume one country, one time zone or one house.
 
 ## How this document is maintained
 

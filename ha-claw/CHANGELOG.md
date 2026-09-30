@@ -6,6 +6,71 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## Unreleased
+
+### Added
+
+- **The caretaker core starts without an OpenRouter key.** Status, Care, the weekly digest
+  and notifications run as before. Chat and task solutions say what a key adds. The Status
+  tab is the first screen and asks where notices should go.
+- **Coverage gaps can be marked on purpose.** Dismissed gaps stay out of Care. The reason is
+  stored and listed in the weekly digest, next to the counts of accepted and rejected tasks.
+- **Findings are Home Assistant entities.** `sensor.ha_claw_health` and
+  `sensor.ha_claw_care_gaps` are updated after each health check.
+- **Learned rules can be listed, disabled and deleted** under Settings → Tools.
+- **Sunday suggestions.** A seeded job (`Suggestions`, Sunday 11:00) loads the CIE prompt
+  and may create at most two tasks with status `proposed`. It runs only when an OpenRouter
+  key is set. Approving a task is what accepts the suggestion. Nothing is written before that.
+
+### Changed
+
+- **Fastify 5.12.5.** The web server dependency moves off 5.8.4. That release line includes
+  the security fixes published with 5.12.1, 5.12.2 and 5.12.5.
+- **Guarded actions need a person, including the paths that used to skip one.** Scheduled
+  jobs cannot confirm tools. Drafting a task solution is a dry run and always stops at
+  "solution proposed". The Telegram button approves the idea only. `schedule_create`,
+  `schedule_once` and `learn_rule` require confirmation. `backlog_update` can reject or
+  defer, not approve. A scene that includes a garage, gate or door cover is guarded.
+  `ha_call_service_dangerous` checks that `entity_id` matches the requested domain.
+- **Blueprint automations count as coverage, and sun-cover gaps ignore garage, gate and door
+  covers.** YAML automations ask Home Assistant `search/related` with `item_type` `automation`
+  or `script` when the UI config is missing, and Care reads the `entity` list. `item_type: entity`
+  lists what references that id, not the entities the automation uses. This matches the Core
+  search integration and has not been run against a live Home Assistant.
+- **Web confirmations belong to the browser that asked.** The dialog is tied to the
+  HttpOnly cookie `ha_claw_sid`. Another browser that can open Ingress cannot answer it.
+- **First run is Status and a notification channel.** The web banner and the first Telegram
+  message say that. Opening the panel does not swallow the Telegram sentence. There is no
+  personality interview.
+- **Leaflet loads with a chat map, not with the page.** Status, Care and Settings no longer
+  fetch `unpkg.com`. OpenStreetMap tiles are still requested only for a visible map.
+- **Chat sends fewer tools.** Notes, the generic store, memory and learning tools are included
+  only when the message asks for them. Tool results sent back to the model are truncated.
+  Prompt caching is requested for Anthropic, Google and DeepSeek models.
+- **Time uses the Home Assistant time zone**, with UTC until that config has been read.
+  Area names come from Home Assistant, not from guessing German room abbreviations.
+- **Context pruning keeps the current question.** Tool schemas are counted against the
+  context budget.
+- **Config snapshots in the action log are kept for 90 days.** Other entries stay at 7 days.
+- **The safety allowlist is unchanged.** The new checks reject more scene members and reject
+  a mismatched `entity_id` on the dangerous service tool. They do not permit a domain that
+  was previously blocked.
+- **YAML search results keep entity ids from every Core bucket that holds them.**
+  `search/related` is read from `entity`, `automation`, `script`, `scene`, `group` and
+  `person`. Areas, devices and other buckets are ignored. An empty parse still falls back
+  to `entity_id` on the state. A running Home Assistant was not available here, so the
+  command was not sent to an installation.
+- **Telegram `/status` stores OpenRouter's `usage.cost` when the response includes it.**
+  The price table is used only when that field is missing, not a finite number, or negative,
+  and that line is labeled as an estimate. A reported cost of zero stays billed. Older stored
+  totals stay estimates. A mix of both is labeled as both. The web Status page does not show
+  a dollar figure. The sum is not a reconciliation of the OpenRouter invoice.
+
+### Fixed
+
+- Telegram confirmations show service name and entity IDs instead of a 200-character slice
+  of the argument JSON.
+
 ## 1.4.0
 
 Coverage from automation config, a quality lint on Care, and three new System Health cards.

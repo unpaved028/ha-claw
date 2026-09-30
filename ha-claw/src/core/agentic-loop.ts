@@ -18,6 +18,7 @@
  */
 
 import { callLLM } from './openrouter.js';
+import { appConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { t } from './strings.js';
 import {
@@ -40,8 +41,9 @@ import {
 } from '../storage/learning.js';
 import { getDynamicPrunedCache } from './entity-cache.js';
 import { clearToolCache } from '../tools/tool-cache.js';
-import { countTokens, pruneMessages } from './context-manager.js';
+import { countTokens, estimateTokens, pruneMessages } from './context-manager.js';
 import { getProfile } from './profile.js';
+import { formatHealthForPrompt, getCachedSystemHealth } from './system-health.js';
 import type {
   ChatMessage,
   AgentConfig,
@@ -54,22 +56,23 @@ import type {
 const log = createLogger('loop');
 
 const MAX_ITERATIONS = 10; // Non-negotiable
+const TOOL_RESULT_CHARS = 8_000;
 
-// Rotating thinking phrases for real-time status feedback
-const THINKING_PHRASES = [
-  'denkt nach',
-  'kombiniert Wissen',
-  'analysiert Situation',
-  'plant nächsten Schritt',
-  'prüft Zusammenhänge',
-  'formuliert Antwort',
-  'berechnet Optionen',
-  'greift auf Daten zu',
-  'ordnet Informationen',
-  'zieht Schlussfolgerungen',
-];
+const THINKING_KEYS = [
+  'thinking.1',
+  'thinking.2',
+  'thinking.3',
+  'thinking.4',
+  'thinking.5',
+  'thinking.6',
+  'thinking.7',
+  'thinking.8',
+  'thinking.9',
+  'thinking.10',
+] as const;
+
 function randomPhrase(): string {
-  return THINKING_PHRASES[Math.floor(Math.random() * THINKING_PHRASES.length)];
+  return t(THINKING_KEYS[Math.floor(Math.random() * THINKING_KEYS.length)] ?? 'thinking.1');
 }
 
 /**
@@ -144,6 +147,10 @@ export async function runAgenticLoop(
   toolFilter?: string[],
   onProgress?: ProgressCallback,
 ): Promise<LoopResult> {
+  if (!appConfig.openRouterApiKey) {
+    return { response: t('loop.noKey'), iterations: 0, toolCalls: [] };
+  }
+
   clearToolCache();
   let toolDefs = getToolDefinitions();
   if (toolFilter) {
@@ -216,6 +223,14 @@ export async function runAgenticLoop(
     /* non-critical */
   }
 
+  // 6. Current health, so chat can explain a red card without a second analysis.
+  try {
+    const health = await getCachedSystemHealth();
+    if (health) systemPrompt += '\n\n' + formatHealthForPrompt(health);
+  } catch {
+    /* non-critical */
+  }
+
   const initialMessages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
     ...history,
@@ -224,7 +239,9 @@ export async function runAgenticLoop(
 
   // History Pruning (Context Window Management)
   const profile = getProfile();
-  const messages = pruneMessages(initialMessages, profile.maxContextTokens || 4000);
+  const toolOverhead = estimateTokens(toolDefs);
+  const messageBudget = Math.max(512, (profile.maxContextTokens || 4000) - toolOverhead);
+  const messages = pruneMessages(initialMessages, messageBudget);
 
   log.info('Loop started', {
     agent: agent.name,
@@ -259,7 +276,7 @@ export async function runAgenticLoop(
     if (choice.finish_reason === 'stop' || !assistantMsg.tool_calls?.length) {
       log.info('Loop completed', { iterations: i + 1, toolCalls: toolCallLog.length });
       return {
-        response: sanitizeResponse(assistantMsg.content ?? '(keine Antwort)'),
+        response: sanitizeResponse(assistantMsg.content ?? t('loop.empty')),
         iterations: i + 1,
         toolCalls: toolCallLog,
       };
@@ -296,10 +313,13 @@ export async function runAgenticLoop(
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
-          content: result,
+          content: truncate(result, TOOL_RESULT_CHARS),
         });
       }
     }
+
+    const prunedNow = pruneMessages(messages, messageBudget);
+    if (prunedNow !== messages) messages.splice(0, messages.length, ...prunedNow);
 
     // Escalate the model tier if a more complex tool ran in this iteration.
     const maxTier = Math.max(...toolCalls.map(c => getToolComplexity(c.function.name)));
@@ -311,7 +331,7 @@ export async function runAgenticLoop(
 
   log.warn('Max iterations reached', { max: MAX_ITERATIONS });
   return {
-    response: 'Maximale Iterationen erreicht. Loop wurde aus Sicherheitsgründen beendet.',
+    response: t('loop.maxIterations'),
     iterations: MAX_ITERATIONS,
     toolCalls: toolCallLog,
   };

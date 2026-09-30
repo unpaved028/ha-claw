@@ -27,6 +27,7 @@ import { join } from 'node:path';
 import { appConfig } from '../core/config.js';
 import { createLogger } from '../core/logger.js';
 import { dateLocale, t } from '../core/strings.js';
+import { formatInHomeZone, homeTimeZone, knownHomeTimeZone } from '../core/ha-time.js';
 import { getCircuitBreakerState } from '../core/openrouter.js';
 import { atomicWriteJson, withPathLock } from './atomic-write.js';
 
@@ -39,8 +40,8 @@ export interface ScheduledJob {
   name: string;
   schedule: string; // human-readable schedule string
   message: string; // message to send to the agentic loop
-  /** `digest` skips the agent loop and sends the weekly home review. Default is `agent`. */
-  kind?: 'agent' | 'digest';
+  /** `digest` skips the agent loop. `cie` is the weekly suggestions pass. Default is `agent`. */
+  kind?: 'agent' | 'digest' | 'cie';
   enabled: boolean;
   oneshot: boolean; // one-time job (auto-disabled after execution)
   createdAt: string;
@@ -304,7 +305,7 @@ export async function createJob(opts: {
   schedule: string;
   message: string;
   oneshot?: boolean;
-  kind?: 'agent' | 'digest';
+  kind?: 'agent' | 'digest' | 'cie';
 }): Promise<ScheduledJob> {
   // Validate schedule
   const nextRun = calcNextRun(opts.schedule);
@@ -363,7 +364,7 @@ export async function updateJob(
     name?: string;
     schedule?: string;
     message?: string;
-    kind?: 'agent' | 'digest';
+    kind?: 'agent' | 'digest' | 'cie';
   },
 ): Promise<ScheduledJob | null> {
   const job = jobs.find(j => j.id === id);
@@ -396,11 +397,12 @@ export async function deleteJob(id: string): Promise<boolean> {
 export function getSchedulerSummary(): string {
   const active = jobs.filter(j => j.enabled);
   if (active.length === 0) return '';
+  void homeTimeZone();
+  const zone = knownHomeTimeZone();
   const lines = active.map(j => {
     const type = j.oneshot ? t('scheduler.once') : t('scheduler.recurring');
     const nextInfo = j.nextRunAt
-      ? ` | ${t('scheduler.next')}: ` +
-        new Date(j.nextRunAt).toLocaleString(dateLocale(), { timeZone: 'Europe/Berlin' })
+      ? ` | ${t('scheduler.next')}: ` + formatInHomeZone(new Date(j.nextRunAt), zone, dateLocale())
       : '';
     return `- [${j.id}] "${j.name}" (${j.schedule}, ${type}) → "${j.message}"${nextInfo}`;
   });

@@ -10,23 +10,23 @@ import { Bot, InlineKeyboard } from 'grammy';
 import { appConfig } from '../core/config.js';
 import * as ha from '../core/ha-client.js';
 import { createLogger } from '../core/logger.js';
-import { getProfile, personalityPrompt, needsOnboarding, saveProfile } from '../core/profile.js';
 import {
-  isOnboarding,
-  startOnboarding,
-  endOnboarding,
-  loadOnboardingPrompt,
-} from '../core/onboarding.js';
+  getProfile,
+  personalityPrompt,
+  completeTelegramIntro,
+  saveProfile,
+} from '../core/profile.js';
 import { getSchedulerSummary } from '../storage/scheduler.js';
 import { runAgenticLoop } from '../core/agentic-loop.js';
+import { getToolNames } from '../tools/registry.js';
+import { selectToolNames } from '../tools/tool-selection.js';
 import {
-  SHARED_CONVERSATION_ID,
   loadConversation,
   saveConversation,
   appendUserMessage,
   appendAssistantMessage,
 } from '../storage/conversation.js';
-import { getGlobalStats } from '../storage/usage-tracker.js';
+import { costTotals, getGlobalStats } from '../storage/usage-tracker.js';
 import {
   getCachedSystemHealth,
   getSystemHealth,
@@ -50,18 +50,6 @@ function buildAgent() {
     model: profile.modelOverride || undefined,
   };
 }
-
-function buildOnboardingAgent() {
-  const profile = getProfile();
-  const prompt = loadOnboardingPrompt();
-  return {
-    name: 'onboarding',
-    systemPrompt: prompt,
-    model: profile.modelOverride || undefined,
-  };
-}
-
-const ONBOARDING_TOOLS = ['save_onboarding_profile', 'get_current_time', 'schedule_create'];
 
 export function createBot(): Bot {
   if (!appConfig.telegramBotToken) {
@@ -94,11 +82,29 @@ export function createBot(): Bot {
 
     let usageMsg = '';
     if (stats) {
-      usageMsg = t('telegram.statusUsage', {
+      const totals = costTotals(stats);
+      const money = (usd: number) => usd.toFixed(4);
+      const common = {
         requests: stats.numRequests,
         tokens: stats.totalTokens.toLocaleString(),
-        cost: stats.totalCostUsd.toFixed(4),
-      });
+      };
+      if (totals.kind === 'mixed') {
+        usageMsg = t('telegram.statusUsageMixed', {
+          ...common,
+          billed: money(totals.billedCostUsd),
+          estimated: money(totals.estimatedCostUsd),
+        });
+      } else if (totals.kind === 'billed') {
+        usageMsg = t('telegram.statusUsageBilled', {
+          ...common,
+          cost: money(totals.billedCostUsd),
+        });
+      } else {
+        usageMsg = t('telegram.statusUsageEstimated', {
+          ...common,
+          cost: money(totals.estimatedCostUsd),
+        });
+      }
     }
 
     let healthMsg;
@@ -200,34 +206,8 @@ export function createBot(): Bot {
     // Show typing indicator
     await ctx.replyWithChatAction('typing');
 
-    // ── Onboarding ──
-    if (needsOnboarding()) {
-      if (!isOnboarding(SHARED_CONVERSATION_ID)) startOnboarding(SHARED_CONVERSATION_ID);
-      try {
-        const agent = buildOnboardingAgent();
-        const confirmFn = createTelegramConfirmFn(bot, chatId, ctx.from.id);
-        const history = await appendUserMessage(text);
-        const result = await runAgenticLoop(
-          text,
-          agent,
-          confirmFn,
-          history,
-          ONBOARDING_TOOLS,
-          () => {
-            ctx.replyWithChatAction('typing').catch(console.error);
-          },
-        );
-
-        await appendAssistantMessage(result.response);
-
-        if (!needsOnboarding()) endOnboarding(SHARED_CONVERSATION_ID);
-        await sendTelegramResponse(ctx as any, result.response);
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        log.error('Onboarding error', { error: errMsg });
-        await ctx.reply(t('telegram.onboardingError', { error: errMsg.slice(0, 200) }));
-      }
-      return;
+    if (await completeTelegramIntro()) {
+      await ctx.reply(t('telegram.firstRun'));
     }
 
     await handleAgenticLoop(ctx, chatId, ctx.from.id, text);
@@ -269,9 +249,16 @@ export function createBot(): Bot {
 
       history = await appendUserMessage(text);
 
-      const result = await runAgenticLoop(text, agent, confirmFn, history, undefined, () => {
-        ctx.replyWithChatAction('typing').catch(console.error);
-      });
+      const result = await runAgenticLoop(
+        text,
+        agent,
+        confirmFn,
+        history,
+        selectToolNames('chat', text, getToolNames()),
+        () => {
+          ctx.replyWithChatAction('typing').catch(console.error);
+        },
+      );
 
       await appendAssistantMessage(result.response);
       await sendTelegramResponse(ctx as any, result.response);

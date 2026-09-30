@@ -73,6 +73,8 @@ export interface OpenRouterResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    /** USD credits OpenRouter charged for this request. Absent on some responses. */
+    cost?: number;
   };
 }
 
