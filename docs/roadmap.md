@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.4.0**. Last reviewed: 2026-09-29.
+Current version: **1.5.0**. Last reviewed: 2026-10-01.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a
@@ -62,8 +62,8 @@ you about it.
 
 ## Where the effort goes
 
-Trust, a model-optional core, and the caretaker-depth items that were wrong in code are in
-[Unreleased](../ha-claw/CHANGELOG.md#unreleased). What is left is discovery, and it leaves
+Trust, a model-optional core, and the caretaker-depth items that were wrong in code shipped in
+[1.5.0](../ha-claw/CHANGELOG.md#150). What is left is discovery, and it leaves
 this repository: screenshots of a running install, pre-built images, a forum thread.
 
 **Why discovery is next.** Nobody outside the maintainer's own installation has reported
@@ -145,7 +145,7 @@ Further input: [Discussions](https://github.com/unpaved028/ha-claw/discussions) 
 2. **Two approvals stay for config writes.** Naming apply and orphan remove stay one-click.
    Zero-approval automations are out: trust is still the reason someone would let this
    rewrite YAML, and undo is not a substitute for reading the diff. The three paths that
-   bypassed this in 1.4.0 are closed; see [Unreleased](../ha-claw/CHANGELOG.md#unreleased).
+   bypassed this in 1.4.0 are closed in [1.5.0](../ha-claw/CHANGELOG.md#150).
 3. **Telegram is optional outbound, not the long-term channel.** [v1.3.0](../ha-claw/CHANGELOG.md#130)
    shipped HA `notify` and `persistent_notification`. No further Telegram features. Bugs
    in the existing bot still get fixed.

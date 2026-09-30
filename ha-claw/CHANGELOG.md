@@ -6,7 +6,10 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
-## Unreleased
+## 1.5.0
+
+The caretaker runs without a model. Scheduled jobs cannot confirm tools, and an approved
+solution still refuses new schedules and learned rules.
 
 ### Added
 
@@ -34,9 +37,8 @@ Format follows https://keepachangelog.com.
   `ha_call_service_dangerous` checks that `entity_id` matches the requested domain.
 - **Blueprint automations count as coverage, and sun-cover gaps ignore garage, gate and door
   covers.** YAML automations ask Home Assistant `search/related` with `item_type` `automation`
-  or `script` when the UI config is missing, and Care reads the `entity` list. `item_type: entity`
-  lists what references that id, not the entities the automation uses. This matches the Core
-  search integration and has not been run against a live Home Assistant.
+  or `script` when the UI config is missing. `item_type: entity` lists what references that
+  id, not the entities the automation uses.
 - **Web confirmations belong to the browser that asked.** The dialog is tied to the
   HttpOnly cookie `ha_claw_sid`. Another browser that can open Ingress cannot answer it.
 - **First run is Status and a notification channel.** The web banner and the first Telegram

@@ -1,6 +1,6 @@
 {
   "name": "ha-claw",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Maintains a Home Assistant install: health, gaps, and approved fixes",
   "type": "module",
   "engines": {
