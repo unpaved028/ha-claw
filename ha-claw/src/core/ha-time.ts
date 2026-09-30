@@ -15,7 +15,8 @@ export async function homeTimeZone(): Promise<string> {
   if (!isHAAvailable()) return 'UTC';
   try {
     const config = await getConfig();
-    const zone = typeof config['time_zone'] === 'string' && config['time_zone'] ? config['time_zone'] : 'UTC';
+    const zone =
+      typeof config['time_zone'] === 'string' && config['time_zone'] ? config['time_zone'] : 'UTC';
     cached = { zone, at: Date.now() };
     return zone;
   } catch {

@@ -5,7 +5,8 @@ const I18N = {
     'welcome.sub':
       'Ich halte deine Installation im Blick. Frag nach einem Befund, oder öffne Status → Pflege.',
     'welcome.cie': 'Vorschläge machen',
-    'welcome.cieTitle': 'Höchstens zwei Verbesserungen vorschlagen. Dafür braucht es einen OpenRouter-Key.',
+    'welcome.cieTitle':
+      'Höchstens zwei Verbesserungen vorschlagen. Dafür braucht es einen OpenRouter-Key.',
     'chat.placeholder': 'Nach einem Befund oder einer Lücke fragen…',
     'chat.mic': 'Spracheingabe',
     'chat.micListen': 'Aufnahme... (Klick zum Stoppen)',

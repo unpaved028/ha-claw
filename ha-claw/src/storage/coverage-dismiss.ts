@@ -45,7 +45,9 @@ async function readGaps(): Promise<DismissedGap[]> {
       });
     }
     if (Array.isArray(raw.keys)) {
-      return raw.keys.flatMap(key => (typeof key === 'string' && key ? [{ key, reason: '', at: '' }] : []));
+      return raw.keys.flatMap(key =>
+        typeof key === 'string' && key ? [{ key, reason: '', at: '' }] : [],
+      );
     }
     return [];
   } catch {

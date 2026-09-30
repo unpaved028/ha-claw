@@ -105,7 +105,8 @@ const SNAPSHOT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 export function shouldKeepAction(entry: ActionEntry, now = Date.now()): boolean {
   const ts = new Date(entry.timestamp).getTime();
   if (!Number.isFinite(ts)) return false;
-  const limit = entry.rollback && isConfigRestore(entry.rollback) ? SNAPSHOT_RETENTION_MS : ACTION_RETENTION_MS;
+  const limit =
+    entry.rollback && isConfigRestore(entry.rollback) ? SNAPSHOT_RETENTION_MS : ACTION_RETENTION_MS;
   return now - ts < limit;
 }
 

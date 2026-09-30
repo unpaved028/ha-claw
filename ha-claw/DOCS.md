@@ -411,13 +411,13 @@ Everything it has learned is visible by asking, and it all lives in your Home As
 
 ## Telegram commands
 
-| Command   | Does                                                        |
-| --------- | ----------------------------------------------------------- |
-| `/help`   | What the bot can do                                         |
+| Command   | Does                                                                 |
+| --------- | -------------------------------------------------------------------- |
+| `/help`   | What the bot can do                                                  |
 | `/status` | Uptime, memory, OpenRouter cost or a labeled estimate, system health |
-| `/rooms`  | Buttons for every area — tap one for its status             |
-| `/ping`   | Quick liveness check                                        |
-| `/start`  | Welcome message                                             |
+| `/rooms`  | Buttons for every area — tap one for its status                      |
+| `/ping`   | Quick liveness check                                                 |
+| `/start`  | Welcome message                                                      |
 
 Everything else is just conversation. Voice notes work if `openai_api_key` is set. When
 something fails there is a **Try again** button.

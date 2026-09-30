@@ -423,13 +423,13 @@ Alles Gelernte kannst du dir zeigen lassen, und alles liegt in deinem Home-Assis
 
 ## Telegram-Befehle
 
-| Befehl    | Macht                                                                          |
-| --------- | ------------------------------------------------------------------------------ |
-| `/help`   | Was der Bot kann                                                               |
+| Befehl    | Macht                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------- |
+| `/help`   | Was der Bot kann                                                                         |
 | `/status` | Laufzeit, Speicher, OpenRouter-Kosten oder eine gekennzeichnete Schätzung, Systemzustand |
-| `/rooms`  | Knöpfe für jeden Bereich — antippen für dessen Status                          |
-| `/ping`   | Kurzer Lebenszeichen-Test                                                      |
-| `/start`  | Begrüssung                                                                     |
+| `/rooms`  | Knöpfe für jeden Bereich — antippen für dessen Status                                    |
+| `/ping`   | Kurzer Lebenszeichen-Test                                                                |
+| `/start`  | Begrüssung                                                                               |
 
 Alles andere ist einfach Gespräch. Sprachnachrichten funktionieren, wenn `openai_api_key`
 gesetzt ist. Geht etwas schief, gibt es einen **Nochmal versuchen**-Knopf.

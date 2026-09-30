@@ -26,13 +26,7 @@ const ON_DEMAND: OnDemandGroup[] = [
     pattern: /\b(store|json|sammlung|collection)\b/i,
   },
   {
-    tools: [
-      'memory_remember',
-      'memory_recall',
-      'memory_update',
-      'memory_forget',
-      'memory_list',
-    ],
+    tools: ['memory_remember', 'memory_recall', 'memory_update', 'memory_forget', 'memory_list'],
     pattern: /\b(memory|erinnerung|erinnerungen|merk dir|vergiss|remember|forget)\b/i,
   },
   {
