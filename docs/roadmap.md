@@ -1,6 +1,6 @@
 # Roadmap and Product Direction
 
-Current version: **1.5.0**. Last reviewed: 2026-10-01.
+Current version: **1.5.1**. Last reviewed: 2026-10-01.
 
 This document answers three questions: what HA-Claw is for, what gap it fills next to Home
 Assistant's own capabilities, and what gets built next. It is opinionated on purpose — a

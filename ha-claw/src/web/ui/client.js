@@ -29,6 +29,13 @@ const micBtn = document.getElementById('mic');
 
 let historyOffset = 0;
 let historyHasMore = false;
+// Declared before the first activateStatusSection() call. That call stops the
+// log poll and starts health, and a later `let` would still be in the temporal
+// dead zone — the throw used to abort the rest of this script, so Settings
+// navigation never bound and every Status panel stayed on its placeholder.
+let healthPollTimer = null;
+let logsPolling = null;
+let lastLogCount = 0;
 
 function showFirstRun(d) {
   const el = document.getElementById('first-run');
@@ -1345,8 +1352,6 @@ function esc(s) {
 // so persisting them as tasks produced a new entry on every analysis run.
 const HEALTH_ICONS = { ok: '&#9989;', warn: '&#9888;&#65039;', critical: '&#128308;' };
 
-let healthPollTimer = null;
-
 function stopHealthPoll() {
   if (healthPollTimer) {
     clearInterval(healthPollTimer);
@@ -2213,8 +2218,6 @@ async function submitBacklogTask() {
 // ── Logs ──────────────────────────────────────────────────
 const logsBody = document.getElementById('logs-body');
 const logsInput = document.getElementById('logs-input');
-let logsPolling = null;
-let lastLogCount = 0;
 
 const LEVEL_CLASS = {
   debug: 'log-level-debug',

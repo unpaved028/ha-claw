@@ -6,6 +6,17 @@ as written — rewriting shipped release notes destroys the record without helpi
 Format follows https://keepachangelog.com.
 -->
 
+## 1.5.1
+
+Status, Care, Tasks and Logs stayed on their placeholders, and Settings sections such as
+Tool Vault and notifications did not open. The dashboard script stopped during startup.
+
+### Fixed
+
+- **The dashboard script no longer dies while Status opens.** The startup call touched a
+  log-polling variable before it was initialized. That throw skipped the rest of the script,
+  so the panels never loaded and the Settings click handlers were never attached.
+
 ## 1.5.0
 
 The caretaker runs without a model. Scheduled jobs cannot confirm tools, and an approved
